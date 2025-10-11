@@ -5,6 +5,55 @@ mod tui;
 mod ui;
 mod utils;
 
-fn main() {
-    println!("Hello, world!");
+use ratatui::{
+    backend::CrosstermBackend,
+    Terminal,
+};
+use std::io;
+use crossterm::event;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // setup terminal
+    let mut stdout = io::stdout();
+    crossterm::terminal::enable_raw_mode()?;
+    crossterm::execute!(stdout, crossterm::terminal::EnterAlternateScreen)?;
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = Terminal::new(backend)?;
+
+    // create app and run it
+    let res = run(&mut terminal);
+
+    // restore terminal
+    crossterm::terminal::disable_raw_mode()?;
+    crossterm::execute!(
+        terminal.backend_mut(),
+        crossterm::terminal::LeaveAlternateScreen,
+    )?;
+    terminal.show_cursor()?;
+
+    if let Err(err) = res {
+        println!("{:?}", err);
+        return Err(err);
+    }
+
+    Ok(())
+}
+
+fn run<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>) -> Result<(), Box<dyn std::error::Error>> {
+    let modules = project::get_project_modules()?;
+    let mut state = tui::TuiState::new(modules);
+
+    loop {
+        tui::draw(terminal, &mut state)?;
+
+        if event::poll(std::time::Duration::from_millis(50))? {
+            if let event::Event::Key(key) = event::read()? {
+                if key.code == event::KeyCode::Char('q') {
+                    break;
+                }
+                tui::handle_key_event(key, &mut state);
+            }
+        }
+    }
+    Ok(())
 }
