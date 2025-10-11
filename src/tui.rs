@@ -30,7 +30,14 @@ pub fn draw<B: Backend>(terminal: &mut Terminal<B>, state: &mut TuiState) -> Res
             CurrentView::Profiles => {
                 // Profiles panel
                 let profiles_block = Block::default().title("Profiles").borders(Borders::ALL);
-                let list_items: Vec<ListItem> = state.profiles.iter().map(|p| ListItem::new(p.as_str())).collect();
+                let list_items: Vec<ListItem> = state.profiles.iter().map(|p| {
+                    let line = if state.active_profiles.contains(p) {
+                        format!("* {}", p)
+                    } else {
+                        format!("  {}", p)
+                    };
+                    ListItem::new(line)
+                }).collect();
                 let list = List::new(list_items)
                     .block(profiles_block)
                     .highlight_style(Style::default().add_modifier(Modifier::BOLD).fg(Color::Yellow))
@@ -58,6 +65,7 @@ pub struct TuiState {
     pub current_view: CurrentView,
     pub modules: Vec<String>,
     pub profiles: Vec<String>,
+    pub active_profiles: Vec<String>,
     pub modules_list_state: ListState,
     pub profiles_list_state: ListState,
     pub command_output: Vec<String>,
@@ -73,6 +81,7 @@ impl TuiState {
             current_view: CurrentView::Modules,
             modules,
             profiles: vec![],
+            active_profiles: vec![],
             modules_list_state,
             profiles_list_state,
             command_output: vec![],
@@ -133,6 +142,17 @@ impl TuiState {
             }
         }
     }
+
+    pub fn toggle_profile(&mut self) {
+        if let Some(selected) = self.profiles_list_state.selected() {
+            let profile = &self.profiles[selected];
+            if self.active_profiles.contains(profile) {
+                self.active_profiles.retain(|p| p != profile);
+            } else {
+                self.active_profiles.push(profile.clone());
+            }
+        }
+    }
 }
 
 pub fn handle_key_event(key: KeyEvent, state: &mut TuiState) {
@@ -154,23 +174,28 @@ pub fn handle_key_event(key: KeyEvent, state: &mut TuiState) {
         }
         KeyCode::Char('b') => {
             let args = &["-T1C", "-DskipTests", "package"];
-            state.command_output = maven::execute_maven_command(&state.project_root, args).unwrap_or_else(|e| vec![e.to_string()]);
+            state.command_output = maven::execute_maven_command(&state.project_root, args, &state.active_profiles).unwrap_or_else(|e| vec![e.to_string()]);
         }
         KeyCode::Char('t') => {
             let args = &["test"];
-            state.command_output = maven::execute_maven_command(&state.project_root, args).unwrap_or_else(|e| vec![e.to_string()]);
+            state.command_output = maven::execute_maven_command(&state.project_root, args, &state.active_profiles).unwrap_or_else(|e| vec![e.to_string()]);
         }
         KeyCode::Char('c') => {
             let args = &["clean"];
-            state.command_output = maven::execute_maven_command(&state.project_root, args).unwrap_or_else(|e| vec![e.to_string()]);
+            state.command_output = maven::execute_maven_command(&state.project_root, args, &state.active_profiles).unwrap_or_else(|e| vec![e.to_string()]);
         }
         KeyCode::Char('i') => {
             let args = &["-DskipTests", "install"];
-            state.command_output = maven::execute_maven_command(&state.project_root, args).unwrap_or_else(|e| vec![e.to_string()]);
+            state.command_output = maven::execute_maven_command(&state.project_root, args, &state.active_profiles).unwrap_or_else(|e| vec![e.to_string()]);
         }
         KeyCode::Char('d') => {
             let args = &["dependency:tree"];
-            state.command_output = maven::execute_maven_command(&state.project_root, args).unwrap_or_else(|e| vec![e.to_string()]);
+            state.command_output = maven::execute_maven_command(&state.project_root, args, &state.active_profiles).unwrap_or_else(|e| vec![e.to_string()]);
+        }
+        KeyCode::Enter => {
+            if state.current_view == CurrentView::Profiles {
+                state.toggle_profile();
+            }
         }
         _ => {}
     }
@@ -205,11 +230,14 @@ mod tests {
         // Test Profiles view
         state.current_view = CurrentView::Profiles;
         state.profiles = vec!["profile1".to_string(), "profile2".to_string()];
+        state.active_profiles = vec!["profile1".to_string()];
         draw(&mut terminal, &mut state).unwrap();
         let buffer = terminal.backend().buffer();
         let line0 = buffer.content.iter().take(26).map(|c| c.symbol()).collect::<String>();
         assert!(line0.contains("Profiles"));
         assert!(line0.contains("Output"));
+        let line1 = buffer.content.iter().skip(26).take(26).map(|c| c.symbol()).collect::<String>();
+        assert!(line1.contains("* profile1"));
     }
 
     #[test]
@@ -252,7 +280,7 @@ mod tests {
         let mvnw_path = project_root.join("mvnw");
         let mut mvnw_file = std::fs::File::create(&mvnw_path).unwrap();
         use std::io::Write;
-        mvnw_file.write_all(b"#!/bin/sh\necho 'build output'").unwrap();
+        mvnw_file.write_all(b"#!/bin/sh\necho $@").unwrap();
         use std::os::unix::fs::PermissionsExt;
         let mut perms = mvnw_file.metadata().unwrap().permissions();
         perms.set_mode(0o755);
@@ -262,12 +290,13 @@ mod tests {
         // 3. Create TuiState
         let modules = vec!["module1".to_string()];
         let mut state = TuiState::new(modules, project_root.to_path_buf());
+        state.active_profiles = vec!["p1".to_string()];
 
         // 4. Simulate 'b' key press
         handle_key_event(KeyEvent::from(KeyCode::Char('b')), &mut state);
 
         // 5. Assert command output
-        assert_eq!(state.command_output, vec!["build output"]);
+        assert_eq!(state.command_output, vec!["-P p1 -T1C -DskipTests package"]);
     }
 
     #[test]
@@ -290,19 +319,20 @@ mod tests {
         // 3. Create TuiState
         let modules = vec!["module1".to_string()];
         let mut state = TuiState::new(modules, project_root.to_path_buf());
+        state.active_profiles = vec!["p1".to_string()];
 
         // 4. Simulate key presses and assert command output
         handle_key_event(KeyEvent::from(KeyCode::Char('t')), &mut state);
-        assert_eq!(state.command_output, vec!["test"]);
+        assert_eq!(state.command_output, vec!["-P p1 test"]);
 
         handle_key_event(KeyEvent::from(KeyCode::Char('c')), &mut state);
-        assert_eq!(state.command_output, vec!["clean"]);
+        assert_eq!(state.command_output, vec!["-P p1 clean"]);
 
         handle_key_event(KeyEvent::from(KeyCode::Char('i')), &mut state);
-        assert_eq!(state.command_output, vec!["-DskipTests install"]);
+        assert_eq!(state.command_output, vec!["-P p1 -DskipTests install"]);
 
         handle_key_event(KeyEvent::from(KeyCode::Char('d')), &mut state);
-        assert_eq!(state.command_output, vec!["dependency:tree"]);
+        assert_eq!(state.command_output, vec!["-P p1 dependency:tree"]);
     }
 
     #[test]
@@ -321,5 +351,29 @@ mod tests {
         // Press 'p' again to switch back to Modules
         handle_key_event(KeyEvent::from(KeyCode::Char('p')), &mut state);
         assert_eq!(state.current_view, CurrentView::Modules);
+    }
+
+    #[test]
+    fn test_profile_activation() {
+        let modules = vec![];
+        let project_root = PathBuf::from("/");
+        let mut state = TuiState::new(modules, project_root);
+        state.profiles = vec!["profile1".to_string(), "profile2".to_string()];
+        state.current_view = CurrentView::Profiles;
+        state.profiles_list_state.select(Some(0));
+
+        // Activate profile1
+        handle_key_event(KeyEvent::from(KeyCode::Enter), &mut state);
+        assert_eq!(state.active_profiles, vec!["profile1"]);
+
+        // Activate profile2
+        state.profiles_list_state.select(Some(1));
+        handle_key_event(KeyEvent::from(KeyCode::Enter), &mut state);
+        assert_eq!(state.active_profiles, vec!["profile1", "profile2"]);
+
+        // Deactivate profile1
+        state.profiles_list_state.select(Some(0));
+        handle_key_event(KeyEvent::from(KeyCode::Enter), &mut state);
+        assert_eq!(state.active_profiles, vec!["profile2"]);
     }
 }

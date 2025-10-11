@@ -10,9 +10,13 @@ pub fn get_maven_command(project_root: &Path) -> String {
     }
 }
 
-pub fn execute_maven_command(project_root: &Path, args: &[&str]) -> Result<Vec<String>, std::io::Error> {
+pub fn execute_maven_command(project_root: &Path, args: &[&str], profiles: &[String]) -> Result<Vec<String>, std::io::Error> {
     let maven_command = get_maven_command(project_root);
-    let mut child = Command::new(maven_command)
+    let mut command = Command::new(maven_command);
+    if !profiles.is_empty() {
+        command.arg("-P").arg(profiles.join(","));
+    }
+    let mut child = command
         .args(args)
         .current_dir(project_root)
         .stdout(Stdio::piped())
@@ -31,7 +35,7 @@ pub fn execute_maven_command(project_root: &Path, args: &[&str]) -> Result<Vec<S
 }
 
 pub fn get_profiles(project_root: &Path) -> Result<Vec<String>, std::io::Error> {
-    let output = execute_maven_command(project_root, &["help:all-profiles"])?;
+    let output = execute_maven_command(project_root, &["help:all-profiles"], &[])?;
     let profiles = output
         .iter()
         .filter_map(|line| {
@@ -83,8 +87,29 @@ mod tests {
         mvnw_file.set_permissions(perms).unwrap();
         drop(mvnw_file);
 
-        let output = execute_maven_command(project_root, &["test"]).unwrap();
+        let output = execute_maven_command(project_root, &["test"], &[]).unwrap();
         assert_eq!(output, vec!["line 1", "line 2"]);
+    }
+
+    #[test]
+    fn execute_maven_command_with_profiles() {
+        let dir = tempdir().unwrap();
+        let project_root = dir.path();
+
+        // Create a mock mvnw script
+        let mvnw_path = project_root.join("mvnw");
+        let mut mvnw_file = File::create(&mvnw_path).unwrap();
+        use std::io::Write;
+        mvnw_file.write_all(b"#!/bin/sh\necho $@").unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = mvnw_file.metadata().unwrap().permissions();
+        perms.set_mode(0o755);
+        mvnw_file.set_permissions(perms).unwrap();
+        drop(mvnw_file);
+
+        let profiles = vec!["p1".to_string(), "p2".to_string()];
+        let output = execute_maven_command(project_root, &["test"], &profiles).unwrap();
+        assert_eq!(output, vec!["-P p1,p2 test"]);
     }
 
     #[test]
