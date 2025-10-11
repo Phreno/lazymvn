@@ -207,7 +207,6 @@ mod tests {
     use tempfile::tempdir;
     use ratatui::{
         backend::TestBackend,
-        buffer::Buffer,
         Terminal,
     };
 
