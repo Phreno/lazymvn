@@ -49,6 +49,29 @@ pub fn get_modules(pom_path: &Path) -> Vec<String> {
     modules
 }
 
+pub mod cache {
+    use serde::{Deserialize, Serialize};
+    use std::path::Path;
+    use std::fs;
+    use serde_json;
+
+    #[derive(Serialize, Deserialize, Debug, PartialEq)]
+    pub struct Cache {
+        pub modules: Vec<String>,
+    }
+
+    pub fn save_cache(path: &Path, cache: &Cache) -> Result<(), std::io::Error> {
+        let json = serde_json::to_string(cache).unwrap();
+        fs::write(path, json)
+    }
+
+    pub fn load_cache(path: &Path) -> Result<Cache, std::io::Error> {
+        let json = fs::read_to_string(path)?;
+        let cache: Cache = serde_json::from_str(&json).unwrap();
+        Ok(cache)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -97,5 +120,20 @@ mod tests {
 
         let modules = get_modules(&pom_path);
         assert_eq!(modules, vec!["module1", "module2"]);
+    }
+
+    #[test]
+    fn cache_save_and_load() {
+        let dir = tempdir().unwrap();
+        let cache_path = dir.path().join("cache.json");
+
+        let cache_to_save = cache::Cache {
+            modules: vec!["module1".to_string(), "module2".to_string()],
+        };
+
+        cache::save_cache(&cache_path, &cache_to_save).unwrap();
+
+        let loaded_cache = cache::load_cache(&cache_path).unwrap();
+        assert_eq!(cache_to_save, loaded_cache);
     }
 }
