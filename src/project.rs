@@ -1,5 +1,4 @@
 use std::path::{Path, PathBuf};
-use dirs;
 use std::fs;
 use quick_xml::Reader;
 use quick_xml::events::Event;
@@ -50,25 +49,11 @@ pub fn get_modules(pom_path: &Path) -> Vec<String> {
     modules
 }
 
-pub fn get_project_modules() -> Result<Vec<String>, Box<dyn std::error::Error>> {
-    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
-    let cache_dir = home_dir.join(".config/lazymvn");
-    let cache_path = cache_dir.join("cache.json");
-
-    if cache_path.exists() {
-        if let Ok(cache) = cache::load_cache(&cache_path) {
-            return Ok(cache.modules);
-        }
-    }
-
+pub fn get_project_modules() -> Result<(Vec<String>, PathBuf), Box<dyn std::error::Error>> {
     let pom_path = find_pom().ok_or("pom.xml not found")?;
+    let project_root = pom_path.parent().unwrap().to_path_buf();
     let modules = get_modules(&pom_path);
-
-    fs::create_dir_all(&cache_dir)?;
-    let cache = cache::Cache { modules: modules.clone() };
-    cache::save_cache(&cache_path, &cache)?;
-
-    Ok(modules)
+    Ok((modules, project_root))
 }
 
 pub mod cache {
@@ -162,12 +147,8 @@ mod tests {
 
     #[test]
     fn get_project_modules_integration_test() {
-        // 1. Setup temp project and home directory
+        // 1. Setup temp project
         let project_dir = tempdir().unwrap();
-        let home_dir = tempdir().unwrap();
-        unsafe {
-            env::set_var("HOME", home_dir.path());
-        }
 
         // 2. Create pom.xml in project
         let pom_path = project_dir.path().join("pom.xml");
@@ -179,23 +160,12 @@ mod tests {
         let original_dir = env::current_dir().unwrap();
         env::set_current_dir(project_dir.path()).unwrap();
 
-        // 4. Call get_project_modules for the first time
-        let modules = get_project_modules().unwrap();
+        // 4. Call get_project_modules
+        let (modules, project_root) = get_project_modules().unwrap();
         assert_eq!(modules, vec!["module1", "module2"]);
+        assert_eq!(project_root, project_dir.path());
 
-        // 5. Check that cache is created
-        let cache_dir = home_dir.path().join(".config/lazymvn");
-        let cache_path = cache_dir.join("cache.json");
-        assert!(cache_path.exists());
-
-        // 6. Delete pom.xml
-        std::fs::remove_file(&pom_path).unwrap();
-
-        // 7. Call get_project_modules for the second time
-        let modules_from_cache = get_project_modules().unwrap();
-        assert_eq!(modules_from_cache, vec!["module1", "module2"]);
-
-        // 8. Cleanup
+        // 5. Cleanup
         env::set_current_dir(original_dir).unwrap();
     }
 }
