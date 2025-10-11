@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 pub fn find_pom() -> Option<PathBuf> {
-    let current_dir = std::env::current_dir().unwrap();
+    let current_dir = std::env::current_dir().ok()?;
     let pom_path = current_dir.join("pom.xml");
     if pom_path.exists() {
         Some(pom_path)
