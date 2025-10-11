@@ -1,0 +1,11 @@
+<project>
+    <groupId>com.example</groupId>
+    <artifactId>demo-project</artifactId>
+    <version>1.0.0</version>
+    <packaging>pom</packaging>
+
+    <modules>
+        <module>module-a</module>
+        <module>module-b</module>
+    </modules>
+</project>

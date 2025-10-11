@@ -21,6 +21,18 @@ Inspired by *LazyGit*, it provides a minimalist interface to explore, build, and
 - **XML Parsing:** `quick-xml`
 - **Config:** `toml` + `serde`
 
+## Key Bindings
+
+| Key | Action |
+|---|---|
+| `Up`/`Down` | Move selection |
+| `b` | Build (`package`) |
+| `t` | Test |
+| `c` | Clean |
+| `i` | Install |
+| `d` | Dependency Tree |
+| `q` | Quit |
+
 ## Installation
 
 ```bash
