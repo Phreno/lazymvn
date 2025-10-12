@@ -108,21 +108,33 @@ pub fn draw<B: Backend>(
                 .iter()
                 .enumerate()
                 .map(|(idx, line)| {
-                    if let Some(styles) = state.search_line_style(idx) {
-                        let mut spans = Vec::new();
-                        let mut last_end = 0;
-                        let cleaned_line = crate::utils::clean_log_line(line).unwrap_or_default();
-                        for (style, range) in styles {
-                            if range.start > last_end {
-                                spans.push(Span::raw(cleaned_line[last_end..range.start].to_string()));
+                    if state.search_mod.is_some() {
+                        if let Some(styles) = state.search_line_style(idx) {
+                            let cleaned_line = crate::utils::clean_log_line(line).unwrap_or_default();
+                            let mut spans = Vec::new();
+                            let mut last_end = 0;
+
+                            for (style, range) in styles {
+                                if range.start > last_end {
+                                    spans.push(Span::raw(
+                                        cleaned_line[last_end..range.start].to_string(),
+                                    ));
+                                }
+                                spans.push(Span::styled(
+                                    cleaned_line[range.start..range.end].to_string(),
+                                    style,
+                                ));
+                                last_end = range.end;
                             }
-                            spans.push(Span::styled(cleaned_line[range.start..range.end].to_string(), style));
-                            last_end = range.end;
+
+                            if last_end < cleaned_line.len() {
+                                spans.push(Span::raw(cleaned_line[last_end..].to_string()));
+                            }
+
+                            Line::from(spans)
+                        } else {
+                            Line::from(crate::utils::clean_log_line(line).unwrap_or_default())
                         }
-                        if last_end < cleaned_line.len() {
-                            spans.push(Span::raw(cleaned_line[last_end..].to_string()));
-                        }
-                        Line::from(spans)
                     } else {
                         Line::from(line.as_str())
                     }
@@ -242,6 +254,11 @@ impl SearchState {
     }
 }
 
+pub enum SearchMode {
+    Input,
+    Cycling,
+}
+
 pub struct TuiState {
     pub current_view: CurrentView,
     pub focus: Focus,
@@ -263,6 +280,7 @@ pub struct TuiState {
     output_area_width: u16,
     output_metrics: Option<OutputMetrics>,
     pending_center: Option<SearchMatch>,
+    pub search_mod: Option<SearchMode>,
 }
 
 impl TuiState {
@@ -293,6 +311,7 @@ impl TuiState {
             output_area_width: 0,
             output_metrics: None,
             pending_center: None,
+            search_mod: None,
         };
         state.sync_selected_module_output();
         state
@@ -514,9 +533,6 @@ impl TuiState {
         self.ensure_current_match_visible();
     }
 
-    fn is_search_input_active(&self) -> bool {
-        self.search_input.is_some()
-    }
 
     fn begin_search_input(&mut self) {
         self.search_input = Some(String::new());
@@ -791,11 +807,12 @@ impl TuiState {
             }
 
             let mut styles = Vec::new();
-            for m in &search.matches {
+            for (i, m) in search.matches.iter().enumerate() {
                 if m.line_index == line_index {
-                    let style = if search.current_match().map_or(false, |current| current.start == m.start && current.end == m.end) {
+                    let style = if i == search.current {
                         Style::default()
                             .bg(Color::Yellow)
+                            .fg(Color::Black)
                             .add_modifier(Modifier::BOLD)
                     } else {
                         Style::default().bg(Color::DarkGray)
@@ -853,15 +870,44 @@ impl TuiState {
 }
 
 pub fn handle_key_event(key: KeyEvent, state: &mut TuiState) {
-    if state.is_search_input_active() {
-        match key.code {
-            KeyCode::Enter => state.submit_search(),
-            KeyCode::Esc => state.cancel_search_input(),
-            KeyCode::Backspace => state.backspace_search_char(),
-            KeyCode::Up => state.recall_previous_search(),
-            KeyCode::Down => state.recall_next_search(),
-            KeyCode::Char(ch) => state.push_search_char(ch),
-            _ => {}
+    if let Some(search_mod) = &mut state.search_mod {
+        match search_mod {
+            SearchMode::Input => match key.code {
+                KeyCode::Enter => {
+                    state.submit_search();
+                    state.search_mod = Some(SearchMode::Cycling);
+                }
+                KeyCode::Esc => {
+                    state.cancel_search_input();
+                    state.search_mod = None;
+                }
+                KeyCode::Backspace => {
+                    state.backspace_search_char();
+                    if let Some(pattern) = state.search_input.clone() {
+                        let _ = state.apply_search_query(pattern, false);
+                    }
+                }
+                KeyCode::Up => state.recall_previous_search(),
+                KeyCode::Down => state.recall_next_search(),
+                KeyCode::Char(ch) => {
+                    state.push_search_char(ch);
+                    if let Some(pattern) = state.search_input.clone() {
+                        let _ = state.apply_search_query(pattern, false);
+                    }
+                }
+                _ => {}
+            },
+            SearchMode::Cycling => match key.code {
+                KeyCode::Enter => {
+                    state.search_mod = None;
+                }
+                KeyCode::Esc => {
+                    state.search_mod = None;
+                }
+                KeyCode::Char('n') => state.next_search_match(),
+                KeyCode::Char('N') => state.previous_search_match(),
+                _ => {}
+            },
         }
         return;
     }
@@ -915,6 +961,7 @@ pub fn handle_key_event(key: KeyEvent, state: &mut TuiState) {
         KeyCode::Char('/') => {
             if state.focus == Focus::Output {
                 state.begin_search_input();
+                state.search_mod = Some(SearchMode::Input);
             }
         }
         KeyCode::Char('n') => {
