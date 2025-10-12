@@ -1,7 +1,11 @@
 use crate::utils;
-use std::io::{BufRead, BufReader};
-use std::path::Path;
-use std::process::{Command, Stdio};
+use std::{
+    io::{BufRead, BufReader},
+    path::Path,
+    process::{Command, Stdio},
+    sync::mpsc,
+    thread,
+};
 
 pub fn get_maven_command(project_root: &Path) -> String {
     if project_root.join("mvnw").exists() {
@@ -25,17 +29,51 @@ pub fn execute_maven_command(
         .args(args)
         .current_dir(project_root)
         .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .spawn()?;
 
     let mut output = Vec::new();
+    let (tx, rx) = mpsc::channel();
+    let mut handles = Vec::new();
+
     if let Some(stdout) = child.stdout.take() {
-        let reader = BufReader::new(stdout);
-        for line in reader.lines() {
-            let cleaned = utils::clean_log_line(&line?);
-            if !cleaned.is_empty() {
-                output.push(cleaned);
+        let tx = tx.clone();
+        handles.push(thread::spawn(move || {
+            let reader = BufReader::new(stdout);
+            for line in reader.lines() {
+                if let Ok(line) = line {
+                    let cleaned = utils::clean_log_line(&line);
+                    if !cleaned.is_empty() {
+                        let _ = tx.send(cleaned);
+                    }
+                }
             }
-        }
+        }));
+    }
+
+    if let Some(stderr) = child.stderr.take() {
+        let tx = tx.clone();
+        handles.push(thread::spawn(move || {
+            let reader = BufReader::new(stderr);
+            for line in reader.lines() {
+                if let Ok(line) = line {
+                    let cleaned = utils::clean_log_line(&line);
+                    if !cleaned.is_empty() {
+                        let _ = tx.send(format!("[ERR] {}", cleaned));
+                    }
+                }
+            }
+        }));
+    }
+
+    drop(tx);
+
+    for line in rx {
+        output.push(line);
+    }
+
+    for handle in handles {
+        let _ = handle.join();
     }
 
     child.wait()?;
@@ -62,8 +100,23 @@ pub fn get_profiles(project_root: &Path) -> Result<Vec<String>, std::io::Error> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs::File;
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
+    use std::path::Path;
+    use std::sync::{Mutex, OnceLock};
     use tempfile::tempdir;
+
+    fn write_script(path: &Path, content: &str) {
+        fs::write(path, content).unwrap();
+        let mut perms = fs::metadata(path).unwrap().permissions();
+        perms.set_mode(0o755);
+        fs::set_permissions(path, perms).unwrap();
+    }
+
+    fn test_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
 
     #[test]
     fn get_maven_command_returns_mvnw_if_present() {
@@ -72,7 +125,7 @@ mod tests {
 
         // Test with mvnw present
         let mvnw_path = project_root.join("mvnw");
-        File::create(&mvnw_path).unwrap();
+        fs::File::create(&mvnw_path).unwrap();
         assert_eq!(get_maven_command(project_root), "./mvnw");
 
         // Test without mvnw present
@@ -82,42 +135,50 @@ mod tests {
 
     #[test]
     fn execute_maven_command_captures_output() {
+        let _guard = test_lock().lock().unwrap();
         let dir = tempdir().unwrap();
         let project_root = dir.path();
 
         // Create a mock mvnw script
         let mvnw_path = project_root.join("mvnw");
-        let mut mvnw_file = File::create(&mvnw_path).unwrap();
-        use std::io::Write;
-        mvnw_file
-            .write_all(b"#!/bin/sh\necho 'line 1'\necho 'line 2'")
-            .unwrap();
-        // Make it executable
-        use std::os::unix::fs::PermissionsExt;
-        let mut perms = mvnw_file.metadata().unwrap().permissions();
-        perms.set_mode(0o755);
-        mvnw_file.set_permissions(perms).unwrap();
-        drop(mvnw_file);
+        write_script(&mvnw_path, "#!/bin/sh\necho 'line 1'\necho 'line 2'\n");
 
         let output = execute_maven_command(project_root, &["test"], &[]).unwrap();
         assert_eq!(output, vec!["line 1", "line 2"]);
     }
 
     #[test]
+    fn execute_maven_command_captures_stderr() {
+        let _guard = test_lock().lock().unwrap();
+        let dir = tempdir().unwrap();
+        let project_root = dir.path();
+
+        let mvnw_path = project_root.join("mvnw");
+        write_script(
+            &mvnw_path,
+            "#!/bin/sh\necho 'line 1'\n>&2 echo 'warn message'\n",
+        );
+
+        let output = execute_maven_command(project_root, &["test"], &[]).unwrap();
+        assert!(
+            output.contains(&"line 1".to_string()),
+            "stdout line should be present"
+        );
+        assert!(
+            output.contains(&"[ERR] warn message".to_string()),
+            "stderr line should be tagged"
+        );
+    }
+
+    #[test]
     fn execute_maven_command_with_profiles() {
+        let _guard = test_lock().lock().unwrap();
         let dir = tempdir().unwrap();
         let project_root = dir.path();
 
         // Create a mock mvnw script
         let mvnw_path = project_root.join("mvnw");
-        let mut mvnw_file = File::create(&mvnw_path).unwrap();
-        use std::io::Write;
-        mvnw_file.write_all(b"#!/bin/sh\necho $@").unwrap();
-        use std::os::unix::fs::PermissionsExt;
-        let mut perms = mvnw_file.metadata().unwrap().permissions();
-        perms.set_mode(0o755);
-        mvnw_file.set_permissions(perms).unwrap();
-        drop(mvnw_file);
+        write_script(&mvnw_path, "#!/bin/sh\necho $@\n");
 
         let profiles = vec!["p1".to_string(), "p2".to_string()];
         let output = execute_maven_command(project_root, &["test"], &profiles).unwrap();
@@ -126,19 +187,16 @@ mod tests {
 
     #[test]
     fn test_get_profiles() {
+        let _guard = test_lock().lock().unwrap();
         let dir = tempdir().unwrap();
         let project_root = dir.path();
 
         // Create a mock mvnw script
         let mvnw_path = project_root.join("mvnw");
-        let mut mvnw_file = File::create(&mvnw_path).unwrap();
-        use std::io::Write;
-        mvnw_file.write_all(b"#!/bin/sh\necho '[INFO]   Profile Id: profile-1'\necho '[INFO]   Profile Id: profile-2'").unwrap();
-        use std::os::unix::fs::PermissionsExt;
-        let mut perms = mvnw_file.metadata().unwrap().permissions();
-        perms.set_mode(0o755);
-        mvnw_file.set_permissions(perms).unwrap();
-        drop(mvnw_file);
+        write_script(
+            &mvnw_path,
+            "#!/bin/sh\necho '[INFO]   Profile Id: profile-1'\necho '[INFO]   Profile Id: profile-2'\n",
+        );
 
         let profiles = get_profiles(project_root).unwrap();
         assert_eq!(profiles, vec!["profile-1", "profile-2"]);

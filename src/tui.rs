@@ -73,6 +73,18 @@ pub fn draw<B: Backend>(
 
         // Command output panel
         let output_block = Block::default().title("Output").borders(Borders::ALL);
+        let output_area = content_chunks[1];
+        let visible_height = output_area.height.saturating_sub(2);
+        state.set_output_view_height(visible_height);
+        let total_lines = state.command_output.len();
+        let mut scroll = state.output_scroll;
+        let max_scroll = total_lines.saturating_sub(visible_height as usize);
+        if scroll == usize::MAX {
+            scroll = max_scroll;
+        } else if scroll > max_scroll {
+            scroll = max_scroll;
+        }
+        state.output_scroll = scroll;
         let output_text = if state.command_output.is_empty() {
             "Run a command to see Maven output.".to_string()
         } else {
@@ -80,8 +92,9 @@ pub fn draw<B: Backend>(
         };
         let output_paragraph = Paragraph::new(output_text)
             .block(output_block)
-            .wrap(Wrap { trim: true });
-        f.render_widget(output_paragraph, content_chunks[1]);
+            .wrap(Wrap { trim: true })
+            .scroll(((scroll.min(u16::MAX as usize)) as u16, 0));
+        f.render_widget(output_paragraph, output_area);
 
         // Footer with key hints
         let footer_spans = footer_spans(state.current_view);
@@ -106,6 +119,8 @@ pub struct TuiState {
     pub modules_list_state: ListState,
     pub profiles_list_state: ListState,
     pub command_output: Vec<String>,
+    pub output_scroll: usize,
+    pub output_view_height: u16,
     pub project_root: PathBuf,
 }
 
@@ -122,6 +137,8 @@ impl TuiState {
             modules_list_state,
             profiles_list_state,
             command_output: vec![],
+            output_scroll: 0,
+            output_view_height: 0,
             project_root,
         }
     }
@@ -190,6 +207,42 @@ impl TuiState {
             }
         }
     }
+
+    pub fn reset_output_scroll(&mut self) {
+        self.output_scroll = usize::MAX;
+    }
+
+    pub fn set_output_view_height(&mut self, height: u16) {
+        self.output_view_height = height;
+    }
+
+    pub fn scroll_output_up(&mut self) {
+        let step = self.output_view_height.max(1) as usize;
+        let current = if self.output_scroll == usize::MAX {
+            step
+        } else {
+            self.output_scroll
+        };
+        self.output_scroll = current.saturating_sub(step);
+    }
+
+    pub fn scroll_output_down(&mut self) {
+        let step = self.output_view_height.max(1) as usize;
+        let current = if self.output_scroll == usize::MAX {
+            0
+        } else {
+            self.output_scroll
+        };
+        self.output_scroll = current.saturating_add(step);
+    }
+
+    pub fn scroll_output_to_start(&mut self) {
+        self.output_scroll = 0;
+    }
+
+    pub fn scroll_output_to_end(&mut self) {
+        self.output_scroll = usize::MAX;
+    }
 }
 
 pub fn handle_key_event(key: KeyEvent, state: &mut TuiState) {
@@ -213,30 +266,47 @@ pub fn handle_key_event(key: KeyEvent, state: &mut TuiState) {
             state.command_output =
                 maven::execute_maven_command(&state.project_root, args, &state.active_profiles)
                     .unwrap_or_else(|e| vec![e.to_string()]);
+            state.reset_output_scroll();
         }
         KeyCode::Char('t') => {
             let args = &["test"];
             state.command_output =
                 maven::execute_maven_command(&state.project_root, args, &state.active_profiles)
                     .unwrap_or_else(|e| vec![e.to_string()]);
+            state.reset_output_scroll();
         }
         KeyCode::Char('c') => {
             let args = &["clean"];
             state.command_output =
                 maven::execute_maven_command(&state.project_root, args, &state.active_profiles)
                     .unwrap_or_else(|e| vec![e.to_string()]);
+            state.reset_output_scroll();
         }
         KeyCode::Char('i') => {
             let args = &["-DskipTests", "install"];
             state.command_output =
                 maven::execute_maven_command(&state.project_root, args, &state.active_profiles)
                     .unwrap_or_else(|e| vec![e.to_string()]);
+            state.reset_output_scroll();
         }
         KeyCode::Char('d') => {
             let args = &["dependency:tree"];
             state.command_output =
                 maven::execute_maven_command(&state.project_root, args, &state.active_profiles)
                     .unwrap_or_else(|e| vec![e.to_string()]);
+            state.reset_output_scroll();
+        }
+        KeyCode::PageUp => {
+            state.scroll_output_up();
+        }
+        KeyCode::PageDown => {
+            state.scroll_output_down();
+        }
+        KeyCode::Home => {
+            state.scroll_output_to_start();
+        }
+        KeyCode::End => {
+            state.scroll_output_to_end();
         }
         KeyCode::Enter => {
             if state.current_view == CurrentView::Profiles {
@@ -258,6 +328,10 @@ fn footer_spans(view: CurrentView) -> Vec<Span<'static>> {
     };
 
     hints.extend_from_slice(&[
+        ("PgUp", "Scroll up"),
+        ("PgDn", "Scroll down"),
+        ("Home", "Top"),
+        ("End", "Bottom"),
         ("b", "Package"),
         ("t", "Test"),
         ("c", "Clean"),
@@ -299,7 +373,7 @@ mod tests {
         let mut state = TuiState::new(modules, project_root);
         state.command_output = vec!["output1".to_string(), "output2".to_string()];
 
-        // Test Modules view
+        // Modules view renders expected sections and footer hints
         draw(&mut terminal, &mut state).unwrap();
         let buffer = terminal.backend().buffer();
         let rendered = buffer
@@ -307,20 +381,11 @@ mod tests {
             .iter()
             .map(|c| c.symbol())
             .collect::<String>();
-        assert!(
-            rendered.contains("Modules"),
-            "expected Modules pane title to render"
-        );
-        assert!(
-            rendered.contains("Output"),
-            "expected Output pane title to render"
-        );
-        assert!(
-            rendered.contains("b  Package"),
-            "expected footer to list package command"
-        );
+        assert!(rendered.contains("Modules"));
+        assert!(rendered.contains("Output"));
+        assert!(rendered.contains("Scroll down"));
 
-        // Test Profiles view
+        // Profiles view toggles footer copy and highlights active profile
         state.current_view = CurrentView::Profiles;
         state.profiles = vec!["profile1".to_string(), "profile2".to_string()];
         state.active_profiles = vec!["profile1".to_string()];
@@ -331,18 +396,10 @@ mod tests {
             .iter()
             .map(|c| c.symbol())
             .collect::<String>();
-        assert!(
-            rendered.contains("Profiles"),
-            "expected Profiles pane title to render"
-        );
-        assert!(
-            rendered.contains("* profile1"),
-            "expected active profile to be marked"
-        );
-        assert!(
-            rendered.contains("Enter  Toggle profile"),
-            "expected footer to describe profile toggle action"
-        );
+        assert!(rendered.contains("Profiles"));
+        assert!(rendered.contains("* profile1"));
+        assert!(rendered.contains("Toggle profile"));
+        assert!(rendered.contains("Scroll up"));
     }
 
     #[test]
@@ -377,6 +434,57 @@ mod tests {
         // Test moving up again
         handle_key_event(KeyEvent::from(KeyCode::Up), &mut state);
         assert_eq!(state.modules_list_state.selected(), Some(1));
+    }
+
+    #[test]
+    fn test_footer_spans_content() {
+        let modules_text: String = footer_spans(CurrentView::Modules)
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect();
+        assert!(modules_text.contains("Package"));
+        assert!(modules_text.contains("PgDn"));
+
+        let profiles_text: String = footer_spans(CurrentView::Profiles)
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect();
+        assert!(profiles_text.contains("Toggle profile"));
+        assert!(profiles_text.contains("Scroll up"));
+    }
+
+    #[test]
+    fn test_output_scroll_controls() {
+        let backend = TestBackend::new(80, 18);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let modules = vec!["module".to_string()];
+        let project_root = PathBuf::from("/");
+        let mut state = TuiState::new(modules, project_root);
+        state.command_output = (0..40).map(|i| format!("line {i}")).collect();
+        state.reset_output_scroll();
+
+        // Initial draw snaps scroll to bottom
+        draw(&mut terminal, &mut state).unwrap();
+        let max_scroll = state
+            .command_output
+            .len()
+            .saturating_sub(state.output_view_height as usize);
+        assert_eq!(state.output_scroll, max_scroll);
+
+        // Page up moves toward the top
+        handle_key_event(KeyEvent::from(KeyCode::PageUp), &mut state);
+        draw(&mut terminal, &mut state).unwrap();
+        assert!(state.output_scroll < max_scroll);
+
+        // End jumps back to the bottom
+        handle_key_event(KeyEvent::from(KeyCode::End), &mut state);
+        draw(&mut terminal, &mut state).unwrap();
+        assert_eq!(state.output_scroll, max_scroll);
+
+        // Home goes to the top
+        handle_key_event(KeyEvent::from(KeyCode::Home), &mut state);
+        draw(&mut terminal, &mut state).unwrap();
+        assert_eq!(state.output_scroll, 0);
     }
 
     #[test]
