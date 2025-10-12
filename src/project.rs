@@ -4,7 +4,7 @@ use quick_xml::events::Event;
 use std::collections::hash_map::DefaultHasher;
 use std::fs;
 use std::hash::{Hash, Hasher};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 pub fn find_pom() -> Option<PathBuf> {
     let mut current_dir = std::env::current_dir().ok()?;
@@ -49,11 +49,6 @@ fn parse_modules_from_str(content: &str) -> Vec<String> {
     }
 
     modules
-}
-
-pub fn get_modules(pom_path: &Path) -> Vec<String> {
-    let content = fs::read_to_string(pom_path).unwrap_or_default();
-    parse_modules_from_str(&content)
 }
 
 fn compute_pom_hash(content: &str) -> u64 {
@@ -209,7 +204,8 @@ mod tests {
         use std::io::Write;
         pom_file.write_all(b"<project><modules><module>module1</module><module>module2</module></modules></project>").unwrap();
 
-        let modules = get_modules(&pom_path);
+        let content = std::fs::read_to_string(&pom_path).unwrap();
+        let modules = parse_modules_from_str(&content);
         assert_eq!(modules, vec!["module1", "module2"]);
     }
 
