@@ -1,8 +1,0 @@
-<project>
-    <parent>
-        <groupId>com.example</groupId>
-        <artifactId>demo-project</artifactId>
-        <version>1.0.0</version>
-    </parent>
-    <artifactId>module-b</artifactId>
-</project>

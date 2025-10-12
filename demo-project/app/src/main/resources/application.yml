@@ -1,0 +1,7 @@
+spring:
+  application:
+    name: lazymvn-demo
+
+demo:
+  greeting-prefix: Hello
+  default-name: from LazyMVN
