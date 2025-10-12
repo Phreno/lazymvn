@@ -32,23 +32,32 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
                 match key.code {
                     KeyCode::Char(ch) => {
                         state.push_search_char(ch);
+                        state.live_search(); // Trigger live search as user types
                         state.search_mod = Some(SearchMode::Input);
                     }
                     KeyCode::Backspace => {
                         state.backspace_search_char();
+                        state.live_search(); // Update search as user deletes
                         state.search_mod = Some(SearchMode::Input);
                     }
                     KeyCode::Up => {
                         state.recall_previous_search();
+                        state.live_search(); // Update search when recalling history
                         state.search_mod = Some(SearchMode::Input);
                     }
                     KeyCode::Down => {
                         state.recall_next_search();
+                        state.live_search(); // Update search when recalling history
                         state.search_mod = Some(SearchMode::Input);
                     }
                     KeyCode::Enter => {
                         state.submit_search();
-                        state.search_mod = Some(SearchMode::Cycling);
+                        // If search has results, enter cycling mode; otherwise exit
+                        if state.has_search_results() {
+                            state.search_mod = Some(SearchMode::Cycling);
+                        } else {
+                            state.search_mod = None;
+                        }
                     }
                     KeyCode::Esc => {
                         state.cancel_search_input();
@@ -74,7 +83,8 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
                         state.begin_search_input();
                         state.search_mod = Some(SearchMode::Input);
                     }
-                    KeyCode::Esc => {
+                    KeyCode::Enter | KeyCode::Esc => {
+                        // Exit search mode and restore normal coloration
                         state.search_mod = None;
                     }
                     _ => {

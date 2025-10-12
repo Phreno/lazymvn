@@ -87,6 +87,7 @@ pub fn render_output_pane(
     output_offset: usize,
     is_focused: bool,
     search_line_style_fn: impl Fn(usize) -> Option<Vec<(Style, std::ops::Range<usize>)>>,
+    is_search_active: bool,
 ) {
     let output_block = Block::default()
         .title("Output")
@@ -104,25 +105,32 @@ pub fn render_output_pane(
             .iter()
             .enumerate()
             .map(|(line_index, line)| {
-                let cleaned = crate::utils::clean_log_line(line).unwrap_or_default();
-                if let Some(highlights) = search_line_style_fn(line_index) {
-                    let mut spans = Vec::new();
-                    let mut last_end = 0;
-                    for (style, range) in highlights {
-                        if range.start > last_end {
-                            spans.push(Span::raw(cleaned[last_end..range.start].to_string()));
+                if is_search_active {
+                    // In search mode: use search highlighting over cleaned text
+                    let cleaned = crate::utils::clean_log_line(line).unwrap_or_default();
+                    if let Some(highlights) = search_line_style_fn(line_index) {
+                        let mut spans = Vec::new();
+                        let mut last_end = 0;
+                        for (style, range) in highlights {
+                            if range.start > last_end {
+                                spans.push(Span::raw(cleaned[last_end..range.start].to_string()));
+                            }
+                            if range.end <= cleaned.len() {
+                                spans.push(Span::styled(cleaned[range.clone()].to_string(), style));
+                                last_end = range.end;
+                            }
                         }
-                        if range.end <= cleaned.len() {
-                            spans.push(Span::styled(cleaned[range.clone()].to_string(), style));
-                            last_end = range.end;
+                        if last_end < cleaned.len() {
+                            spans.push(Span::raw(cleaned[last_end..].to_string()));
                         }
+                        Line::from(spans)
+                    } else {
+                        Line::from(cleaned)
                     }
-                    if last_end < cleaned.len() {
-                        spans.push(Span::raw(cleaned[last_end..].to_string()));
-                    }
-                    Line::from(spans)
                 } else {
-                    Line::from(cleaned)
+                    // Normal mode: use keyword-based coloring
+                    let cleaned = crate::utils::clean_log_line(line).unwrap_or_default();
+                    crate::utils::colorize_log_line(&cleaned)
                 }
             })
             .collect()

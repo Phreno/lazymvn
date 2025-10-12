@@ -217,6 +217,33 @@ impl TuiState {
         self.ensure_current_match_visible();
     }
 
+    pub fn has_search_results(&self) -> bool {
+        self.search_state.as_ref()
+            .map(|s| s.has_matches())
+            .unwrap_or(false)
+    }
+
+    // Live search - performs search as user types without storing in history
+    pub fn live_search(&mut self) {
+        if let Some(pattern) = self.search_input.as_ref() {
+            if pattern.is_empty() {
+                self.search_state = None;
+                self.search_error = None;
+                return;
+            }
+            
+            match self.apply_search_query(pattern.clone(), false) {
+                Ok(_) => {
+                    self.search_error = None;
+                }
+                Err(err) => {
+                    self.search_error = Some(err.to_string());
+                    self.search_state = None;
+                }
+            }
+        }
+    }
+
     // Module output management
     fn sync_selected_module_output(&mut self) {
         if let Some(module) = self.selected_module() {

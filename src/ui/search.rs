@@ -115,11 +115,37 @@ pub fn search_status_line(
     search_state: Option<&SearchState>,
 ) -> Option<Line<'static>> {
     if let Some(buffer) = search_input {
-        return Some(Line::from(vec![
-            Span::raw("Search: "),
-            Span::styled(buffer.to_string(), Theme::INFO_STYLE),
-            Span::raw(" (Enter to search, Esc to cancel)"),
-        ]));
+        // Show live search feedback during input
+        if buffer.is_empty() {
+            return Some(Line::from(vec![
+                Span::styled("/", Theme::INFO_STYLE),
+                Span::raw("_ (type to search, Enter to confirm, Esc to cancel)"),
+            ]));
+        }
+        
+        // Show live search results
+        if let Some(search) = search_state {
+            if search.has_matches() {
+                let current = search.current + 1;
+                let total = search.total_matches();
+                return Some(Line::from(vec![
+                    Span::styled("/", Theme::INFO_STYLE),
+                    Span::raw(format!("{buffer}_ - {current}/{total} matches (Enter to confirm, Esc to cancel)")),
+                ]));
+            } else {
+                return Some(Line::from(vec![
+                    Span::styled("/", Theme::INFO_STYLE),
+                    Span::raw(format!("{buffer}_ - ")),
+                    Span::styled("no matches", Theme::ERROR_STYLE),
+                    Span::raw(" (Enter to confirm, Esc to cancel)"),
+                ]));
+            }
+        } else {
+            return Some(Line::from(vec![
+                Span::styled("/", Theme::INFO_STYLE),
+                Span::raw(format!("{buffer}_ (type to search, Enter to confirm, Esc to cancel)")),
+            ]));
+        }
     }
 
     if let Some(error) = search_error {
@@ -135,16 +161,13 @@ pub fn search_status_line(
             let current = search.current + 1;
             let total = search.total_matches();
             return Some(Line::from(vec![
-                Span::raw("Search: "),
-                Span::styled(search.query.clone(), Theme::INFO_STYLE),
-                Span::raw(format!(" (Match {current}/{total}, n/N for next/prev, / for new search, Esc to exit)")),
+                Span::styled("Search", Theme::INFO_STYLE),
+                Span::raw(format!(" Match {current}/{total}   /{} (n/N/Enter to exit)", search.query)),
             ]));
         } else {
             return Some(Line::from(vec![
-                Span::raw("Search: "),
-                Span::styled(search.query.clone(), Theme::INFO_STYLE),
-                Span::styled(" (No matches)", Theme::ERROR_STYLE),
-                Span::raw(" (/ for new search, Esc to exit)"),
+                Span::styled("Search", Theme::INFO_STYLE),
+                Span::raw(format!(" No matches   /{} (Enter to exit)", search.query)),
             ]));
         }
     }
