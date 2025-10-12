@@ -246,6 +246,7 @@ impl TuiState {
         }
     }
 
+    #[allow(dead_code)]
     pub fn clear_current_module_output(&mut self) {
         if let Some(module) = self.selected_module().map(|m| m.to_string()) {
             self.command_output.clear();

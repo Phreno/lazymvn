@@ -86,6 +86,7 @@ pub fn execute_maven_command(
     Ok(output)
 }
 
+#[allow(dead_code)]
 pub fn get_profiles(project_root: &Path) -> Result<Vec<String>, std::io::Error> {
     let output = execute_maven_command(project_root, None, &["help:all-profiles", "-N"], &[], None)?;
     let profiles = output
