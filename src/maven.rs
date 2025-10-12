@@ -1,3 +1,4 @@
+use crate::utils;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -30,7 +31,10 @@ pub fn execute_maven_command(
     if let Some(stdout) = child.stdout.take() {
         let reader = BufReader::new(stdout);
         for line in reader.lines() {
-            output.push(line?);
+            let cleaned = utils::clean_log_line(&line?);
+            if !cleaned.is_empty() {
+                output.push(cleaned);
+            }
         }
     }
 

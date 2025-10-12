@@ -6,7 +6,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
+    widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
 };
 use std::path::PathBuf;
 
@@ -73,13 +73,15 @@ pub fn draw<B: Backend>(
 
         // Command output panel
         let output_block = Block::default().title("Output").borders(Borders::ALL);
-        let output_items: Vec<ListItem> = state
-            .command_output
-            .iter()
-            .map(|m| ListItem::new(m.as_str()))
-            .collect();
-        let output_list = List::new(output_items).block(output_block);
-        f.render_widget(output_list, content_chunks[1]);
+        let output_text = if state.command_output.is_empty() {
+            "Run a command to see Maven output.".to_string()
+        } else {
+            state.command_output.join("\n")
+        };
+        let output_paragraph = Paragraph::new(output_text)
+            .block(output_block)
+            .wrap(Wrap { trim: true });
+        f.render_widget(output_paragraph, content_chunks[1]);
 
         // Footer with key hints
         let footer_spans = footer_spans(state.current_view);
