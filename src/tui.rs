@@ -8,7 +8,7 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
 };
-use std::path::PathBuf;
+use std::{collections::HashMap, path::PathBuf};
 
 pub fn draw<B: Backend>(
     terminal: &mut Terminal<B>,
@@ -85,12 +85,28 @@ pub fn draw<B: Backend>(
             scroll = max_scroll;
         }
         state.output_scroll = scroll;
-        let output_text = if state.command_output.is_empty() {
-            "Run a command to see Maven output.".to_string()
+        let output_lines = if state.command_output.is_empty() {
+            vec![Line::from("Run a command to see Maven output.")]
         } else {
-            state.command_output.join("\n")
+            state
+                .command_output
+                .iter()
+                .map(|line| {
+                    if line.starts_with("[ERR]") {
+                        Line::from(vec![
+                            Span::styled("[ERR]", Style::default().fg(Color::Red)),
+                            Span::raw(format!(
+                                " {}",
+                                line.trim_start_matches("[ERR]").trim_start()
+                            )),
+                        ])
+                    } else {
+                        Line::from(Span::raw(line.as_str()))
+                    }
+                })
+                .collect()
         };
-        let output_paragraph = Paragraph::new(output_text)
+        let output_paragraph = Paragraph::new(output_lines)
             .block(output_block)
             .wrap(Wrap { trim: true })
             .scroll(((scroll.min(u16::MAX as usize)) as u16, 0));
@@ -121,15 +137,18 @@ pub struct TuiState {
     pub command_output: Vec<String>,
     pub output_scroll: usize,
     pub output_view_height: u16,
+    module_outputs: HashMap<String, Vec<String>>,
     pub project_root: PathBuf,
 }
 
 impl TuiState {
     pub fn new(modules: Vec<String>, project_root: PathBuf) -> Self {
         let mut modules_list_state = ListState::default();
-        modules_list_state.select(Some(0));
         let profiles_list_state = ListState::default();
-        Self {
+        if !modules.is_empty() {
+            modules_list_state.select(Some(0));
+        }
+        let mut state = Self {
             current_view: CurrentView::Modules,
             modules,
             profiles: vec![],
@@ -139,18 +158,25 @@ impl TuiState {
             command_output: vec![],
             output_scroll: 0,
             output_view_height: 0,
+            module_outputs: HashMap::new(),
             project_root,
-        }
+        };
+        state.sync_selected_module_output();
+        state
     }
 
     pub fn next_item(&mut self) {
         match self.current_view {
             CurrentView::Modules => {
+                if self.modules.is_empty() {
+                    return;
+                }
                 let i = match self.modules_list_state.selected() {
                     Some(i) => (i + 1) % self.modules.len(),
                     None => 0,
                 };
                 self.modules_list_state.select(Some(i));
+                self.sync_selected_module_output();
             }
             CurrentView::Profiles => {
                 if !self.profiles.is_empty() {
@@ -167,6 +193,9 @@ impl TuiState {
     pub fn previous_item(&mut self) {
         match self.current_view {
             CurrentView::Modules => {
+                if self.modules.is_empty() {
+                    return;
+                }
                 let i = match self.modules_list_state.selected() {
                     Some(i) => {
                         if i == 0 {
@@ -178,6 +207,7 @@ impl TuiState {
                     None => 0,
                 };
                 self.modules_list_state.select(Some(i));
+                self.sync_selected_module_output();
             }
             CurrentView::Profiles => {
                 if !self.profiles.is_empty() {
@@ -206,6 +236,60 @@ impl TuiState {
                 self.active_profiles.push(profile.clone());
             }
         }
+    }
+
+    pub fn selected_module(&self) -> Option<&str> {
+        self.modules_list_state
+            .selected()
+            .and_then(|i| self.modules.get(i).map(|s| s.as_str()))
+    }
+
+    fn sync_selected_module_output(&mut self) {
+        if let Some(module) = self.selected_module() {
+            if let Some(stored) = self.module_outputs.get(module) {
+                self.command_output = stored.clone();
+            } else {
+                self.command_output.clear();
+            }
+        } else {
+            self.command_output.clear();
+        }
+        self.reset_output_scroll();
+    }
+
+    fn store_current_module_output(&mut self) {
+        if let Some(module) = self.selected_module() {
+            self.module_outputs
+                .insert(module.to_string(), self.command_output.clone());
+        }
+    }
+
+    fn clear_current_module_output(&mut self) {
+        if let Some(module) = self.selected_module().map(|m| m.to_string()) {
+            self.command_output.clear();
+            self.module_outputs.insert(module, Vec::new());
+        } else {
+            self.command_output.clear();
+        }
+        self.reset_output_scroll();
+    }
+
+    fn run_selected_module_command(&mut self, args: &[&str]) {
+        if let Some(module) = self.selected_module().map(|m| m.to_string()) {
+            self.clear_current_module_output();
+            let output = maven::execute_maven_command(
+                &self.project_root,
+                Some(module.as_str()),
+                args,
+                &self.active_profiles,
+            )
+            .unwrap_or_else(|e| vec![format!("[ERR] {e}")]);
+            self.command_output = output;
+            self.store_current_module_output();
+        } else {
+            self.command_output = vec!["Select a module to run commands.".to_string()];
+        }
+        self.reset_output_scroll();
     }
 
     pub fn reset_output_scroll(&mut self) {
@@ -259,42 +343,28 @@ pub fn handle_key_event(key: KeyEvent, state: &mut TuiState) {
             }
             CurrentView::Profiles => {
                 state.current_view = CurrentView::Modules;
+                state.sync_selected_module_output();
             }
         },
         KeyCode::Char('b') => {
             let args = &["-T1C", "-DskipTests", "package"];
-            state.command_output =
-                maven::execute_maven_command(&state.project_root, args, &state.active_profiles)
-                    .unwrap_or_else(|e| vec![e.to_string()]);
-            state.reset_output_scroll();
+            state.run_selected_module_command(args);
         }
         KeyCode::Char('t') => {
             let args = &["test"];
-            state.command_output =
-                maven::execute_maven_command(&state.project_root, args, &state.active_profiles)
-                    .unwrap_or_else(|e| vec![e.to_string()]);
-            state.reset_output_scroll();
+            state.run_selected_module_command(args);
         }
         KeyCode::Char('c') => {
             let args = &["clean"];
-            state.command_output =
-                maven::execute_maven_command(&state.project_root, args, &state.active_profiles)
-                    .unwrap_or_else(|e| vec![e.to_string()]);
-            state.reset_output_scroll();
+            state.run_selected_module_command(args);
         }
         KeyCode::Char('i') => {
             let args = &["-DskipTests", "install"];
-            state.command_output =
-                maven::execute_maven_command(&state.project_root, args, &state.active_profiles)
-                    .unwrap_or_else(|e| vec![e.to_string()]);
-            state.reset_output_scroll();
+            state.run_selected_module_command(args);
         }
         KeyCode::Char('d') => {
             let args = &["dependency:tree"];
-            state.command_output =
-                maven::execute_maven_command(&state.project_root, args, &state.active_profiles)
-                    .unwrap_or_else(|e| vec![e.to_string()]);
-            state.reset_output_scroll();
+            state.run_selected_module_command(args);
         }
         KeyCode::PageUp => {
             state.scroll_output_up();
@@ -372,6 +442,7 @@ mod tests {
         let project_root = PathBuf::from("/");
         let mut state = TuiState::new(modules, project_root);
         state.command_output = vec!["output1".to_string(), "output2".to_string()];
+        state.store_current_module_output();
 
         // Modules view renders expected sections and footer hints
         draw(&mut terminal, &mut state).unwrap();
@@ -461,6 +532,7 @@ mod tests {
         let project_root = PathBuf::from("/");
         let mut state = TuiState::new(modules, project_root);
         state.command_output = (0..40).map(|i| format!("line {i}")).collect();
+        state.store_current_module_output();
         state.reset_output_scroll();
 
         // Initial draw snaps scroll to bottom
@@ -513,7 +585,10 @@ mod tests {
         handle_key_event(KeyEvent::from(KeyCode::Char('b')), &mut state);
 
         // 5. Assert command output
-        assert_eq!(state.command_output, vec!["-P p1 -T1C -DskipTests package"]);
+        assert_eq!(
+            state.command_output,
+            vec!["-P p1 -pl module1 -T1C -DskipTests package"]
+        );
     }
 
     #[test]
@@ -540,16 +615,22 @@ mod tests {
 
         // 4. Simulate key presses and assert command output
         handle_key_event(KeyEvent::from(KeyCode::Char('t')), &mut state);
-        assert_eq!(state.command_output, vec!["-P p1 test"]);
+        assert_eq!(state.command_output, vec!["-P p1 -pl module1 test"]);
 
         handle_key_event(KeyEvent::from(KeyCode::Char('c')), &mut state);
-        assert_eq!(state.command_output, vec!["-P p1 clean"]);
+        assert_eq!(state.command_output, vec!["-P p1 -pl module1 clean"]);
 
         handle_key_event(KeyEvent::from(KeyCode::Char('i')), &mut state);
-        assert_eq!(state.command_output, vec!["-P p1 -DskipTests install"]);
+        assert_eq!(
+            state.command_output,
+            vec!["-P p1 -pl module1 -DskipTests install"]
+        );
 
         handle_key_event(KeyEvent::from(KeyCode::Char('d')), &mut state);
-        assert_eq!(state.command_output, vec!["-P p1 dependency:tree"]);
+        assert_eq!(
+            state.command_output,
+            vec!["-P p1 -pl module1 dependency:tree"]
+        );
     }
 
     #[test]

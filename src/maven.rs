@@ -17,6 +17,7 @@ pub fn get_maven_command(project_root: &Path) -> String {
 
 pub fn execute_maven_command(
     project_root: &Path,
+    module: Option<&str>,
     args: &[&str],
     profiles: &[String],
 ) -> Result<Vec<String>, std::io::Error> {
@@ -24,6 +25,9 @@ pub fn execute_maven_command(
     let mut command = Command::new(maven_command);
     if !profiles.is_empty() {
         command.arg("-P").arg(profiles.join(","));
+    }
+    if let Some(module) = module {
+        command.arg("-pl").arg(module);
     }
     let mut child = command
         .args(args)
@@ -42,9 +46,8 @@ pub fn execute_maven_command(
             let reader = BufReader::new(stdout);
             for line in reader.lines() {
                 if let Ok(line) = line {
-                    let cleaned = utils::clean_log_line(&line);
-                    if !cleaned.is_empty() {
-                        let _ = tx.send(cleaned);
+                    if let Some(text) = utils::clean_log_line(&line) {
+                        let _ = tx.send(text);
                     }
                 }
             }
@@ -57,9 +60,8 @@ pub fn execute_maven_command(
             let reader = BufReader::new(stderr);
             for line in reader.lines() {
                 if let Ok(line) = line {
-                    let cleaned = utils::clean_log_line(&line);
-                    if !cleaned.is_empty() {
-                        let _ = tx.send(format!("[ERR] {}", cleaned));
+                    if let Some(text) = utils::clean_log_line(&line) {
+                        let _ = tx.send(format!("[ERR] {text}"));
                     }
                 }
             }
@@ -81,7 +83,7 @@ pub fn execute_maven_command(
 }
 
 pub fn get_profiles(project_root: &Path) -> Result<Vec<String>, std::io::Error> {
-    let output = execute_maven_command(project_root, &["help:all-profiles"], &[])?;
+    let output = execute_maven_command(project_root, None, &["help:all-profiles"], &[])?;
     let profiles = output
         .iter()
         .filter_map(|line| {
@@ -143,7 +145,7 @@ mod tests {
         let mvnw_path = project_root.join("mvnw");
         write_script(&mvnw_path, "#!/bin/sh\necho 'line 1'\necho 'line 2'\n");
 
-        let output = execute_maven_command(project_root, &["test"], &[]).unwrap();
+        let output = execute_maven_command(project_root, None, &["test"], &[]).unwrap();
         assert_eq!(output, vec!["line 1", "line 2"]);
     }
 
@@ -159,7 +161,7 @@ mod tests {
             "#!/bin/sh\necho 'line 1'\n>&2 echo 'warn message'\n",
         );
 
-        let output = execute_maven_command(project_root, &["test"], &[]).unwrap();
+        let output = execute_maven_command(project_root, None, &["test"], &[]).unwrap();
         assert!(
             output.contains(&"line 1".to_string()),
             "stdout line should be present"
@@ -181,7 +183,7 @@ mod tests {
         write_script(&mvnw_path, "#!/bin/sh\necho $@\n");
 
         let profiles = vec!["p1".to_string(), "p2".to_string()];
-        let output = execute_maven_command(project_root, &["test"], &profiles).unwrap();
+        let output = execute_maven_command(project_root, None, &["test"], &profiles).unwrap();
         assert_eq!(output, vec!["-P p1,p2 test"]);
     }
 
@@ -200,5 +202,18 @@ mod tests {
 
         let profiles = get_profiles(project_root).unwrap();
         assert_eq!(profiles, vec!["profile-1", "profile-2"]);
+    }
+
+    #[test]
+    fn execute_maven_command_scopes_to_module() {
+        let _guard = test_lock().lock().unwrap();
+        let dir = tempdir().unwrap();
+        let project_root = dir.path();
+
+        let mvnw_path = project_root.join("mvnw");
+        write_script(&mvnw_path, "#!/bin/sh\necho $@\n");
+
+        let output = execute_maven_command(project_root, Some("module-a"), &["test"], &[]).unwrap();
+        assert_eq!(output, vec!["-pl module-a test"]);
     }
 }

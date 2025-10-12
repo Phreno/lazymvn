@@ -1,4 +1,4 @@
-pub fn clean_log_line(raw: &str) -> String {
+pub fn clean_log_line(raw: &str) -> Option<String> {
     let mut result = String::with_capacity(raw.len());
     let mut chars = raw.chars().peekable();
 
@@ -21,7 +21,11 @@ pub fn clean_log_line(raw: &str) -> String {
         }
     }
 
-    result.trim_end().to_string()
+    let trimmed = result.trim_end();
+    if trimmed.is_empty() {
+        return None;
+    }
+    Some(trimmed.to_string())
 }
 
 #[cfg(test)]
@@ -30,19 +34,19 @@ mod tests {
 
     #[test]
     fn strips_carriage_returns() {
-        let cleaned = clean_log_line("line\r");
+        let cleaned = clean_log_line("line\r").unwrap();
         assert_eq!(cleaned, "line");
     }
 
     #[test]
     fn strips_ansi_sequences() {
-        let cleaned = clean_log_line("\u{1b}[32mSUCCESS\u{1b}[0m build");
+        let cleaned = clean_log_line("\u{1b}[32mSUCCESS\u{1b}[0m build").unwrap();
         assert_eq!(cleaned, "SUCCESS build");
     }
 
     #[test]
     fn trims_trailing_space() {
-        let cleaned = clean_log_line("line   ");
+        let cleaned = clean_log_line("line   ").unwrap();
         assert_eq!(cleaned, "line");
     }
 }
