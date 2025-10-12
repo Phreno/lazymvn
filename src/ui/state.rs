@@ -125,6 +125,13 @@ impl TuiState {
         state
     }
 
+    pub fn set_profiles(&mut self, profiles: Vec<String>) {
+        self.profiles = profiles;
+        if !self.profiles.is_empty() {
+            self.profiles_list_state.select(Some(0));
+        }
+    }
+
     // Navigation methods
     pub fn next_item(&mut self) {
         match self.current_view {
