@@ -108,21 +108,24 @@ pub fn draw<B: Backend>(
                 .iter()
                 .enumerate()
                 .map(|(idx, line)| {
-                    let mut rendered = if line.starts_with("[ERR]") {
-                        Line::from(vec![
-                            Span::styled("[ERR]", Style::default().fg(Color::Red)),
-                            Span::raw(format!(
-                                " {}",
-                                line.trim_start_matches("[ERR]").trim_start()
-                            )),
-                        ])
+                    if let Some(styles) = state.search_line_style(idx) {
+                        let mut spans = Vec::new();
+                        let mut last_end = 0;
+                        let cleaned_line = crate::utils::clean_log_line(line).unwrap_or_default();
+                        for (style, range) in styles {
+                            if range.start > last_end {
+                                spans.push(Span::raw(cleaned_line[last_end..range.start].to_string()));
+                            }
+                            spans.push(Span::styled(cleaned_line[range.start..range.end].to_string(), style));
+                            last_end = range.end;
+                        }
+                        if last_end < cleaned_line.len() {
+                            spans.push(Span::raw(cleaned_line[last_end..].to_string()));
+                        }
+                        Line::from(spans)
                     } else {
-                        Line::from(Span::raw(line.as_str()))
-                    };
-                    if let Some(style) = state.search_line_style(idx) {
-                        rendered = rendered.style(style);
+                        Line::from(line.as_str())
                     }
-                    rendered
                 })
                 .collect()
         };
@@ -165,6 +168,7 @@ struct ModuleOutput {
 struct SearchMatch {
     line_index: usize,
     start: usize,
+    end: usize,
 }
 
 #[derive(Clone, Debug)]
@@ -193,7 +197,7 @@ impl OutputMetrics {
 
         for line in lines {
             line_start_rows.push(cumulative);
-            let display = line.clone();
+            let display = crate::utils::clean_log_line(line).unwrap_or_default();
             let rows = visual_rows(&display, width);
             cumulative += rows;
             line_display.push(display);
@@ -235,16 +239,6 @@ impl SearchState {
 
     fn total_matches(&self) -> usize {
         self.matches.len()
-    }
-
-    fn line_contains_current(&self, line_index: usize) -> bool {
-        self.current_match()
-            .map(|m| m.line_index == line_index)
-            .unwrap_or(false)
-    }
-
-    fn line_has_match(&self, line_index: usize) -> bool {
-        self.matches.iter().any(|m| m.line_index == line_index)
     }
 }
 
@@ -666,16 +660,18 @@ impl TuiState {
     }
 
     fn collect_search_matches(&self, regex: &Regex) -> Vec<SearchMatch> {
-        self.command_output
-            .iter()
-            .enumerate()
-            .flat_map(|(line_index, line)| {
-                regex.find_iter(line).map(move |m| SearchMatch {
+        let mut matches = Vec::new();
+        for (line_index, line) in self.command_output.iter().enumerate() {
+            let cleaned_line = crate::utils::clean_log_line(line).unwrap_or_default();
+            for m in regex.find_iter(&cleaned_line) {
+                matches.push(SearchMatch {
                     line_index,
                     start: m.start(),
-                })
-            })
-            .collect()
+                    end: m.end(),
+                });
+            }
+        }
+        matches
     }
 
     fn refresh_search_matches(&mut self) {
@@ -788,21 +784,30 @@ impl TuiState {
         }
     }
 
-    fn search_line_style(&self, line_index: usize) -> Option<Style> {
+    fn search_line_style(&self, line_index: usize) -> Option<Vec<(Style, std::ops::Range<usize>)>> {
         self.search_state.as_ref().and_then(|search| {
             if !search.has_matches() {
                 return None;
             }
-            if search.line_contains_current(line_index) {
-                Some(
-                    Style::default()
-                        .bg(Color::Yellow)
-                        .add_modifier(Modifier::BOLD),
-                )
-            } else if search.line_has_match(line_index) {
-                Some(Style::default().bg(Color::DarkGray))
-            } else {
+
+            let mut styles = Vec::new();
+            for m in &search.matches {
+                if m.line_index == line_index {
+                    let style = if search.current_match().map_or(false, |current| current.start == m.start && current.end == m.end) {
+                        Style::default()
+                            .bg(Color::Yellow)
+                            .add_modifier(Modifier::BOLD)
+                    } else {
+                        Style::default().bg(Color::DarkGray)
+                    };
+                    styles.push((style, m.start..m.end));
+                }
+            }
+
+            if styles.is_empty() {
                 None
+            } else {
+                Some(styles)
             }
         })
     }
@@ -1351,8 +1356,13 @@ mod tests {
         handle_key_event(KeyEvent::from(KeyCode::Char('b')), &mut state);
 
         // 5. Assert command output
+        let cleaned_output: Vec<String> = state
+            .command_output
+            .iter()
+            .map(|line| crate::utils::clean_log_line(line).unwrap())
+            .collect();
         assert_eq!(
-            state.command_output,
+            cleaned_output,
             vec!["-P p1 -pl module1 -T1C -DskipTests package"]
         );
     }
@@ -1381,20 +1391,40 @@ mod tests {
 
         // 4. Simulate key presses and assert command output
         handle_key_event(KeyEvent::from(KeyCode::Char('t')), &mut state);
-        assert_eq!(state.command_output, vec!["-P p1 -pl module1 test"]);
+        let cleaned_output: Vec<String> = state
+            .command_output
+            .iter()
+            .map(|line| crate::utils::clean_log_line(line).unwrap())
+            .collect();
+        assert_eq!(cleaned_output, vec!["-P p1 -pl module1 test"]);
 
         handle_key_event(KeyEvent::from(KeyCode::Char('c')), &mut state);
-        assert_eq!(state.command_output, vec!["-P p1 -pl module1 clean"]);
+        let cleaned_output: Vec<String> = state
+            .command_output
+            .iter()
+            .map(|line| crate::utils::clean_log_line(line).unwrap())
+            .collect();
+        assert_eq!(cleaned_output, vec!["-P p1 -pl module1 clean"]);
 
         handle_key_event(KeyEvent::from(KeyCode::Char('i')), &mut state);
+        let cleaned_output: Vec<String> = state
+            .command_output
+            .iter()
+            .map(|line| crate::utils::clean_log_line(line).unwrap())
+            .collect();
         assert_eq!(
-            state.command_output,
+            cleaned_output,
             vec!["-P p1 -pl module1 -DskipTests install"]
         );
 
         handle_key_event(KeyEvent::from(KeyCode::Char('d')), &mut state);
+        let cleaned_output: Vec<String> = state
+            .command_output
+            .iter()
+            .map(|line| crate::utils::clean_log_line(line).unwrap())
+            .collect();
         assert_eq!(
-            state.command_output,
+            cleaned_output,
             vec!["-P p1 -pl module1 dependency:tree"]
         );
     }
