@@ -8,6 +8,7 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
 };
+use regex::Regex;
 use std::{collections::HashMap, path::PathBuf};
 
 pub fn draw<B: Backend>(
@@ -108,8 +109,9 @@ pub fn draw<B: Backend>(
             state
                 .command_output
                 .iter()
-                .map(|line| {
-                    if line.starts_with("[ERR]") {
+                .enumerate()
+                .map(|(idx, line)| {
+                    let mut rendered = if line.starts_with("[ERR]") {
                         Line::from(vec![
                             Span::styled("[ERR]", Style::default().fg(Color::Red)),
                             Span::raw(format!(
@@ -119,7 +121,11 @@ pub fn draw<B: Backend>(
                         ])
                     } else {
                         Line::from(Span::raw(line.as_str()))
+                    };
+                    if let Some(style) = state.search_line_style(idx) {
+                        rendered = rendered.style(style);
                     }
+                    rendered
                 })
                 .collect()
         };
@@ -130,9 +136,11 @@ pub fn draw<B: Backend>(
         f.render_widget(output_paragraph, output_area);
 
         // Footer with key hints
-        let footer_spans = footer_spans(state.current_view, state.focus);
-        let footer =
-            Paragraph::new(Line::from(footer_spans)).block(Block::default().borders(Borders::TOP));
+        let mut footer_lines = vec![Line::from(footer_spans(state.current_view, state.focus))];
+        if let Some(status_line) = state.search_status_line() {
+            footer_lines.push(status_line);
+        }
+        let footer = Paragraph::new(footer_lines).block(Block::default().borders(Borders::TOP));
         f.render_widget(footer, vertical[1]);
     })?;
     Ok(())
@@ -156,6 +164,42 @@ struct ModuleOutput {
     scroll_offset: usize,
 }
 
+#[derive(Clone, Debug)]
+struct SearchMatch {
+    line_index: usize,
+}
+
+#[derive(Clone, Debug)]
+struct SearchState {
+    query: String,
+    matches: Vec<SearchMatch>,
+    current: usize,
+}
+
+impl SearchState {
+    fn has_matches(&self) -> bool {
+        !self.matches.is_empty()
+    }
+
+    fn current_match(&self) -> Option<&SearchMatch> {
+        self.matches.get(self.current)
+    }
+
+    fn total_matches(&self) -> usize {
+        self.matches.len()
+    }
+
+    fn line_contains_current(&self, line_index: usize) -> bool {
+        self.current_match()
+            .map(|m| m.line_index == line_index)
+            .unwrap_or(false)
+    }
+
+    fn line_has_match(&self, line_index: usize) -> bool {
+        self.matches.iter().any(|m| m.line_index == line_index)
+    }
+}
+
 pub struct TuiState {
     pub current_view: CurrentView,
     pub focus: Focus,
@@ -169,6 +213,9 @@ pub struct TuiState {
     pub output_view_height: u16,
     module_outputs: HashMap<String, ModuleOutput>,
     pub project_root: PathBuf,
+    search_state: Option<SearchState>,
+    search_input: Option<String>,
+    search_error: Option<String>,
 }
 
 impl TuiState {
@@ -191,6 +238,9 @@ impl TuiState {
             output_view_height: 0,
             module_outputs: HashMap::new(),
             project_root,
+            search_state: None,
+            search_input: None,
+            search_error: None,
         };
         state.sync_selected_module_output();
         state
@@ -289,6 +339,7 @@ impl TuiState {
             self.output_offset = 0;
         }
         self.clamp_output_offset();
+        self.refresh_search_matches();
     }
 
     fn store_current_module_output(&mut self) {
@@ -313,6 +364,7 @@ impl TuiState {
             self.output_offset = 0;
         }
         self.clamp_output_offset();
+        self.refresh_search_matches();
     }
 
     fn run_selected_module_command(&mut self, args: &[&str]) {
@@ -330,18 +382,20 @@ impl TuiState {
                 .command_output
                 .len()
                 .saturating_sub(self.output_view_height as usize);
-            self.clamp_output_offset();
-            self.store_current_module_output();
         } else {
             self.command_output = vec!["Select a module to run commands.".to_string()];
             self.output_offset = 0;
         }
+        self.clamp_output_offset();
+        self.refresh_search_matches();
+        self.store_current_module_output();
         self.clamp_output_offset();
     }
 
     pub fn set_output_view_height(&mut self, height: u16) {
         self.output_view_height = height;
         self.clamp_output_offset();
+        self.ensure_current_match_visible();
     }
 
     fn clamp_output_offset(&mut self) {
@@ -400,9 +454,261 @@ impl TuiState {
     pub fn focus_output(&mut self) {
         self.focus = Focus::Output;
     }
+
+    fn is_search_input_active(&self) -> bool {
+        self.search_input.is_some()
+    }
+
+    fn begin_search_input(&mut self) {
+        let initial = self
+            .search_input
+            .take()
+            .or_else(|| self.search_state.as_ref().map(|s| s.query.clone()))
+            .unwrap_or_default();
+        self.search_input = Some(initial);
+        self.search_error = None;
+    }
+
+    fn cancel_search_input(&mut self) {
+        self.search_input = None;
+        if self
+            .search_state
+            .as_ref()
+            .map(|s| s.has_matches())
+            .unwrap_or(false)
+        {
+            self.search_error = None;
+        } else if self.search_state.is_none() {
+            self.search_error = None;
+        }
+    }
+
+    fn push_search_char(&mut self, ch: char) {
+        if let Some(buffer) = self.search_input.as_mut() {
+            buffer.push(ch);
+            self.search_error = None;
+        }
+    }
+
+    fn backspace_search_char(&mut self) {
+        if let Some(buffer) = self.search_input.as_mut() {
+            buffer.pop();
+            self.search_error = None;
+        }
+    }
+
+    fn submit_search(&mut self) {
+        if let Some(pattern) = self.search_input.clone() {
+            if pattern.is_empty() {
+                self.search_state = None;
+                self.search_input = None;
+                self.search_error = None;
+                return;
+            }
+            match self.apply_search_query(pattern.clone(), false) {
+                Ok(_) => {
+                    self.search_input = None;
+                }
+                Err(err) => {
+                    self.search_error = Some(err.to_string());
+                    self.search_input = Some(pattern);
+                }
+            }
+        }
+    }
+
+    fn apply_search_query(
+        &mut self,
+        query: String,
+        keep_current: bool,
+    ) -> Result<(), regex::Error> {
+        let regex = Regex::new(&query)?;
+        let matches = self.collect_search_matches(&regex);
+        let mut current_index = 0usize;
+
+        if keep_current {
+            if let Some(existing) = self.search_state.as_ref() {
+                if existing.query == query && !matches.is_empty() {
+                    current_index = existing.current.min(matches.len() - 1);
+                }
+            }
+        }
+
+        self.search_state = Some(SearchState {
+            query,
+            matches,
+            current: current_index,
+        });
+
+        if let Some(search) = self.search_state.as_ref() {
+            if search.has_matches() {
+                self.search_error = None;
+                self.jump_to_match(current_index);
+            } else {
+                self.search_error = Some("No matches found".to_string());
+            }
+        }
+
+        Ok(())
+    }
+
+    fn collect_search_matches(&self, regex: &Regex) -> Vec<SearchMatch> {
+        self.command_output
+            .iter()
+            .enumerate()
+            .flat_map(|(line_index, line)| {
+                regex
+                    .find_iter(line)
+                    .map(move |_| SearchMatch { line_index })
+            })
+            .collect()
+    }
+
+    fn refresh_search_matches(&mut self) {
+        if let Some(existing) = self.search_state.as_ref().cloned() {
+            let _ = self.apply_search_query(existing.query, true);
+        } else {
+            self.search_error = None;
+        }
+    }
+
+    fn next_search_match(&mut self) {
+        if let Some(search) = self.search_state.as_ref() {
+            if search.matches.is_empty() {
+                return;
+            }
+            let next = (search.current + 1) % search.matches.len();
+            self.jump_to_match(next);
+        }
+    }
+
+    fn previous_search_match(&mut self) {
+        if let Some(search) = self.search_state.as_ref() {
+            if search.matches.is_empty() {
+                return;
+            }
+            let len = search.matches.len();
+            let next = if search.current == 0 {
+                len - 1
+            } else {
+                search.current - 1
+            };
+            self.jump_to_match(next);
+        }
+    }
+
+    fn jump_to_match(&mut self, index: usize) {
+        if let Some(search) = self.search_state.as_mut() {
+            if search.matches.is_empty() {
+                return;
+            }
+            let idx = index % search.matches.len();
+            search.current = idx;
+            let line_index = search.matches[idx].line_index;
+            self.scroll_match_into_view(line_index);
+        }
+    }
+
+    fn scroll_match_into_view(&mut self, line_index: usize) {
+        if self.output_view_height == 0 {
+            return;
+        }
+        let height = self.output_view_height as usize;
+        let max_offset = self.command_output.len().saturating_sub(height);
+        let mut new_offset = self.output_offset;
+        if line_index < self.output_offset {
+            new_offset = line_index;
+        } else if line_index >= self.output_offset + height {
+            new_offset = line_index + 1 - height;
+        }
+        if new_offset > max_offset {
+            new_offset = max_offset;
+        }
+        if new_offset != self.output_offset {
+            self.output_offset = new_offset;
+            self.store_current_module_output();
+        }
+    }
+
+    fn ensure_current_match_visible(&mut self) {
+        if let Some(search) = self.search_state.as_ref() {
+            if let Some(current) = search.current_match() {
+                self.scroll_match_into_view(current.line_index);
+            }
+        }
+    }
+
+    fn search_line_style(&self, line_index: usize) -> Option<Style> {
+        self.search_state.as_ref().and_then(|search| {
+            if !search.has_matches() {
+                return None;
+            }
+            if search.line_contains_current(line_index) {
+                Some(
+                    Style::default()
+                        .bg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
+                )
+            } else if search.line_has_match(line_index) {
+                Some(Style::default().bg(Color::DarkGray))
+            } else {
+                None
+            }
+        })
+    }
+
+    fn search_status_line(&self) -> Option<Line<'static>> {
+        if let Some(buffer) = self.search_input.as_ref() {
+            let mut display = buffer.clone();
+            display.push('_');
+            return Some(Line::from(vec![
+                Span::styled("/", Style::default().fg(Color::Yellow)),
+                Span::from(display),
+            ]));
+        }
+        if let Some(error) = self.search_error.as_ref() {
+            return Some(Line::from(vec![
+                Span::styled("Search error:", Style::default().fg(Color::Red)),
+                Span::from(format!(" {error}")),
+            ]));
+        }
+        if let Some(search) = self.search_state.as_ref() {
+            if search.query.is_empty() {
+                return None;
+            }
+            if search.has_matches() {
+                return Some(Line::from(vec![
+                    Span::styled("Search", Style::default().fg(Color::Yellow)),
+                    Span::from(format!(
+                        " Match {}/{}   /{}",
+                        search.current + 1,
+                        search.total_matches(),
+                        search.query
+                    )),
+                ]));
+            } else {
+                return Some(Line::from(vec![
+                    Span::styled("Search", Style::default().fg(Color::Yellow)),
+                    Span::from(format!(" No matches   /{}", search.query)),
+                ]));
+            }
+        }
+        None
+    }
 }
 
 pub fn handle_key_event(key: KeyEvent, state: &mut TuiState) {
+    if state.is_search_input_active() {
+        match key.code {
+            KeyCode::Enter => state.submit_search(),
+            KeyCode::Esc => state.cancel_search_input(),
+            KeyCode::Backspace => state.backspace_search_char(),
+            KeyCode::Char(ch) => state.push_search_char(ch),
+            _ => {}
+        }
+        return;
+    }
+
     match key.code {
         KeyCode::Left => state.focus_modules(),
         KeyCode::Right => state.focus_output(),
@@ -448,6 +754,21 @@ pub fn handle_key_event(key: KeyEvent, state: &mut TuiState) {
         KeyCode::Char('d') => {
             let args = &["dependency:tree"];
             state.run_selected_module_command(args);
+        }
+        KeyCode::Char('/') => {
+            if state.focus == Focus::Output {
+                state.begin_search_input();
+            }
+        }
+        KeyCode::Char('n') => {
+            if state.focus == Focus::Output {
+                state.next_search_match();
+            }
+        }
+        KeyCode::Char('N') => {
+            if state.focus == Focus::Output {
+                state.previous_search_match();
+            }
         }
         KeyCode::PageUp => {
             if state.focus == Focus::Output {
@@ -505,6 +826,9 @@ fn footer_spans(view: CurrentView, focus: Focus) -> Vec<Span<'static>> {
             hints.push(("PgDn", "Page down"));
             hints.push(("Home", "Top"));
             hints.push(("End", "Bottom"));
+            hints.push(("/", "Search"));
+            hints.push(("n", "Next match"));
+            hints.push(("N", "Prev match"));
         }
     }
 
@@ -641,6 +965,9 @@ mod tests {
             .collect();
         assert!(output_text.contains("Scroll"));
         assert!(output_text.contains("Page down"));
+        assert!(output_text.contains("Search"));
+        assert!(output_text.contains("Next match"));
+        assert!(output_text.contains("Prev match"));
 
         let profiles_text: String = footer_spans(CurrentView::Profiles, Focus::Modules)
             .iter()
@@ -685,6 +1012,79 @@ mod tests {
         handle_key_event(KeyEvent::from(KeyCode::Home), &mut state);
         draw(&mut terminal, &mut state).unwrap();
         assert_eq!(state.output_offset, 0);
+    }
+
+    #[test]
+    fn test_output_search_navigation() {
+        let modules = vec!["module".to_string()];
+        let project_root = PathBuf::from("/");
+        let mut state = TuiState::new(modules, project_root);
+        state.command_output = vec![
+            "alpha".to_string(),
+            "beta".to_string(),
+            "gamma beta".to_string(),
+            "delta".to_string(),
+        ];
+        state.set_output_view_height(2);
+        state.scroll_output_to_end();
+        state.focus_output();
+
+        handle_key_event(KeyEvent::from(KeyCode::Char('/')), &mut state);
+        assert!(state.is_search_input_active());
+        for ch in ['b', 'e', 't', 'a'] {
+            handle_key_event(KeyEvent::from(KeyCode::Char(ch)), &mut state);
+        }
+        handle_key_event(KeyEvent::from(KeyCode::Enter), &mut state);
+
+        let search = state.search_state.as_ref().expect("search state");
+        assert_eq!(search.matches.len(), 2);
+        assert_eq!(search.matches[0].line_index, 1);
+        assert_eq!(search.current, 0);
+        assert!(state.search_error.is_none());
+
+        let status = state.search_status_line().expect("status line");
+        let status_text: String = status
+            .spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect();
+        assert!(status_text.contains("Match 1/2"));
+
+        let height = state.output_view_height as usize;
+        let current_line = search.matches[search.current].line_index;
+        assert!(current_line < state.output_offset + height);
+
+        handle_key_event(KeyEvent::from(KeyCode::Char('n')), &mut state);
+        let search = state.search_state.as_ref().unwrap();
+        assert_eq!(search.current, 1);
+        let current_line = search.matches[search.current].line_index;
+        assert!(current_line >= state.output_offset);
+        assert!(current_line < state.output_offset + height);
+
+        handle_key_event(KeyEvent::from(KeyCode::Char('N')), &mut state);
+        let search = state.search_state.as_ref().unwrap();
+        assert_eq!(search.current, 0);
+    }
+
+    #[test]
+    fn test_output_search_error_handling() {
+        let modules = vec!["module".to_string()];
+        let project_root = PathBuf::from("/");
+        let mut state = TuiState::new(modules, project_root);
+        state.command_output = vec!["alpha".to_string()];
+        state.set_output_view_height(2);
+        state.focus_output();
+
+        handle_key_event(KeyEvent::from(KeyCode::Char('/')), &mut state);
+        handle_key_event(KeyEvent::from(KeyCode::Char('[')), &mut state);
+        handle_key_event(KeyEvent::from(KeyCode::Enter), &mut state);
+
+        assert!(state.is_search_input_active());
+        assert!(state.search_error.is_some());
+
+        handle_key_event(KeyEvent::from(KeyCode::Esc), &mut state);
+        assert!(state.search_input.is_none());
+        assert!(state.search_error.is_none());
     }
 
     #[test]
