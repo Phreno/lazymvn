@@ -1,4 +1,0 @@
-#!/bin/sh
-echo -e "[32m[INFO][0m This is a success message"
-echo -e "[33m[WARNING][0m This is a warning"
-echo -e "[31m[ERROR][0m This is an error"
