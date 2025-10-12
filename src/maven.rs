@@ -87,14 +87,39 @@ pub fn execute_maven_command(
 }
 
 pub fn get_profiles(project_root: &Path) -> Result<Vec<String>, std::io::Error> {
-    let output = execute_maven_command(project_root, None, &["help:all-profiles", "-N"], &[], None)?;
+    // Try to load config and use settings if available
+    let config = crate::config::load_config(project_root);
+    let output = execute_maven_command(
+        project_root, 
+        None, 
+        &["help:all-profiles", "-N"], 
+        &[], 
+        config.maven_settings.as_deref()
+    )?;
     let profiles = output
         .iter()
         .filter_map(|line| {
             if line.contains("Profile Id:") {
-                line.split("Profile Id:")
-                    .last()
-                    .map(|s| s.trim().to_string())
+                let parts: Vec<&str> = line.split("Profile Id:").collect();
+                if parts.len() > 1 {
+                    // Extract just the profile name, stop at first space or parenthesis
+                    let profile_part = parts[1].trim();
+                    let profile_name = profile_part
+                        .split_whitespace()
+                        .next()
+                        .unwrap_or("")
+                        .split('(')
+                        .next()
+                        .unwrap_or("")
+                        .trim();
+                    if !profile_name.is_empty() {
+                        Some(profile_name.to_string())
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
             } else {
                 None
             }
@@ -212,18 +237,14 @@ mod tests {
         let dir = tempdir().unwrap();
         let project_root = dir.path();
 
-        // Create a mock mvnw script
+        // Create a mock mvnw script that simulates Maven's help:all-profiles output
         let mvnw_path = project_root.join("mvnw");
         write_script(
             &mvnw_path,
-            "#!/bin/sh\necho '[INFO]   Profile Id: profile-1'\necho '[INFO]   Profile Id: profile-2'\n",
+            "#!/bin/sh\necho '  Profile Id: profile-1 (Active: false, Source: pom)'\necho '  Profile Id: profile-2 (Active: true, Source: pom)'\n",
         );
 
-        let profiles: Vec<String> = get_profiles(project_root)
-            .unwrap()
-            .iter()
-            .map(|line| utils::clean_log_line(line).unwrap())
-            .collect();
+        let profiles = get_profiles(project_root).unwrap();
         assert_eq!(profiles, vec!["profile-1", "profile-2"]);
     }
 

@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 http://maven.apache.org/xsd/settings-1.0.0.xsd">
+
+    <!-- Local repository location -->
+    <localRepository>${user.home}/.m2/repository</localRepository>
+
+    <!-- Offline mode -->
+    <offline>false</offline>
+
+    <!-- Plugin groups -->
+    <pluginGroups>
+        <pluginGroup>org.springframework.boot</pluginGroup>
+        <pluginGroup>com.github.spotbugs</pluginGroup>
+    </pluginGroups>
+
+    <!-- Proxies (commented out, uncomment if needed) -->
+    <!--
+    <proxies>
+        <proxy>
+            <id>corporate-proxy</id>
+            <active>true</active>
+            <protocol>http</protocol>
+            <host>proxy.company.com</host>
+            <port>8080</port>
+            <nonProxyHosts>localhost|127.0.0.1|*.company.com</nonProxyHosts>
+        </proxy>
+    </proxies>
+    -->
+
+    <!-- Server configurations -->
+    <servers>
+        <server>
+            <id>central</id>
+            <username>user</username>
+            <password>password</password>
+        </server>
+        <server>
+            <id>spring-releases</id>
+            <username>spring-user</username>
+            <password>spring-password</password>
+        </server>
+    </servers>
+
+    <!-- Mirrors -->
+    <mirrors>
+        <!-- Mirror for Maven Central (commented out by default) -->
+        <!--
+        <mirror>
+            <id>central-mirror</id>
+            <name>Maven Central Mirror</name>
+            <url>https://repo1.maven.org/maven2</url>
+            <mirrorOf>central</mirrorOf>
+        </mirror>
+        -->
+    </mirrors>
+
+    <!-- Profiles -->
+    <profiles>
+        <!-- Development profile -->
+        <profile>
+            <id>development</id>
+            <activation>
+                <activeByDefault>false</activeByDefault>
+                <property>
+                    <name>env</name>
+                    <value>dev</value>
+                </property>
+            </activation>
+            <properties>
+                <maven.compiler.debug>true</maven.compiler.debug>
+                <maven.compiler.optimize>false</maven.compiler.optimize>
+                <spring.profiles.active>dev</spring.profiles.active>
+                <logging.level.root>DEBUG</logging.level.root>
+            </properties>
+            <repositories>
+                <repository>
+                    <id>spring-snapshots</id>
+                    <name>Spring Snapshots</name>
+                    <url>https://repo.spring.io/snapshot</url>
+                    <snapshots>
+                        <enabled>true</enabled>
+                    </snapshots>
+                </repository>
+            </repositories>
+        </profile>
+
+        <!-- Production profile -->
+        <profile>
+            <id>production</id>
+            <activation>
+                <activeByDefault>false</activeByDefault>
+                <property>
+                    <name>env</name>
+                    <value>prod</value>
+                </property>
+            </activation>
+            <properties>
+                <maven.compiler.debug>false</maven.compiler.debug>
+                <maven.compiler.optimize>true</maven.compiler.optimize>
+                <spring.profiles.active>prod</spring.profiles.active>
+                <logging.level.root>WARN</logging.level.root>
+                <maven.test.skip>true</maven.test.skip>
+            </properties>
+        </profile>
+
+        <!-- Testing profile -->
+        <profile>
+            <id>testing</id>
+            <activation>
+                <activeByDefault>false</activeByDefault>
+                <property>
+                    <name>env</name>
+                    <value>test</value>
+                </property>
+            </activation>
+            <properties>
+                <maven.compiler.debug>true</maven.compiler.debug>
+                <spring.profiles.active>test</spring.profiles.active>
+                <logging.level.root>INFO</logging.level.root>
+                <surefire.useFile>false</surefire.useFile>
+            </properties>
+            <repositories>
+                <repository>
+                    <id>spring-milestones</id>
+                    <name>Spring Milestones</name>
+                    <url>https://repo.spring.io/milestone</url>
+                    <snapshots>
+                        <enabled>false</enabled>
+                    </snapshots>
+                </repository>
+            </repositories>
+        </profile>
+
+        <!-- Security scanning profile -->
+        <profile>
+            <id>security-scan</id>
+            <activation>
+                <activeByDefault>false</activeByDefault>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>com.github.spotbugs</groupId>
+                        <artifactId>spotbugs-maven-plugin</artifactId>
+                        <version>4.8.2.0</version>
+                        <configuration>
+                            <effort>Max</effort>
+                            <threshold>Low</threshold>
+                            <xmlOutput>true</xmlOutput>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <goals>
+                                    <goal>check</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <!-- Performance testing profile -->
+        <profile>
+            <id>performance</id>
+            <activation>
+                <activeByDefault>false</activeByDefault>
+            </activation>
+            <properties>
+                <spring.profiles.active>performance</spring.profiles.active>
+                <jvm.args>-Xmx2g -XX:+UseG1GC</jvm.args>
+            </properties>
+            <dependencies>
+                <dependency>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-actuator</artifactId>
+                </dependency>
+            </dependencies>
+        </profile>
+
+        <!-- Docker profile -->
+        <profile>
+            <id>docker</id>
+            <activation>
+                <activeByDefault>false</activeByDefault>
+                <property>
+                    <name>docker</name>
+                </property>
+            </activation>
+            <properties>
+                <spring.profiles.active>docker</spring.profiles.active>
+                <docker.image.name>${project.artifactId}:${project.version}</docker.image.name>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>com.spotify</groupId>
+                        <artifactId>dockerfile-maven-plugin</artifactId>
+                        <version>1.4.13</version>
+                        <configuration>
+                            <repository>${docker.image.name}</repository>
+                            <buildArgs>
+                                <JAR_FILE>target/${project.build.finalName}.jar</JAR_FILE>
+                            </buildArgs>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <!-- JDK 17 specific profile -->
+        <profile>
+            <id>jdk17</id>
+            <activation>
+                <jdk>17</jdk>
+            </activation>
+            <properties>
+                <maven.compiler.source>17</maven.compiler.source>
+                <maven.compiler.target>17</maven.compiler.target>
+                <java.version>17</java.version>
+            </properties>
+        </profile>
+
+        <!-- JDK 21 specific profile -->
+        <profile>
+            <id>jdk21</id>
+            <activation>
+                <jdk>21</jdk>
+            </activation>
+            <properties>
+                <maven.compiler.source>21</maven.compiler.source>
+                <maven.compiler.target>21</maven.compiler.target>
+                <java.version>21</java.version>
+            </properties>
+        </profile>
+    </profiles>
+
+    <!-- Active profiles -->
+    <activeProfiles>
+        <activeProfile>development</activeProfile>
+    </activeProfiles>
+
+</settings>

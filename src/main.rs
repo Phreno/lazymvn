@@ -41,7 +41,12 @@ fn run<B: ratatui::backend::Backend>(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let (modules, project_root) = project::get_project_modules()?;
     let config = config::load_config(&project_root);
-    let mut state = tui::TuiState::new(modules, project_root, config);
+    let mut state = tui::TuiState::new(modules, project_root.clone(), config);
+    
+    // Load available profiles
+    if let Ok(profiles) = maven::get_profiles(&project_root) {
+        state.set_profiles(profiles);
+    }
 
     loop {
         tui::draw(terminal, &mut state)?;

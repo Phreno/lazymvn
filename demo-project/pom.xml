@@ -27,6 +27,7 @@
     </properties>
 
     <profiles>
+        <!-- Development profile (auto-activated) -->
         <profile>
             <id>dev</id>
             <activation>
@@ -36,7 +37,167 @@
             </activation>
             <properties>
                 <spring-boot.run.profiles>dev</spring-boot.run.profiles>
+                <maven.compiler.debug>true</maven.compiler.debug>
+                <maven.compiler.optimize>false</maven.compiler.optimize>
             </properties>
+        </profile>
+
+        <!-- Integration testing profile -->
+        <profile>
+            <id>integration-tests</id>
+            <activation>
+                <activeByDefault>false</activeByDefault>
+            </activation>
+            <properties>
+                <skipITs>false</skipITs>
+                <spring-boot.run.profiles>integration</spring-boot.run.profiles>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-failsafe-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <goals>
+                                    <goal>integration-test</goal>
+                                    <goal>verify</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <!-- Fast build profile (skips tests and checks) -->
+        <profile>
+            <id>fast</id>
+            <activation>
+                <activeByDefault>false</activeByDefault>
+            </activation>
+            <properties>
+                <maven.test.skip>true</maven.test.skip>
+                <maven.javadoc.skip>true</maven.javadoc.skip>
+                <checkstyle.skip>true</checkstyle.skip>
+                <spotbugs.skip>true</spotbugs.skip>
+            </properties>
+        </profile>
+
+        <!-- Release profile -->
+        <profile>
+            <id>release</id>
+            <activation>
+                <activeByDefault>false</activeByDefault>
+            </activation>
+            <properties>
+                <maven.compiler.debug>false</maven.compiler.debug>
+                <maven.compiler.optimize>true</maven.compiler.optimize>
+                <spring-boot.run.profiles>prod</spring-boot.run.profiles>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-source-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>attach-sources</id>
+                                <goals>
+                                    <goal>jar-no-fork</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-javadoc-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>attach-javadocs</id>
+                                <goals>
+                                    <goal>jar</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <!-- Code quality profile -->
+        <profile>
+            <id>quality</id>
+            <activation>
+                <activeByDefault>false</activeByDefault>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.jacoco</groupId>
+                        <artifactId>jacoco-maven-plugin</artifactId>
+                        <version>0.8.11</version>
+                        <executions>
+                            <execution>
+                                <goals>
+                                    <goal>prepare-agent</goal>
+                                </goals>
+                            </execution>
+                            <execution>
+                                <id>report</id>
+                                <phase>test</phase>
+                                <goals>
+                                    <goal>report</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-checkstyle-plugin</artifactId>
+                        <version>3.3.1</version>
+                        <configuration>
+                            <configLocation>checkstyle.xml</configLocation>
+                            <failOnViolation>true</failOnViolation>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <phase>validate</phase>
+                                <goals>
+                                    <goal>check</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <!-- Database migration profile -->
+        <profile>
+            <id>db-migrate</id>
+            <activation>
+                <activeByDefault>false</activeByDefault>
+            </activation>
+            <properties>
+                <flyway.url>jdbc:h2:mem:testdb</flyway.url>
+                <flyway.user>sa</flyway.user>
+                <flyway.password></flyway.password>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.flywaydb</groupId>
+                        <artifactId>flyway-maven-plugin</artifactId>
+                        <version>9.22.3</version>
+                        <configuration>
+                            <url>${flyway.url}</url>
+                            <user>${flyway.user}</user>
+                            <password>${flyway.password}</password>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
         </profile>
     </profiles>
 </project>
