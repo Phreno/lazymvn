@@ -5,12 +5,9 @@ mod tui;
 mod ui;
 mod utils;
 
-use ratatui::{
-    backend::CrosstermBackend,
-    Terminal,
-};
-use std::io;
 use crossterm::event;
+use ratatui::{Terminal, backend::CrosstermBackend};
+use std::io;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // setup terminal
@@ -39,7 +36,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn run<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>) -> Result<(), Box<dyn std::error::Error>> {
+fn run<B: ratatui::backend::Backend>(
+    terminal: &mut Terminal<B>,
+) -> Result<(), Box<dyn std::error::Error>> {
     let (modules, project_root) = project::get_project_modules()?;
     let mut state = tui::TuiState::new(modules, project_root);
 

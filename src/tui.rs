@@ -1,61 +1,96 @@
 use crate::maven;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
-    backend::Backend,
-    layout::{Layout, Constraint, Direction},
-    style::{Color, Modifier, Style},
-    widgets::{Block, Borders, List, ListItem, ListState},
     Terminal,
+    backend::Backend,
+    layout::{Constraint, Direction, Layout},
+    style::{Color, Modifier, Style},
+    text::{Line, Span},
+    widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
 };
 use std::path::PathBuf;
 
-pub fn draw<B: Backend>(terminal: &mut Terminal<B>, state: &mut TuiState) -> Result<(), std::io::Error> {
+pub fn draw<B: Backend>(
+    terminal: &mut Terminal<B>,
+    state: &mut TuiState,
+) -> Result<(), std::io::Error> {
     terminal.draw(|f| {
-        let chunks = Layout::default()
+        let vertical = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Min(0), Constraint::Length(3)].as_ref())
+            .split(f.area());
+
+        let content_chunks = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
-            .split(f.area());
+            .split(vertical[0]);
 
         match state.current_view {
             CurrentView::Modules => {
                 // Modules panel
                 let modules_block = Block::default().title("Modules").borders(Borders::ALL);
-                let list_items: Vec<ListItem> = state.modules.iter().map(|m| ListItem::new(m.as_str())).collect();
+                let list_items: Vec<ListItem> = state
+                    .modules
+                    .iter()
+                    .map(|m| ListItem::new(m.as_str()))
+                    .collect();
                 let list = List::new(list_items)
                     .block(modules_block)
-                    .highlight_style(Style::default().add_modifier(Modifier::BOLD).fg(Color::Yellow))
+                    .highlight_style(
+                        Style::default()
+                            .add_modifier(Modifier::BOLD)
+                            .fg(Color::Yellow),
+                    )
                     .highlight_symbol("> ");
-                f.render_stateful_widget(list, chunks[0], &mut state.modules_list_state);
+                f.render_stateful_widget(list, content_chunks[0], &mut state.modules_list_state);
             }
             CurrentView::Profiles => {
                 // Profiles panel
                 let profiles_block = Block::default().title("Profiles").borders(Borders::ALL);
-                let list_items: Vec<ListItem> = state.profiles.iter().map(|p| {
-                    let line = if state.active_profiles.contains(p) {
-                        format!("* {}", p)
-                    } else {
-                        format!("  {}", p)
-                    };
-                    ListItem::new(line)
-                }).collect();
+                let list_items: Vec<ListItem> = state
+                    .profiles
+                    .iter()
+                    .map(|p| {
+                        let line = if state.active_profiles.contains(p) {
+                            format!("* {}", p)
+                        } else {
+                            format!("  {}", p)
+                        };
+                        ListItem::new(line)
+                    })
+                    .collect();
                 let list = List::new(list_items)
                     .block(profiles_block)
-                    .highlight_style(Style::default().add_modifier(Modifier::BOLD).fg(Color::Yellow))
+                    .highlight_style(
+                        Style::default()
+                            .add_modifier(Modifier::BOLD)
+                            .fg(Color::Yellow),
+                    )
                     .highlight_symbol("> ");
-                f.render_stateful_widget(list, chunks[0], &mut state.profiles_list_state);
+                f.render_stateful_widget(list, content_chunks[0], &mut state.profiles_list_state);
             }
         }
 
         // Command output panel
         let output_block = Block::default().title("Output").borders(Borders::ALL);
-        let output_items: Vec<ListItem> = state.command_output.iter().map(|m| ListItem::new(m.as_str())).collect();
+        let output_items: Vec<ListItem> = state
+            .command_output
+            .iter()
+            .map(|m| ListItem::new(m.as_str()))
+            .collect();
         let output_list = List::new(output_items).block(output_block);
-        f.render_widget(output_list, chunks[1]);
+        f.render_widget(output_list, content_chunks[1]);
+
+        // Footer with key hints
+        let footer_spans = footer_spans(state.current_view);
+        let footer =
+            Paragraph::new(Line::from(footer_spans)).block(Block::default().borders(Borders::TOP));
+        f.render_widget(footer, vertical[1]);
     })?;
     Ok(())
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub enum CurrentView {
     Modules,
     Profiles,
@@ -159,38 +194,47 @@ pub fn handle_key_event(key: KeyEvent, state: &mut TuiState) {
     match key.code {
         KeyCode::Down => state.next_item(),
         KeyCode::Up => state.previous_item(),
-        KeyCode::Char('p') => {
-            match state.current_view {
-                CurrentView::Modules => {
-                    if state.profiles.is_empty() {
-                        state.profiles = maven::get_profiles(&state.project_root).unwrap_or_else(|e| vec![e.to_string()]);
-                    }
-                    state.current_view = CurrentView::Profiles;
+        KeyCode::Char('p') => match state.current_view {
+            CurrentView::Modules => {
+                if state.profiles.is_empty() {
+                    state.profiles = maven::get_profiles(&state.project_root)
+                        .unwrap_or_else(|e| vec![e.to_string()]);
                 }
-                CurrentView::Profiles => {
-                    state.current_view = CurrentView::Modules;
-                }
+                state.current_view = CurrentView::Profiles;
             }
-        }
+            CurrentView::Profiles => {
+                state.current_view = CurrentView::Modules;
+            }
+        },
         KeyCode::Char('b') => {
             let args = &["-T1C", "-DskipTests", "package"];
-            state.command_output = maven::execute_maven_command(&state.project_root, args, &state.active_profiles).unwrap_or_else(|e| vec![e.to_string()]);
+            state.command_output =
+                maven::execute_maven_command(&state.project_root, args, &state.active_profiles)
+                    .unwrap_or_else(|e| vec![e.to_string()]);
         }
         KeyCode::Char('t') => {
             let args = &["test"];
-            state.command_output = maven::execute_maven_command(&state.project_root, args, &state.active_profiles).unwrap_or_else(|e| vec![e.to_string()]);
+            state.command_output =
+                maven::execute_maven_command(&state.project_root, args, &state.active_profiles)
+                    .unwrap_or_else(|e| vec![e.to_string()]);
         }
         KeyCode::Char('c') => {
             let args = &["clean"];
-            state.command_output = maven::execute_maven_command(&state.project_root, args, &state.active_profiles).unwrap_or_else(|e| vec![e.to_string()]);
+            state.command_output =
+                maven::execute_maven_command(&state.project_root, args, &state.active_profiles)
+                    .unwrap_or_else(|e| vec![e.to_string()]);
         }
         KeyCode::Char('i') => {
             let args = &["-DskipTests", "install"];
-            state.command_output = maven::execute_maven_command(&state.project_root, args, &state.active_profiles).unwrap_or_else(|e| vec![e.to_string()]);
+            state.command_output =
+                maven::execute_maven_command(&state.project_root, args, &state.active_profiles)
+                    .unwrap_or_else(|e| vec![e.to_string()]);
         }
         KeyCode::Char('d') => {
             let args = &["dependency:tree"];
-            state.command_output = maven::execute_maven_command(&state.project_root, args, &state.active_profiles).unwrap_or_else(|e| vec![e.to_string()]);
+            state.command_output =
+                maven::execute_maven_command(&state.project_root, args, &state.active_profiles)
+                    .unwrap_or_else(|e| vec![e.to_string()]);
         }
         KeyCode::Enter => {
             if state.current_view == CurrentView::Profiles {
@@ -201,18 +245,52 @@ pub fn handle_key_event(key: KeyEvent, state: &mut TuiState) {
     }
 }
 
+fn footer_spans(view: CurrentView) -> Vec<Span<'static>> {
+    let mut hints: Vec<(&str, &str)> = match view {
+        CurrentView::Modules => vec![("↑/↓", "Move"), ("p", "Profiles")],
+        CurrentView::Profiles => vec![
+            ("↑/↓", "Move"),
+            ("Enter", "Toggle profile"),
+            ("p", "Back to modules"),
+        ],
+    };
+
+    hints.extend_from_slice(&[
+        ("b", "Package"),
+        ("t", "Test"),
+        ("c", "Clean"),
+        ("i", "Install"),
+        ("d", "Deps"),
+        ("q", "Quit"),
+    ]);
+
+    let mut spans = Vec::with_capacity(hints.len() * 3);
+    for (idx, (key, label)) in hints.iter().enumerate() {
+        spans.push(Span::styled(
+            format!(" {key} "),
+            Style::default()
+                .fg(Color::Black)
+                .bg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ));
+        spans.push(Span::raw(format!(" {label} ")));
+        if idx < hints.len() - 1 {
+            spans.push(Span::styled("|", Style::default().fg(Color::DarkGray)));
+        }
+    }
+
+    spans
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ratatui::{Terminal, backend::TestBackend};
     use tempfile::tempdir;
-    use ratatui::{
-        backend::TestBackend,
-        Terminal,
-    };
 
     #[test]
     fn test_draw_ui() {
-        let backend = TestBackend::new(26, 5);
+        let backend = TestBackend::new(80, 20);
         let mut terminal = Terminal::new(backend).unwrap();
         let modules = vec!["module1".to_string(), "module2".to_string()];
         let project_root = PathBuf::from("/");
@@ -222,9 +300,23 @@ mod tests {
         // Test Modules view
         draw(&mut terminal, &mut state).unwrap();
         let buffer = terminal.backend().buffer();
-        let line0 = buffer.content.iter().take(26).map(|c| c.symbol()).collect::<String>();
-        assert!(line0.contains("Modules"));
-        assert!(line0.contains("Output"));
+        let rendered = buffer
+            .content
+            .iter()
+            .map(|c| c.symbol())
+            .collect::<String>();
+        assert!(
+            rendered.contains("Modules"),
+            "expected Modules pane title to render"
+        );
+        assert!(
+            rendered.contains("Output"),
+            "expected Output pane title to render"
+        );
+        assert!(
+            rendered.contains("b  Package"),
+            "expected footer to list package command"
+        );
 
         // Test Profiles view
         state.current_view = CurrentView::Profiles;
@@ -232,16 +324,32 @@ mod tests {
         state.active_profiles = vec!["profile1".to_string()];
         draw(&mut terminal, &mut state).unwrap();
         let buffer = terminal.backend().buffer();
-        let line0 = buffer.content.iter().take(26).map(|c| c.symbol()).collect::<String>();
-        assert!(line0.contains("Profiles"));
-        assert!(line0.contains("Output"));
-        let line1 = buffer.content.iter().skip(26).take(26).map(|c| c.symbol()).collect::<String>();
-        assert!(line1.contains("* profile1"));
+        let rendered = buffer
+            .content
+            .iter()
+            .map(|c| c.symbol())
+            .collect::<String>();
+        assert!(
+            rendered.contains("Profiles"),
+            "expected Profiles pane title to render"
+        );
+        assert!(
+            rendered.contains("* profile1"),
+            "expected active profile to be marked"
+        );
+        assert!(
+            rendered.contains("Enter  Toggle profile"),
+            "expected footer to describe profile toggle action"
+        );
     }
 
     #[test]
     fn test_key_events() {
-        let modules = vec!["module1".to_string(), "module2".to_string(), "module3".to_string()];
+        let modules = vec![
+            "module1".to_string(),
+            "module2".to_string(),
+            "module3".to_string(),
+        ];
         let project_root = PathBuf::from("/");
         let mut state = TuiState::new(modules, project_root);
 

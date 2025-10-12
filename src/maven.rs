@@ -1,6 +1,6 @@
+use std::io::{BufRead, BufReader};
 use std::path::Path;
 use std::process::{Command, Stdio};
-use std::io::{BufReader, BufRead};
 
 pub fn get_maven_command(project_root: &Path) -> String {
     if project_root.join("mvnw").exists() {
@@ -10,7 +10,11 @@ pub fn get_maven_command(project_root: &Path) -> String {
     }
 }
 
-pub fn execute_maven_command(project_root: &Path, args: &[&str], profiles: &[String]) -> Result<Vec<String>, std::io::Error> {
+pub fn execute_maven_command(
+    project_root: &Path,
+    args: &[&str],
+    profiles: &[String],
+) -> Result<Vec<String>, std::io::Error> {
     let maven_command = get_maven_command(project_root);
     let mut command = Command::new(maven_command);
     if !profiles.is_empty() {
@@ -40,7 +44,9 @@ pub fn get_profiles(project_root: &Path) -> Result<Vec<String>, std::io::Error> 
         .iter()
         .filter_map(|line| {
             if line.contains("Profile Id:") {
-                line.split("Profile Id:").last().map(|s| s.trim().to_string())
+                line.split("Profile Id:")
+                    .last()
+                    .map(|s| s.trim().to_string())
             } else {
                 None
             }
@@ -79,7 +85,9 @@ mod tests {
         let mvnw_path = project_root.join("mvnw");
         let mut mvnw_file = File::create(&mvnw_path).unwrap();
         use std::io::Write;
-        mvnw_file.write_all(b"#!/bin/sh\necho 'line 1'\necho 'line 2'").unwrap();
+        mvnw_file
+            .write_all(b"#!/bin/sh\necho 'line 1'\necho 'line 2'")
+            .unwrap();
         // Make it executable
         use std::os::unix::fs::PermissionsExt;
         let mut perms = mvnw_file.metadata().unwrap().permissions();

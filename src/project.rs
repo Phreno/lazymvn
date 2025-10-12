@@ -1,8 +1,8 @@
-use std::path::{Path, PathBuf};
 use dirs;
-use std::fs;
 use quick_xml::Reader;
 use quick_xml::events::Event;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 pub fn find_pom() -> Option<PathBuf> {
     let mut current_dir = std::env::current_dir().ok()?;
@@ -81,9 +81,9 @@ pub fn get_project_modules() -> Result<(Vec<String>, PathBuf), Box<dyn std::erro
 
 pub mod cache {
     use serde::{Deserialize, Serialize};
-    use std::path::{Path, PathBuf};
-    use std::fs;
     use serde_json;
+    use std::fs;
+    use std::path::{Path, PathBuf};
 
     #[derive(Serialize, Deserialize, Debug, PartialEq)]
     pub struct Cache {
@@ -107,8 +107,8 @@ pub mod cache {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs::File;
     use std::env;
+    use std::fs::File;
     use tempfile::tempdir;
 
     #[test]
