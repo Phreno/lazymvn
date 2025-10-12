@@ -108,19 +108,46 @@ pub fn draw<B: Backend>(
                 .iter()
                 .enumerate()
                 .map(|(idx, line)| {
+                    let cleaned_line = crate::utils::clean_log_line(line).unwrap_or_default();
+                    let mut spans = Vec::new();
+                    let mut last_end = 0;
+
+                    let re = Regex::new(r"(\[(.*?)\])").unwrap();
+                    for cap in re.captures_iter(&cleaned_line) {
+                        let m = cap.get(0).unwrap();
+                        let keyword = cap.get(1).unwrap().as_str();
+
+                        if m.start() > last_end {
+                            spans.push(Span::raw(cleaned_line[last_end..m.start()].to_string()));
+                        }
+
+                        let style = match keyword {
+                            "[INFO]" => Style::default().fg(Color::Green),
+                            "[WARNING]" => Style::default().fg(Color::Yellow),
+                            "[ERROR]" | "[ERR]" => Style::default().fg(Color::Red),
+                            _ => Style::default().fg(Color::Cyan),
+                        };
+
+                        spans.push(Span::styled(keyword.to_string(), style));
+                        last_end = m.end();
+                    }
+
+                    if last_end < cleaned_line.len() {
+                        spans.push(Span::raw(cleaned_line[last_end..].to_string()));
+                    }
+
                     if state.search_mod.is_some() {
                         if let Some(styles) = state.search_line_style(idx) {
-                            let cleaned_line = crate::utils::clean_log_line(line).unwrap_or_default();
-                            let mut spans = Vec::new();
+                            let mut new_spans = Vec::new();
                             let mut last_end = 0;
 
                             for (style, range) in styles {
                                 if range.start > last_end {
-                                    spans.push(Span::raw(
+                                    new_spans.push(Span::raw(
                                         cleaned_line[last_end..range.start].to_string(),
                                     ));
                                 }
-                                spans.push(Span::styled(
+                                new_spans.push(Span::styled(
                                     cleaned_line[range.start..range.end].to_string(),
                                     style,
                                 ));
@@ -128,16 +155,14 @@ pub fn draw<B: Backend>(
                             }
 
                             if last_end < cleaned_line.len() {
-                                spans.push(Span::raw(cleaned_line[last_end..].to_string()));
+                                new_spans.push(Span::raw(cleaned_line[last_end..].to_string()));
                             }
 
-                            Line::from(spans)
-                        } else {
-                            Line::from(crate::utils::clean_log_line(line).unwrap_or_default())
+                            return Line::from(new_spans);
                         }
-                    } else {
-                        Line::from(line.as_str())
                     }
+
+                    Line::from(spans)
                 })
                 .collect()
         };
@@ -543,16 +568,7 @@ impl TuiState {
     fn cancel_search_input(&mut self) {
         self.search_input = None;
         self.search_history_index = None;
-        if self
-            .search_state
-            .as_ref()
-            .map(|s| s.has_matches())
-            .unwrap_or(false)
-        {
-            self.search_error = None;
-        } else if self.search_state.is_none() {
-            self.search_error = None;
-        }
+        self.search_error = None;
     }
 
     fn push_search_char(&mut self, ch: char) {
@@ -633,7 +649,7 @@ impl TuiState {
                 }
                 Err(err) => {
                     self.search_error = Some(err.to_string());
-                    self.search_input = Some(pattern);
+                    self.search_input = None;
                     self.search_history_index = None;
                 }
             }
@@ -876,40 +892,58 @@ pub fn handle_key_event(key: KeyEvent, state: &mut TuiState) {
                 KeyCode::Enter => {
                     state.submit_search();
                     state.search_mod = Some(SearchMode::Cycling);
+                    return;
                 }
                 KeyCode::Esc => {
                     state.cancel_search_input();
                     state.search_mod = None;
+                    return;
                 }
                 KeyCode::Backspace => {
                     state.backspace_search_char();
                     if let Some(pattern) = state.search_input.clone() {
                         let _ = state.apply_search_query(pattern, false);
                     }
+                    return;
                 }
-                KeyCode::Up => state.recall_previous_search(),
-                KeyCode::Down => state.recall_next_search(),
+                KeyCode::Up => {
+                    state.recall_previous_search();
+                    return;
+                }
+                KeyCode::Down => {
+                    state.recall_next_search();
+                    return;
+                }
                 KeyCode::Char(ch) => {
                     state.push_search_char(ch);
                     if let Some(pattern) = state.search_input.clone() {
                         let _ = state.apply_search_query(pattern, false);
                     }
+                    return;
                 }
                 _ => {}
             },
             SearchMode::Cycling => match key.code {
                 KeyCode::Enter => {
                     state.search_mod = None;
+                    return;
                 }
                 KeyCode::Esc => {
                     state.search_mod = None;
+                    state.search_error = None;
+                    return;
                 }
-                KeyCode::Char('n') => state.next_search_match(),
-                KeyCode::Char('N') => state.previous_search_match(),
+                KeyCode::Char('n') => {
+                    state.next_search_match();
+                    return;
+                }
+                KeyCode::Char('N') => {
+                    state.previous_search_match();
+                    return;
+                }
                 _ => {}
             },
         }
-        return;
     }
 
     match key.code {
@@ -1255,7 +1289,7 @@ mod tests {
         state.focus_output();
 
         handle_key_event(KeyEvent::from(KeyCode::Char('/')), &mut state);
-        assert!(state.is_search_input_active());
+        assert!(state.search_mod.is_some());
         assert_eq!(state.search_input.as_deref(), Some(""));
         for ch in ['b', 'e', 't', 'a'] {
             handle_key_event(KeyEvent::from(KeyCode::Char(ch)), &mut state);
@@ -1309,7 +1343,7 @@ mod tests {
         handle_key_event(KeyEvent::from(KeyCode::Char('[')), &mut state);
         handle_key_event(KeyEvent::from(KeyCode::Enter), &mut state);
 
-        assert!(state.is_search_input_active());
+        assert!(state.search_mod.is_some());
         assert!(state.search_error.is_some());
 
         handle_key_event(KeyEvent::from(KeyCode::Esc), &mut state);

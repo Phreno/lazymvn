@@ -1,4 +1,4 @@
-use crate::{ui::color, utils};
+use crate::utils;
 use std::{
     io::{BufRead, BufReader},
     path::Path,
@@ -47,7 +47,7 @@ pub fn execute_maven_command(
             for line in reader.lines() {
                 if let Ok(line) = line {
                     if let Some(text) = utils::clean_log_line(&line) {
-                        let _ = tx.send(color::colorize_line(&text));
+                        let _ = tx.send(text);
                     }
                 }
             }
@@ -61,7 +61,7 @@ pub fn execute_maven_command(
             for line in reader.lines() {
                 if let Ok(line) = line {
                     if let Some(text) = utils::clean_log_line(&line) {
-                        let _ = tx.send(color::colorize_line(&format!("[ERR] {text}")));
+                        let _ = tx.send(format!("[ERR] {text}"));
                     }
                 }
             }
@@ -143,14 +143,13 @@ mod tests {
 
         // Create a mock mvnw script
         let mvnw_path = project_root.join("mvnw");
-        write_script(&mvnw_path, "#!/bin/sh\necho 'line 1'\necho 'line 2'\n");
-
-        let output: Vec<String> = execute_maven_command(project_root, None, &["test"], &[])
-            .unwrap()
-            .iter()
-            .map(|line| utils::clean_log_line(line).unwrap())
-            .collect();
-        assert_eq!(output, vec!["line 1", "line 2"]);
+                    write_script(&mvnw_path, "#!/bin/sh\necho 'line 1'\necho 'line 2'\n");
+        
+                    let output: Vec<String> = execute_maven_command(project_root, None, &["test"], &[])
+                        .unwrap()
+                        .iter()
+                        .map(|line| utils::clean_log_line(line).unwrap())
+                        .collect();        assert_eq!(output, vec!["line 1", "line 2"]);
     }
 
     #[test]
