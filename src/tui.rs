@@ -28,7 +28,14 @@ pub fn draw<B: Backend>(
         match state.current_view {
             CurrentView::Modules => {
                 // Modules panel
-                let modules_block = Block::default().title("Modules").borders(Borders::ALL);
+                let modules_block = Block::default()
+                    .title("Modules")
+                    .borders(Borders::ALL)
+                    .border_style(if state.focus == Focus::Modules {
+                        Style::default().fg(Color::Yellow)
+                    } else {
+                        Style::default()
+                    });
                 let list_items: Vec<ListItem> = state
                     .modules
                     .iter()
@@ -46,7 +53,14 @@ pub fn draw<B: Backend>(
             }
             CurrentView::Profiles => {
                 // Profiles panel
-                let profiles_block = Block::default().title("Profiles").borders(Borders::ALL);
+                let profiles_block = Block::default()
+                    .title("Profiles")
+                    .borders(Borders::ALL)
+                    .border_style(if state.focus == Focus::Modules {
+                        Style::default().fg(Color::Yellow)
+                    } else {
+                        Style::default()
+                    });
                 let list_items: Vec<ListItem> = state
                     .profiles
                     .iter()
@@ -72,19 +86,22 @@ pub fn draw<B: Backend>(
         }
 
         // Command output panel
-        let output_block = Block::default().title("Output").borders(Borders::ALL);
+        let output_block = Block::default()
+            .title("Output")
+            .borders(Borders::ALL)
+            .border_style(if state.focus == Focus::Output {
+                Style::default().fg(Color::Yellow)
+            } else {
+                Style::default()
+            });
         let output_area = content_chunks[1];
         let visible_height = output_area.height.saturating_sub(2);
         state.set_output_view_height(visible_height);
         let total_lines = state.command_output.len();
-        let mut scroll = state.output_scroll;
-        let max_scroll = total_lines.saturating_sub(visible_height as usize);
-        if scroll == usize::MAX {
-            scroll = max_scroll;
-        } else if scroll > max_scroll {
-            scroll = max_scroll;
+        let max_offset = total_lines.saturating_sub(visible_height as usize);
+        if state.output_offset > max_offset {
+            state.output_offset = max_offset;
         }
-        state.output_scroll = scroll;
         let output_lines = if state.command_output.is_empty() {
             vec![Line::from("Run a command to see Maven output.")]
         } else {
@@ -109,11 +126,11 @@ pub fn draw<B: Backend>(
         let output_paragraph = Paragraph::new(output_lines)
             .block(output_block)
             .wrap(Wrap { trim: true })
-            .scroll(((scroll.min(u16::MAX as usize)) as u16, 0));
+            .scroll((state.output_offset.min(u16::MAX as usize) as u16, 0));
         f.render_widget(output_paragraph, output_area);
 
         // Footer with key hints
-        let footer_spans = footer_spans(state.current_view);
+        let footer_spans = footer_spans(state.current_view, state.focus);
         let footer =
             Paragraph::new(Line::from(footer_spans)).block(Block::default().borders(Borders::TOP));
         f.render_widget(footer, vertical[1]);
@@ -121,23 +138,36 @@ pub fn draw<B: Backend>(
     Ok(())
 }
 
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum CurrentView {
     Modules,
     Profiles,
 }
 
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum Focus {
+    Modules,
+    Output,
+}
+
+#[derive(Clone, Debug, Default)]
+struct ModuleOutput {
+    lines: Vec<String>,
+    scroll_offset: usize,
+}
+
 pub struct TuiState {
     pub current_view: CurrentView,
+    pub focus: Focus,
     pub modules: Vec<String>,
     pub profiles: Vec<String>,
     pub active_profiles: Vec<String>,
     pub modules_list_state: ListState,
     pub profiles_list_state: ListState,
     pub command_output: Vec<String>,
-    pub output_scroll: usize,
+    pub output_offset: usize,
     pub output_view_height: u16,
-    module_outputs: HashMap<String, Vec<String>>,
+    module_outputs: HashMap<String, ModuleOutput>,
     pub project_root: PathBuf,
 }
 
@@ -150,13 +180,14 @@ impl TuiState {
         }
         let mut state = Self {
             current_view: CurrentView::Modules,
+            focus: Focus::Modules,
             modules,
             profiles: vec![],
             active_profiles: vec![],
             modules_list_state,
             profiles_list_state,
             command_output: vec![],
-            output_scroll: 0,
+            output_offset: 0,
             output_view_height: 0,
             module_outputs: HashMap::new(),
             project_root,
@@ -247,31 +278,41 @@ impl TuiState {
     fn sync_selected_module_output(&mut self) {
         if let Some(module) = self.selected_module() {
             if let Some(stored) = self.module_outputs.get(module) {
-                self.command_output = stored.clone();
+                self.command_output = stored.lines.clone();
+                self.output_offset = stored.scroll_offset;
             } else {
                 self.command_output.clear();
+                self.output_offset = 0;
             }
         } else {
             self.command_output.clear();
+            self.output_offset = 0;
         }
-        self.reset_output_scroll();
+        self.clamp_output_offset();
     }
 
     fn store_current_module_output(&mut self) {
         if let Some(module) = self.selected_module() {
-            self.module_outputs
-                .insert(module.to_string(), self.command_output.clone());
+            self.module_outputs.insert(
+                module.to_string(),
+                ModuleOutput {
+                    lines: self.command_output.clone(),
+                    scroll_offset: self.output_offset,
+                },
+            );
         }
     }
 
     fn clear_current_module_output(&mut self) {
         if let Some(module) = self.selected_module().map(|m| m.to_string()) {
             self.command_output.clear();
-            self.module_outputs.insert(module, Vec::new());
+            self.output_offset = 0;
+            self.module_outputs.insert(module, ModuleOutput::default());
         } else {
             self.command_output.clear();
+            self.output_offset = 0;
         }
-        self.reset_output_scroll();
+        self.clamp_output_offset();
     }
 
     fn run_selected_module_command(&mut self, args: &[&str]) {
@@ -285,54 +326,94 @@ impl TuiState {
             )
             .unwrap_or_else(|e| vec![format!("[ERR] {e}")]);
             self.command_output = output;
+            self.output_offset = self
+                .command_output
+                .len()
+                .saturating_sub(self.output_view_height as usize);
+            self.clamp_output_offset();
             self.store_current_module_output();
         } else {
             self.command_output = vec!["Select a module to run commands.".to_string()];
+            self.output_offset = 0;
         }
-        self.reset_output_scroll();
-    }
-
-    pub fn reset_output_scroll(&mut self) {
-        self.output_scroll = usize::MAX;
+        self.clamp_output_offset();
     }
 
     pub fn set_output_view_height(&mut self, height: u16) {
         self.output_view_height = height;
+        self.clamp_output_offset();
     }
 
-    pub fn scroll_output_up(&mut self) {
-        let step = self.output_view_height.max(1) as usize;
-        let current = if self.output_scroll == usize::MAX {
-            step
-        } else {
-            self.output_scroll
-        };
-        self.output_scroll = current.saturating_sub(step);
+    fn clamp_output_offset(&mut self) {
+        let max_offset = self
+            .command_output
+            .len()
+            .saturating_sub(self.output_view_height as usize);
+        if self.output_offset > max_offset {
+            self.output_offset = max_offset;
+            self.store_current_module_output();
+        }
     }
 
-    pub fn scroll_output_down(&mut self) {
-        let step = self.output_view_height.max(1) as usize;
-        let current = if self.output_scroll == usize::MAX {
-            0
-        } else {
-            self.output_scroll
-        };
-        self.output_scroll = current.saturating_add(step);
+    fn scroll_output_lines(&mut self, delta: isize) {
+        if self.command_output.is_empty() {
+            return;
+        }
+        let max_offset = self
+            .command_output
+            .len()
+            .saturating_sub(self.output_view_height as usize);
+        let current = self.output_offset as isize;
+        let next = (current + delta).clamp(0, max_offset as isize) as usize;
+        if next != self.output_offset {
+            self.output_offset = next;
+            self.store_current_module_output();
+        }
     }
 
-    pub fn scroll_output_to_start(&mut self) {
-        self.output_scroll = 0;
+    fn scroll_output_pages(&mut self, delta: isize) {
+        let page = self.output_view_height.max(1) as isize;
+        self.scroll_output_lines(delta * page);
     }
 
-    pub fn scroll_output_to_end(&mut self) {
-        self.output_scroll = usize::MAX;
+    fn scroll_output_to_start(&mut self) {
+        if self.command_output.is_empty() {
+            return;
+        }
+        self.output_offset = 0;
+        self.store_current_module_output();
+    }
+
+    fn scroll_output_to_end(&mut self) {
+        let max_offset = self
+            .command_output
+            .len()
+            .saturating_sub(self.output_view_height as usize);
+        self.output_offset = max_offset;
+        self.store_current_module_output();
+    }
+
+    pub fn focus_modules(&mut self) {
+        self.focus = Focus::Modules;
+    }
+
+    pub fn focus_output(&mut self) {
+        self.focus = Focus::Output;
     }
 }
 
 pub fn handle_key_event(key: KeyEvent, state: &mut TuiState) {
     match key.code {
-        KeyCode::Down => state.next_item(),
-        KeyCode::Up => state.previous_item(),
+        KeyCode::Left => state.focus_modules(),
+        KeyCode::Right => state.focus_output(),
+        KeyCode::Down => match state.focus {
+            Focus::Modules => state.next_item(),
+            Focus::Output => state.scroll_output_lines(1),
+        },
+        KeyCode::Up => match state.focus {
+            Focus::Modules => state.previous_item(),
+            Focus::Output => state.scroll_output_lines(-1),
+        },
         KeyCode::Char('p') => match state.current_view {
             CurrentView::Modules => {
                 if state.profiles.is_empty() {
@@ -340,9 +421,11 @@ pub fn handle_key_event(key: KeyEvent, state: &mut TuiState) {
                         .unwrap_or_else(|e| vec![e.to_string()]);
                 }
                 state.current_view = CurrentView::Profiles;
+                state.focus_modules();
             }
             CurrentView::Profiles => {
                 state.current_view = CurrentView::Modules;
+                state.focus_modules();
                 state.sync_selected_module_output();
             }
         },
@@ -367,16 +450,24 @@ pub fn handle_key_event(key: KeyEvent, state: &mut TuiState) {
             state.run_selected_module_command(args);
         }
         KeyCode::PageUp => {
-            state.scroll_output_up();
+            if state.focus == Focus::Output {
+                state.scroll_output_pages(-1);
+            }
         }
         KeyCode::PageDown => {
-            state.scroll_output_down();
+            if state.focus == Focus::Output {
+                state.scroll_output_pages(1);
+            }
         }
         KeyCode::Home => {
-            state.scroll_output_to_start();
+            if state.focus == Focus::Output {
+                state.scroll_output_to_start();
+            }
         }
         KeyCode::End => {
-            state.scroll_output_to_end();
+            if state.focus == Focus::Output {
+                state.scroll_output_to_end();
+            }
         }
         KeyCode::Enter => {
             if state.current_view == CurrentView::Profiles {
@@ -387,21 +478,37 @@ pub fn handle_key_event(key: KeyEvent, state: &mut TuiState) {
     }
 }
 
-fn footer_spans(view: CurrentView) -> Vec<Span<'static>> {
-    let mut hints: Vec<(&str, &str)> = match view {
-        CurrentView::Modules => vec![("↑/↓", "Move"), ("p", "Profiles")],
-        CurrentView::Profiles => vec![
-            ("↑/↓", "Move"),
-            ("Enter", "Toggle profile"),
-            ("p", "Back to modules"),
-        ],
-    };
+fn footer_spans(view: CurrentView, focus: Focus) -> Vec<Span<'static>> {
+    let mut hints: Vec<(&str, &str)> = vec![("←/→", "Focus")];
+
+    match focus {
+        Focus::Modules => {
+            let label = match view {
+                CurrentView::Modules => "Select",
+                CurrentView::Profiles => "Move",
+            };
+            hints.push(("↑/↓", label));
+            hints.push((
+                "p",
+                match view {
+                    CurrentView::Modules => "Profiles",
+                    CurrentView::Profiles => "Back to modules",
+                },
+            ));
+            if matches!(view, CurrentView::Profiles) {
+                hints.push(("Enter", "Toggle profile"));
+            }
+        }
+        Focus::Output => {
+            hints.push(("↑/↓", "Scroll"));
+            hints.push(("PgUp", "Page up"));
+            hints.push(("PgDn", "Page down"));
+            hints.push(("Home", "Top"));
+            hints.push(("End", "Bottom"));
+        }
+    }
 
     hints.extend_from_slice(&[
-        ("PgUp", "Scroll up"),
-        ("PgDn", "Scroll down"),
-        ("Home", "Top"),
-        ("End", "Bottom"),
         ("b", "Package"),
         ("t", "Test"),
         ("c", "Clean"),
@@ -454,9 +561,22 @@ mod tests {
             .collect::<String>();
         assert!(rendered.contains("Modules"));
         assert!(rendered.contains("Output"));
-        assert!(rendered.contains("Scroll down"));
+        assert!(rendered.contains("Focus"));
+        assert!(rendered.contains("Select"));
+
+        // Switching focus to output updates footer copy
+        handle_key_event(KeyEvent::from(KeyCode::Right), &mut state);
+        draw(&mut terminal, &mut state).unwrap();
+        let buffer = terminal.backend().buffer();
+        let rendered = buffer
+            .content
+            .iter()
+            .map(|c| c.symbol())
+            .collect::<String>();
+        assert!(rendered.contains("Scroll"));
 
         // Profiles view toggles footer copy and highlights active profile
+        handle_key_event(KeyEvent::from(KeyCode::Left), &mut state);
         state.current_view = CurrentView::Profiles;
         state.profiles = vec!["profile1".to_string(), "profile2".to_string()];
         state.active_profiles = vec!["profile1".to_string()];
@@ -470,7 +590,6 @@ mod tests {
         assert!(rendered.contains("Profiles"));
         assert!(rendered.contains("* profile1"));
         assert!(rendered.contains("Toggle profile"));
-        assert!(rendered.contains("Scroll up"));
     }
 
     #[test]
@@ -509,19 +628,26 @@ mod tests {
 
     #[test]
     fn test_footer_spans_content() {
-        let modules_text: String = footer_spans(CurrentView::Modules)
+        let modules_text: String = footer_spans(CurrentView::Modules, Focus::Modules)
             .iter()
             .map(|span| span.content.as_ref())
             .collect();
-        assert!(modules_text.contains("Package"));
-        assert!(modules_text.contains("PgDn"));
+        assert!(modules_text.contains("Select"));
+        assert!(modules_text.contains("Profiles"));
 
-        let profiles_text: String = footer_spans(CurrentView::Profiles)
+        let output_text: String = footer_spans(CurrentView::Modules, Focus::Output)
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect();
+        assert!(output_text.contains("Scroll"));
+        assert!(output_text.contains("Page down"));
+
+        let profiles_text: String = footer_spans(CurrentView::Profiles, Focus::Modules)
             .iter()
             .map(|span| span.content.as_ref())
             .collect();
         assert!(profiles_text.contains("Toggle profile"));
-        assert!(profiles_text.contains("Scroll up"));
+        assert!(profiles_text.contains("Back to modules"));
     }
 
     #[test]
@@ -532,8 +658,9 @@ mod tests {
         let project_root = PathBuf::from("/");
         let mut state = TuiState::new(modules, project_root);
         state.command_output = (0..40).map(|i| format!("line {i}")).collect();
+        state.output_offset = state.command_output.len();
         state.store_current_module_output();
-        state.reset_output_scroll();
+        handle_key_event(KeyEvent::from(KeyCode::Right), &mut state);
 
         // Initial draw snaps scroll to bottom
         draw(&mut terminal, &mut state).unwrap();
@@ -541,22 +668,23 @@ mod tests {
             .command_output
             .len()
             .saturating_sub(state.output_view_height as usize);
-        assert_eq!(state.output_scroll, max_scroll);
+        assert_eq!(state.output_offset, max_scroll);
+        state.store_current_module_output();
 
         // Page up moves toward the top
         handle_key_event(KeyEvent::from(KeyCode::PageUp), &mut state);
         draw(&mut terminal, &mut state).unwrap();
-        assert!(state.output_scroll < max_scroll);
+        assert!(state.output_offset < max_scroll);
 
         // End jumps back to the bottom
         handle_key_event(KeyEvent::from(KeyCode::End), &mut state);
         draw(&mut terminal, &mut state).unwrap();
-        assert_eq!(state.output_scroll, max_scroll);
+        assert_eq!(state.output_offset, max_scroll);
 
         // Home goes to the top
         handle_key_event(KeyEvent::from(KeyCode::Home), &mut state);
         draw(&mut terminal, &mut state).unwrap();
-        assert_eq!(state.output_scroll, 0);
+        assert_eq!(state.output_offset, 0);
     }
 
     #[test]
