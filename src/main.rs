@@ -40,7 +40,8 @@ fn run<B: ratatui::backend::Backend>(
     terminal: &mut Terminal<B>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let (modules, project_root) = project::get_project_modules()?;
-    let mut state = tui::TuiState::new(modules, project_root);
+    let config = config::load_config(&project_root);
+    let mut state = tui::TuiState::new(modules, project_root, config);
 
     loop {
         tui::draw(terminal, &mut state)?;

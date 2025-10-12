@@ -306,10 +306,11 @@ pub struct TuiState {
     output_metrics: Option<OutputMetrics>,
     pending_center: Option<SearchMatch>,
     pub search_mod: Option<SearchMode>,
+    pub config: crate::config::Config,
 }
 
 impl TuiState {
-    pub fn new(modules: Vec<String>, project_root: PathBuf) -> Self {
+    pub fn new(modules: Vec<String>, project_root: PathBuf, config: crate::config::Config) -> Self {
         let mut modules_list_state = ListState::default();
         let profiles_list_state = ListState::default();
         if !modules.is_empty() {
@@ -337,6 +338,7 @@ impl TuiState {
             output_metrics: None,
             pending_center: None,
             search_mod: None,
+            config,
         };
         state.sync_selected_module_output();
         state
@@ -473,6 +475,7 @@ impl TuiState {
                 Some(module.as_str()),
                 args,
                 &self.active_profiles,
+                self.config.maven_settings.as_deref(),
             )
             .unwrap_or_else(|e| vec![format!("[ERR] {e}")]);
             self.command_output = output;
@@ -557,7 +560,6 @@ impl TuiState {
         self.focus = Focus::Output;
         self.ensure_current_match_visible();
     }
-
 
     fn begin_search_input(&mut self) {
         self.search_input = Some(String::new());
@@ -1123,13 +1125,20 @@ mod tests {
     use ratatui::{Terminal, backend::TestBackend};
     use tempfile::tempdir;
 
+    fn test_cfg() -> crate::config::Config {
+        crate::config::Config {
+            maven_settings: None,
+            ..Default::default()
+        }
+    }
+
     #[test]
     fn test_draw_ui() {
         let backend = TestBackend::new(80, 20);
         let mut terminal = Terminal::new(backend).unwrap();
         let modules = vec!["module1".to_string(), "module2".to_string()];
         let project_root = PathBuf::from("/");
-        let mut state = TuiState::new(modules, project_root);
+        let mut state = TuiState::new(modules, project_root, test_cfg());
         state.command_output = vec!["output1".to_string(), "output2".to_string()];
         state.store_current_module_output();
 
@@ -1182,7 +1191,7 @@ mod tests {
             "module3".to_string(),
         ];
         let project_root = PathBuf::from("/");
-        let mut state = TuiState::new(modules, project_root);
+        let mut state = TuiState::new(modules, project_root, test_cfg());
 
         // Test initial state
         assert_eq!(state.modules_list_state.selected(), Some(0));
@@ -1241,7 +1250,7 @@ mod tests {
         let mut terminal = Terminal::new(backend).unwrap();
         let modules = vec!["module".to_string()];
         let project_root = PathBuf::from("/");
-        let mut state = TuiState::new(modules, project_root);
+        let mut state = TuiState::new(modules, project_root, test_cfg());
         state.command_output = (0..40).map(|i| format!("line {i}")).collect();
         state.output_offset = state.command_output.len();
         state.store_current_module_output();
@@ -1276,7 +1285,7 @@ mod tests {
     fn test_output_search_navigation() {
         let modules = vec!["module".to_string()];
         let project_root = PathBuf::from("/");
-        let mut state = TuiState::new(modules, project_root);
+        let mut state = TuiState::new(modules, project_root, test_cfg());
         state.command_output = vec![
             "alpha".to_string(),
             "beta".to_string(),
@@ -1333,7 +1342,7 @@ mod tests {
     fn test_output_search_error_handling() {
         let modules = vec!["module".to_string()];
         let project_root = PathBuf::from("/");
-        let mut state = TuiState::new(modules, project_root);
+        let mut state = TuiState::new(modules, project_root, test_cfg());
         state.command_output = vec!["alpha".to_string()];
         state.update_output_metrics(80);
         state.set_output_view_dimensions(2, 80);
@@ -1355,7 +1364,7 @@ mod tests {
     fn test_search_history_navigation() {
         let modules = vec!["module".to_string()];
         let project_root = PathBuf::from("/");
-        let mut state = TuiState::new(modules, project_root);
+        let mut state = TuiState::new(modules, project_root, test_cfg());
         state.command_output = vec!["alpha".to_string(), "beta".to_string()];
         state.update_output_metrics(80);
         state.set_output_view_dimensions(2, 80);
@@ -1430,7 +1439,7 @@ mod tests {
 
         // 3. Create TuiState
         let modules = vec!["module1".to_string()];
-        let mut state = TuiState::new(modules, project_root.to_path_buf());
+        let mut state = TuiState::new(modules, project_root.to_path_buf(), test_cfg());
         state.active_profiles = vec!["p1".to_string()];
 
         // 4. Simulate 'b' key press
@@ -1467,7 +1476,7 @@ mod tests {
 
         // 3. Create TuiState
         let modules = vec!["module1".to_string()];
-        let mut state = TuiState::new(modules, project_root.to_path_buf());
+        let mut state = TuiState::new(modules, project_root.to_path_buf(), test_cfg());
         state.active_profiles = vec!["p1".to_string()];
 
         // 4. Simulate key presses and assert command output
@@ -1504,17 +1513,14 @@ mod tests {
             .iter()
             .map(|line| crate::utils::clean_log_line(line).unwrap())
             .collect();
-        assert_eq!(
-            cleaned_output,
-            vec!["-P p1 -pl module1 dependency:tree"]
-        );
+        assert_eq!(cleaned_output, vec!["-P p1 -pl module1 dependency:tree"]);
     }
 
     #[test]
     fn test_view_switching() {
         let modules = vec!["module1".to_string()];
         let project_root = PathBuf::from("/");
-        let mut state = TuiState::new(modules, project_root);
+        let mut state = TuiState::new(modules, project_root, test_cfg());
 
         // Initial view is Modules
         assert_eq!(state.current_view, CurrentView::Modules);
@@ -1532,7 +1538,7 @@ mod tests {
     fn test_profile_activation() {
         let modules = vec![];
         let project_root = PathBuf::from("/");
-        let mut state = TuiState::new(modules, project_root);
+        let mut state = TuiState::new(modules, project_root, test_cfg());
         state.profiles = vec!["profile1".to_string(), "profile2".to_string()];
         state.current_view = CurrentView::Profiles;
         state.profiles_list_state.select(Some(0));

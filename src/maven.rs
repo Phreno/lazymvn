@@ -20,9 +20,13 @@ pub fn execute_maven_command(
     module: Option<&str>,
     args: &[&str],
     profiles: &[String],
+    settings_path: Option<&str>,
 ) -> Result<Vec<String>, std::io::Error> {
     let maven_command = get_maven_command(project_root);
     let mut command = Command::new(maven_command);
+    if let Some(settings_path) = settings_path {
+        command.arg("--settings").arg(settings_path);
+    }
     if !profiles.is_empty() {
         command.arg("-P").arg(profiles.join(","));
     }
@@ -83,7 +87,7 @@ pub fn execute_maven_command(
 }
 
 pub fn get_profiles(project_root: &Path) -> Result<Vec<String>, std::io::Error> {
-    let output = execute_maven_command(project_root, None, &["help:all-profiles", "-N"], &[])?;
+    let output = execute_maven_command(project_root, None, &["help:all-profiles", "-N"], &[], None)?;
     let profiles = output
         .iter()
         .filter_map(|line| {
@@ -145,11 +149,15 @@ mod tests {
         let mvnw_path = project_root.join("mvnw");
                     write_script(&mvnw_path, "#!/bin/sh\necho 'line 1'\necho 'line 2'\n");
         
-                    let output: Vec<String> = execute_maven_command(project_root, None, &["test"], &[])
-                        .unwrap()
-                        .iter()
-                        .map(|line| utils::clean_log_line(line).unwrap())
-                        .collect();        assert_eq!(output, vec!["line 1", "line 2"]);
+                            let output: Vec<String> = execute_maven_command(project_root, None, &["test"], &[], None)
+        
+                                .unwrap()
+        
+                                .iter()
+        
+                                .map(|line| utils::clean_log_line(line).unwrap())
+        
+                                .collect();        assert_eq!(output, vec!["line 1", "line 2"]);
     }
 
     #[test]
@@ -164,7 +172,7 @@ mod tests {
             "#!/bin/sh\necho 'line 1'\n>&2 echo 'warn message'\n",
         );
 
-        let output: Vec<String> = execute_maven_command(project_root, None, &["test"], &[])
+        let output: Vec<String> = execute_maven_command(project_root, None, &["test"], &[], None)
             .unwrap()
             .iter()
             .map(|line| utils::clean_log_line(line).unwrap())
@@ -190,7 +198,7 @@ mod tests {
         write_script(&mvnw_path, "#!/bin/sh\necho $@\n");
 
         let profiles = vec!["p1".to_string(), "p2".to_string()];
-        let output: Vec<String> = execute_maven_command(project_root, None, &["test"], &profiles)
+        let output: Vec<String> = execute_maven_command(project_root, None, &["test"], &profiles, None)
             .unwrap()
             .iter()
             .map(|line| utils::clean_log_line(line).unwrap())
@@ -228,7 +236,7 @@ mod tests {
         let mvnw_path = project_root.join("mvnw");
         write_script(&mvnw_path, "#!/bin/sh\necho $@\n");
 
-        let output: Vec<String> = execute_maven_command(project_root, Some("module-a"), &["test"], &[])
+        let output: Vec<String> = execute_maven_command(project_root, Some("module-a"), &["test"], &[], None)
             .unwrap()
             .iter()
             .map(|line| utils::clean_log_line(line).unwrap())
