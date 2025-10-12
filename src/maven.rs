@@ -83,7 +83,7 @@ pub fn execute_maven_command(
 }
 
 pub fn get_profiles(project_root: &Path) -> Result<Vec<String>, std::io::Error> {
-    let output = execute_maven_command(project_root, None, &["help:all-profiles"], &[])?;
+    let output = execute_maven_command(project_root, None, &["help:all-profiles", "-N"], &[])?;
     let profiles = output
         .iter()
         .filter_map(|line| {
