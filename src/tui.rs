@@ -10,6 +10,7 @@ use ratatui::{
 };
 use regex::Regex;
 use std::{collections::HashMap, path::PathBuf};
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 pub fn draw<B: Backend>(
     terminal: &mut Terminal<B>,
@@ -96,13 +97,9 @@ pub fn draw<B: Backend>(
                 Style::default()
             });
         let output_area = content_chunks[1];
-        let visible_height = output_area.height.saturating_sub(2);
-        state.set_output_view_height(visible_height);
-        let total_lines = state.command_output.len();
-        let max_offset = total_lines.saturating_sub(visible_height as usize);
-        if state.output_offset > max_offset {
-            state.output_offset = max_offset;
-        }
+        let inner_area = output_block.inner(output_area);
+        state.update_output_metrics(inner_area.width);
+        state.set_output_view_dimensions(inner_area.height, inner_area.width);
         let output_lines = if state.command_output.is_empty() {
             vec![Line::from("Run a command to see Maven output.")]
         } else {
@@ -167,6 +164,7 @@ struct ModuleOutput {
 #[derive(Clone, Debug)]
 struct SearchMatch {
     line_index: usize,
+    start: usize,
 }
 
 #[derive(Clone, Debug)]
@@ -174,6 +172,56 @@ struct SearchState {
     query: String,
     matches: Vec<SearchMatch>,
     current: usize,
+}
+
+#[derive(Clone, Debug, Default)]
+struct OutputMetrics {
+    width: usize,
+    line_display: Vec<String>,
+    line_start_rows: Vec<usize>,
+    total_rows: usize,
+}
+
+impl OutputMetrics {
+    fn new(width: usize, lines: &[String]) -> Self {
+        if width == 0 {
+            return Self::default();
+        }
+        let mut line_display = Vec::with_capacity(lines.len());
+        let mut line_start_rows = Vec::with_capacity(lines.len());
+        let mut cumulative = 0usize;
+
+        for line in lines {
+            line_start_rows.push(cumulative);
+            let display = line.clone();
+            let rows = visual_rows(&display, width);
+            cumulative += rows;
+            line_display.push(display);
+        }
+
+        Self {
+            width,
+            line_display,
+            line_start_rows,
+            total_rows: cumulative,
+        }
+    }
+
+    fn total_rows(&self) -> usize {
+        self.total_rows
+    }
+
+    fn row_for_match(&self, m: &SearchMatch) -> Option<usize> {
+        if self.width == 0 {
+            return Some(0);
+        }
+        let line_index = m.line_index;
+        let start_rows = self.line_start_rows.get(line_index)?;
+        let display = self.line_display.get(line_index)?;
+        let col = column_for_byte_index(display, m.start);
+        let row_in_line = col / self.width;
+        Some(start_rows + row_in_line)
+    }
 }
 
 impl SearchState {
@@ -215,7 +263,12 @@ pub struct TuiState {
     pub project_root: PathBuf,
     search_state: Option<SearchState>,
     search_input: Option<String>,
+    search_history: Vec<String>,
+    search_history_index: Option<usize>,
     search_error: Option<String>,
+    output_area_width: u16,
+    output_metrics: Option<OutputMetrics>,
+    pending_center: Option<SearchMatch>,
 }
 
 impl TuiState {
@@ -240,7 +293,12 @@ impl TuiState {
             project_root,
             search_state: None,
             search_input: None,
+            search_history: Vec::new(),
+            search_history_index: None,
             search_error: None,
+            output_area_width: 0,
+            output_metrics: None,
+            pending_center: None,
         };
         state.sync_selected_module_output();
         state
@@ -339,6 +397,7 @@ impl TuiState {
             self.output_offset = 0;
         }
         self.clamp_output_offset();
+        self.output_metrics = None;
         self.refresh_search_matches();
     }
 
@@ -364,6 +423,7 @@ impl TuiState {
             self.output_offset = 0;
         }
         self.clamp_output_offset();
+        self.output_metrics = None;
         self.refresh_search_matches();
     }
 
@@ -387,22 +447,32 @@ impl TuiState {
             self.output_offset = 0;
         }
         self.clamp_output_offset();
+        self.output_metrics = None;
         self.refresh_search_matches();
         self.store_current_module_output();
         self.clamp_output_offset();
     }
 
-    pub fn set_output_view_height(&mut self, height: u16) {
+    pub fn update_output_metrics(&mut self, width: u16) {
+        self.output_area_width = width;
+        if width == 0 || self.command_output.is_empty() {
+            self.output_metrics = None;
+            return;
+        }
+        let width_usize = width as usize;
+        self.output_metrics = Some(OutputMetrics::new(width_usize, &self.command_output));
+    }
+
+    pub fn set_output_view_dimensions(&mut self, height: u16, width: u16) {
         self.output_view_height = height;
+        self.output_area_width = width;
         self.clamp_output_offset();
+        self.apply_pending_center();
         self.ensure_current_match_visible();
     }
 
     fn clamp_output_offset(&mut self) {
-        let max_offset = self
-            .command_output
-            .len()
-            .saturating_sub(self.output_view_height as usize);
+        let max_offset = self.max_scroll_offset();
         if self.output_offset > max_offset {
             self.output_offset = max_offset;
             self.store_current_module_output();
@@ -413,10 +483,7 @@ impl TuiState {
         if self.command_output.is_empty() {
             return;
         }
-        let max_offset = self
-            .command_output
-            .len()
-            .saturating_sub(self.output_view_height as usize);
+        let max_offset = self.max_scroll_offset();
         let current = self.output_offset as isize;
         let next = (current + delta).clamp(0, max_offset as isize) as usize;
         if next != self.output_offset {
@@ -439,10 +506,7 @@ impl TuiState {
     }
 
     fn scroll_output_to_end(&mut self) {
-        let max_offset = self
-            .command_output
-            .len()
-            .saturating_sub(self.output_view_height as usize);
+        let max_offset = self.max_scroll_offset();
         self.output_offset = max_offset;
         self.store_current_module_output();
     }
@@ -453,6 +517,7 @@ impl TuiState {
 
     pub fn focus_output(&mut self) {
         self.focus = Focus::Output;
+        self.ensure_current_match_visible();
     }
 
     fn is_search_input_active(&self) -> bool {
@@ -460,17 +525,14 @@ impl TuiState {
     }
 
     fn begin_search_input(&mut self) {
-        let initial = self
-            .search_input
-            .take()
-            .or_else(|| self.search_state.as_ref().map(|s| s.query.clone()))
-            .unwrap_or_default();
-        self.search_input = Some(initial);
+        self.search_input = Some(String::new());
+        self.search_history_index = None;
         self.search_error = None;
     }
 
     fn cancel_search_input(&mut self) {
         self.search_input = None;
+        self.search_history_index = None;
         if self
             .search_state
             .as_ref()
@@ -487,12 +549,51 @@ impl TuiState {
         if let Some(buffer) = self.search_input.as_mut() {
             buffer.push(ch);
             self.search_error = None;
+            self.search_history_index = None;
         }
     }
 
     fn backspace_search_char(&mut self) {
         if let Some(buffer) = self.search_input.as_mut() {
             buffer.pop();
+            self.search_error = None;
+            self.search_history_index = None;
+        }
+    }
+
+    fn recall_previous_search(&mut self) {
+        if self.search_history.is_empty() {
+            return;
+        }
+        let len = self.search_history.len();
+        let next_index = match self.search_history_index {
+            None => Some(len - 1),
+            Some(0) => Some(0),
+            Some(idx) => Some(idx.saturating_sub(1)),
+        };
+        if let Some(idx) = next_index {
+            if idx < len {
+                self.search_history_index = Some(idx);
+                self.search_input = Some(self.search_history[idx].clone());
+                self.search_error = None;
+            }
+        }
+    }
+
+    fn recall_next_search(&mut self) {
+        if self.search_history.is_empty() {
+            return;
+        }
+        if let Some(idx) = self.search_history_index {
+            let len = self.search_history.len();
+            if idx + 1 < len {
+                let next = idx + 1;
+                self.search_history_index = Some(next);
+                self.search_input = Some(self.search_history[next].clone());
+            } else {
+                self.search_history_index = None;
+                self.search_input = Some(String::new());
+            }
             self.search_error = None;
         }
     }
@@ -502,16 +603,28 @@ impl TuiState {
             if pattern.is_empty() {
                 self.search_state = None;
                 self.search_input = None;
+                self.search_history_index = None;
                 self.search_error = None;
                 return;
             }
             match self.apply_search_query(pattern.clone(), false) {
                 Ok(_) => {
+                    if !pattern.is_empty()
+                        && self
+                            .search_history
+                            .last()
+                            .map(|last| last != &pattern)
+                            .unwrap_or(true)
+                    {
+                        self.search_history.push(pattern.clone());
+                    }
                     self.search_input = None;
+                    self.search_history_index = None;
                 }
                 Err(err) => {
                     self.search_error = Some(err.to_string());
                     self.search_input = Some(pattern);
+                    self.search_history_index = None;
                 }
             }
         }
@@ -557,9 +670,10 @@ impl TuiState {
             .iter()
             .enumerate()
             .flat_map(|(line_index, line)| {
-                regex
-                    .find_iter(line)
-                    .map(move |_| SearchMatch { line_index })
+                regex.find_iter(line).map(move |m| SearchMatch {
+                    line_index,
+                    start: m.start(),
+                })
             })
             .collect()
     }
@@ -604,37 +718,73 @@ impl TuiState {
             }
             let idx = index % search.matches.len();
             search.current = idx;
-            let line_index = search.matches[idx].line_index;
-            self.scroll_match_into_view(line_index);
+            let target = search.matches[idx].clone();
+            self.center_on_match(target);
         }
     }
 
-    fn scroll_match_into_view(&mut self, line_index: usize) {
-        if self.output_view_height == 0 {
+    fn center_on_match(&mut self, target: SearchMatch) {
+        self.pending_center = Some(target);
+        self.apply_pending_center();
+    }
+
+    fn apply_pending_center(&mut self) {
+        let target = match self.pending_center.clone() {
+            Some(match_info) => match_info,
+            None => return,
+        };
+        if self.output_view_height == 0 || self.output_area_width == 0 {
             return;
         }
-        let height = self.output_view_height as usize;
-        let max_offset = self.command_output.len().saturating_sub(height);
-        let mut new_offset = self.output_offset;
-        if line_index < self.output_offset {
-            new_offset = line_index;
-        } else if line_index >= self.output_offset + height {
-            new_offset = line_index + 1 - height;
+        let metrics = match self.output_metrics.as_ref() {
+            Some(metrics) if metrics.width > 0 => metrics,
+            _ => return,
+        };
+        let total_rows = metrics.total_rows();
+        if total_rows == 0 {
+            self.pending_center = None;
+            return;
         }
-        if new_offset > max_offset {
-            new_offset = max_offset;
+        if let Some(target_row) = metrics.row_for_match(&target) {
+            let height = self.output_view_height as usize;
+            let mut new_offset = target_row.saturating_sub(height / 2);
+            let max_offset = self.max_scroll_offset();
+            if new_offset > max_offset {
+                new_offset = max_offset;
+            }
+            if total_rows <= height {
+                new_offset = 0;
+            }
+            if new_offset != self.output_offset {
+                self.output_offset = new_offset;
+                self.store_current_module_output();
+            }
         }
-        if new_offset != self.output_offset {
-            self.output_offset = new_offset;
-            self.store_current_module_output();
-        }
+        self.pending_center = None;
     }
 
     fn ensure_current_match_visible(&mut self) {
         if let Some(search) = self.search_state.as_ref() {
             if let Some(current) = search.current_match() {
-                self.scroll_match_into_view(current.line_index);
+                self.center_on_match(current.clone());
             }
+        }
+    }
+
+    fn max_scroll_offset(&self) -> usize {
+        let height = self.output_view_height as usize;
+        if height == 0 {
+            return 0;
+        }
+        let total = self.total_display_rows();
+        total.saturating_sub(height)
+    }
+
+    fn total_display_rows(&self) -> usize {
+        if let Some(metrics) = self.output_metrics.as_ref() {
+            metrics.total_rows()
+        } else {
+            self.command_output.len()
         }
     }
 
@@ -703,6 +853,8 @@ pub fn handle_key_event(key: KeyEvent, state: &mut TuiState) {
             KeyCode::Enter => state.submit_search(),
             KeyCode::Esc => state.cancel_search_input(),
             KeyCode::Backspace => state.backspace_search_char(),
+            KeyCode::Up => state.recall_previous_search(),
+            KeyCode::Down => state.recall_next_search(),
             KeyCode::Char(ch) => state.push_search_char(ch),
             _ => {}
         }
@@ -857,6 +1009,26 @@ fn footer_spans(view: CurrentView, focus: Focus) -> Vec<Span<'static>> {
     }
 
     spans
+}
+
+fn visual_rows(line: &str, width: usize) -> usize {
+    if width == 0 {
+        return 1;
+    }
+    let display_width = UnicodeWidthStr::width(line);
+    let rows = (display_width + width - 1) / width;
+    rows.max(1)
+}
+
+fn column_for_byte_index(s: &str, byte_index: usize) -> usize {
+    let mut column = 0usize;
+    for (idx, ch) in s.char_indices() {
+        if idx >= byte_index {
+            break;
+        }
+        column += UnicodeWidthChar::width(ch).unwrap_or(0);
+    }
+    column
 }
 
 #[cfg(test)]
@@ -1025,12 +1197,14 @@ mod tests {
             "gamma beta".to_string(),
             "delta".to_string(),
         ];
-        state.set_output_view_height(2);
+        state.update_output_metrics(80);
+        state.set_output_view_dimensions(2, 80);
         state.scroll_output_to_end();
         state.focus_output();
 
         handle_key_event(KeyEvent::from(KeyCode::Char('/')), &mut state);
         assert!(state.is_search_input_active());
+        assert_eq!(state.search_input.as_deref(), Some(""));
         for ch in ['b', 'e', 't', 'a'] {
             handle_key_event(KeyEvent::from(KeyCode::Char(ch)), &mut state);
         }
@@ -1054,6 +1228,9 @@ mod tests {
         let current_line = search.matches[search.current].line_index;
         assert!(current_line < state.output_offset + height);
 
+        assert_eq!(state.search_history, vec!["beta".to_string()]);
+        assert!(state.search_history_index.is_none());
+
         handle_key_event(KeyEvent::from(KeyCode::Char('n')), &mut state);
         let search = state.search_state.as_ref().unwrap();
         assert_eq!(search.current, 1);
@@ -1072,7 +1249,8 @@ mod tests {
         let project_root = PathBuf::from("/");
         let mut state = TuiState::new(modules, project_root);
         state.command_output = vec!["alpha".to_string()];
-        state.set_output_view_height(2);
+        state.update_output_metrics(80);
+        state.set_output_view_dimensions(2, 80);
         state.focus_output();
 
         handle_key_event(KeyEvent::from(KeyCode::Char('/')), &mut state);
@@ -1085,6 +1263,66 @@ mod tests {
         handle_key_event(KeyEvent::from(KeyCode::Esc), &mut state);
         assert!(state.search_input.is_none());
         assert!(state.search_error.is_none());
+    }
+
+    #[test]
+    fn test_search_history_navigation() {
+        let modules = vec!["module".to_string()];
+        let project_root = PathBuf::from("/");
+        let mut state = TuiState::new(modules, project_root);
+        state.command_output = vec!["alpha".to_string(), "beta".to_string()];
+        state.update_output_metrics(80);
+        state.set_output_view_dimensions(2, 80);
+        state.focus_output();
+
+        // First search: alpha
+        handle_key_event(KeyEvent::from(KeyCode::Char('/')), &mut state);
+        for ch in ['a', 'l', 'p', 'h', 'a'] {
+            handle_key_event(KeyEvent::from(KeyCode::Char(ch)), &mut state);
+        }
+        handle_key_event(KeyEvent::from(KeyCode::Enter), &mut state);
+        assert_eq!(state.search_history, vec!["alpha".to_string()]);
+
+        // Second search: beta
+        handle_key_event(KeyEvent::from(KeyCode::Char('/')), &mut state);
+        for ch in ['b', 'e', 't', 'a'] {
+            handle_key_event(KeyEvent::from(KeyCode::Char(ch)), &mut state);
+        }
+        handle_key_event(KeyEvent::from(KeyCode::Enter), &mut state);
+        assert_eq!(
+            state.search_history,
+            vec!["alpha".to_string(), "beta".to_string()]
+        );
+
+        // New prompt should be blank
+        handle_key_event(KeyEvent::from(KeyCode::Char('/')), &mut state);
+        assert_eq!(state.search_input.as_deref(), Some(""));
+        assert!(state.search_history_index.is_none());
+
+        // Recall latest search with Up
+        handle_key_event(KeyEvent::from(KeyCode::Up), &mut state);
+        assert_eq!(state.search_input.as_deref(), Some("beta"));
+        assert_eq!(state.search_history_index, Some(1));
+
+        // Older search
+        handle_key_event(KeyEvent::from(KeyCode::Up), &mut state);
+        assert_eq!(state.search_input.as_deref(), Some("alpha"));
+        assert_eq!(state.search_history_index, Some(0));
+
+        // Up again sticks to oldest
+        handle_key_event(KeyEvent::from(KeyCode::Up), &mut state);
+        assert_eq!(state.search_input.as_deref(), Some("alpha"));
+        assert_eq!(state.search_history_index, Some(0));
+
+        // Navigate forward
+        handle_key_event(KeyEvent::from(KeyCode::Down), &mut state);
+        assert_eq!(state.search_input.as_deref(), Some("beta"));
+        assert_eq!(state.search_history_index, Some(1));
+
+        // Down exits history and clears prompt
+        handle_key_event(KeyEvent::from(KeyCode::Down), &mut state);
+        assert_eq!(state.search_input.as_deref(), Some(""));
+        assert!(state.search_history_index.is_none());
     }
 
     #[test]
