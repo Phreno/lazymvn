@@ -1,10 +1,27 @@
 use crate::maven;
 use crate::ui::keybindings::{CurrentView, Focus, SearchMode};
-use crate::ui::search::{collect_search_matches, SearchMatch, SearchState};
+use crate::ui::search::{SearchMatch, SearchState, collect_search_matches};
 use ratatui::widgets::ListState;
 use regex::Regex;
 use std::{collections::HashMap, path::PathBuf};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
+
+/// Menu sections available in the footer navigation
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MenuSection {
+    Cycles,
+    Options,
+    Modules,
+}
+
+/// Menu interaction state for the top navigation
+#[derive(Clone, Copy, Debug)]
+pub struct MenuState {
+    pub active: bool,
+    pub section: MenuSection,
+    pub cycles_index: usize,
+    pub options_index: usize,
+}
 
 /// Output data for a specific module
 #[derive(Clone, Debug, Default)]
@@ -88,6 +105,7 @@ pub struct TuiState {
     pending_center: Option<SearchMatch>,
     pub search_mod: Option<SearchMode>,
     pub config: crate::config::Config,
+    menu_state: MenuState,
 }
 
 impl TuiState {
@@ -120,6 +138,12 @@ impl TuiState {
             pending_center: None,
             search_mod: None,
             config,
+            menu_state: MenuState {
+                active: false,
+                section: MenuSection::Cycles,
+                cycles_index: 0,
+                options_index: 0,
+            },
         };
         state.sync_selected_module_output();
         state
@@ -196,6 +220,9 @@ impl TuiState {
     }
 
     pub fn toggle_profile(&mut self) {
+        if self.current_view != CurrentView::Profiles {
+            return;
+        }
         if let Some(selected) = self.profiles_list_state.selected() {
             if let Some(profile) = self.profiles.get(selected) {
                 if let Some(pos) = self.active_profiles.iter().position(|p| p == profile) {
@@ -214,6 +241,100 @@ impl TuiState {
             .map(|s| s.as_str())
     }
 
+    pub fn menu_state(&self) -> MenuState {
+        self.menu_state
+    }
+
+    pub fn menu_activate(&mut self, section: MenuSection) {
+        self.menu_state.active = true;
+        self.menu_state.section = section;
+        self.menu_clamp_indices();
+    }
+
+    pub fn menu_deactivate(&mut self) {
+        self.menu_state.active = false;
+    }
+
+    pub fn menu_next_section(&mut self) {
+        self.menu_state.section = match self.menu_state.section {
+            MenuSection::Cycles => MenuSection::Options,
+            MenuSection::Options => MenuSection::Modules,
+            MenuSection::Modules => MenuSection::Cycles,
+        };
+        self.menu_clamp_indices();
+    }
+
+    pub fn menu_prev_section(&mut self) {
+        self.menu_state.section = match self.menu_state.section {
+            MenuSection::Cycles => MenuSection::Modules,
+            MenuSection::Options => MenuSection::Cycles,
+            MenuSection::Modules => MenuSection::Options,
+        };
+        self.menu_clamp_indices();
+    }
+
+    pub fn menu_next_item(&mut self) {
+        match self.menu_state.section {
+            MenuSection::Cycles => {
+                self.menu_state.cycles_index =
+                    (self.menu_state.cycles_index + 1) % crate::ui::keybindings::CYCLE_ACTION_COUNT;
+            }
+            MenuSection::Options => {
+                self.menu_state.options_index = (self.menu_state.options_index + 1)
+                    % crate::ui::keybindings::OPTIONS_ITEM_COUNT;
+            }
+            MenuSection::Modules => {}
+        }
+    }
+
+    pub fn menu_prev_item(&mut self) {
+        match self.menu_state.section {
+            MenuSection::Cycles => {
+                let count = crate::ui::keybindings::CYCLE_ACTION_COUNT;
+                self.menu_state.cycles_index = (self.menu_state.cycles_index + count - 1) % count;
+            }
+            MenuSection::Options => {
+                let count = crate::ui::keybindings::OPTIONS_ITEM_COUNT;
+                self.menu_state.options_index = (self.menu_state.options_index + count - 1) % count;
+            }
+            MenuSection::Modules => {}
+        }
+    }
+
+    pub fn menu_set_cycles_index(&mut self, index: usize) {
+        if crate::ui::keybindings::CYCLE_ACTION_COUNT == 0 {
+            self.menu_state.cycles_index = 0;
+        } else {
+            self.menu_state.cycles_index =
+                index.min(crate::ui::keybindings::CYCLE_ACTION_COUNT - 1);
+        }
+    }
+
+    pub fn menu_set_options_index(&mut self, index: usize) {
+        if crate::ui::keybindings::OPTIONS_ITEM_COUNT == 0 {
+            self.menu_state.options_index = 0;
+        } else {
+            self.menu_state.options_index =
+                index.min(crate::ui::keybindings::OPTIONS_ITEM_COUNT - 1);
+        }
+    }
+
+    pub fn switch_to_modules(&mut self) {
+        self.current_view = CurrentView::Modules;
+        self.focus_modules();
+        self.sync_selected_module_output();
+        self.menu_deactivate();
+    }
+
+    pub fn switch_to_profiles(&mut self) {
+        self.current_view = CurrentView::Profiles;
+        if self.profiles_list_state.selected().is_none() && !self.profiles.is_empty() {
+            self.profiles_list_state.select(Some(0));
+        }
+        self.focus_modules();
+        self.menu_deactivate();
+    }
+
     // Focus management
     pub fn focus_modules(&mut self) {
         self.focus = Focus::Modules;
@@ -225,9 +346,24 @@ impl TuiState {
     }
 
     pub fn has_search_results(&self) -> bool {
-        self.search_state.as_ref()
+        self.search_state
+            .as_ref()
             .map(|s| s.has_matches())
             .unwrap_or(false)
+    }
+
+    fn menu_clamp_indices(&mut self) {
+        if crate::ui::keybindings::CYCLE_ACTION_COUNT == 0 {
+            self.menu_state.cycles_index = 0;
+        } else {
+            self.menu_state.cycles_index %= crate::ui::keybindings::CYCLE_ACTION_COUNT;
+        }
+
+        if crate::ui::keybindings::OPTIONS_ITEM_COUNT == 0 {
+            self.menu_state.options_index = 0;
+        } else {
+            self.menu_state.options_index %= crate::ui::keybindings::OPTIONS_ITEM_COUNT;
+        }
     }
 
     // Live search - performs search as user types without storing in history
@@ -238,7 +374,7 @@ impl TuiState {
                 self.search_error = None;
                 return;
             }
-            
+
             match self.apply_search_query(pattern.clone(), false) {
                 Ok(_) => {
                     self.search_error = None;
@@ -276,7 +412,8 @@ impl TuiState {
                 lines: self.command_output.clone(),
                 scroll_offset: self.output_offset,
             };
-            self.module_outputs.insert(module.to_string(), module_output);
+            self.module_outputs
+                .insert(module.to_string(), module_output);
         }
     }
 
@@ -298,7 +435,13 @@ impl TuiState {
     // Command execution
     pub fn run_selected_module_command(&mut self, args: &[&str]) {
         if let Some(module) = self.selected_module().map(|m| m.to_string()) {
-            match maven::execute_maven_command(&self.project_root, Some(&module), args, &self.active_profiles, self.config.maven_settings.as_deref()) {
+            match maven::execute_maven_command(
+                &self.project_root,
+                Some(&module),
+                args,
+                &self.active_profiles,
+                self.config.maven_settings.as_deref(),
+            ) {
                 Ok(output) => {
                     self.command_output = output;
                     self.output_offset = self.command_output.len();
@@ -504,7 +647,7 @@ impl TuiState {
         } else {
             None
         };
-        
+
         if let Some(match_to_center) = current_match {
             self.center_on_match(match_to_center);
         }
@@ -531,7 +674,7 @@ impl TuiState {
         } else {
             None
         };
-        
+
         if let Some(match_to_center) = current_match {
             self.center_on_match(match_to_center);
         }
@@ -548,7 +691,7 @@ impl TuiState {
         } else {
             None
         };
-        
+
         if let Some(match_to_center) = current_match {
             self.center_on_match(match_to_center);
         }
@@ -599,10 +742,13 @@ impl TuiState {
     }
 
     // Getters for search state
-    pub fn search_line_style(&self, line_index: usize) -> Option<Vec<(ratatui::style::Style, std::ops::Range<usize>)>> {
-        self.search_state.as_ref().and_then(|search| {
-            crate::ui::search::search_line_style(line_index, search)
-        })
+    pub fn search_line_style(
+        &self,
+        line_index: usize,
+    ) -> Option<Vec<(ratatui::style::Style, std::ops::Range<usize>)>> {
+        self.search_state
+            .as_ref()
+            .and_then(|search| crate::ui::search::search_line_style(line_index, search))
     }
 
     pub fn search_status_line(&self) -> Option<ratatui::text::Line<'static>> {

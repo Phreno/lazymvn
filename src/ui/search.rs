@@ -87,7 +87,7 @@ pub fn search_line_style(
     search_state: &SearchState,
 ) -> Option<Vec<(Style, std::ops::Range<usize>)>> {
     let mut highlights = Vec::new();
-    
+
     for (match_idx, search_match) in search_state.matches.iter().enumerate() {
         if search_match.line_index == line_index {
             let style = if match_idx == search_state.current {
@@ -98,7 +98,7 @@ pub fn search_line_style(
             highlights.push((style, search_match.start..search_match.end));
         }
     }
-    
+
     if highlights.is_empty() {
         None
     } else {
@@ -122,7 +122,7 @@ pub fn search_status_line(
                 Span::raw("_ (type to search, Enter to confirm, Esc to cancel)"),
             ]));
         }
-        
+
         // Show live search results
         if let Some(search) = search_state {
             if search.has_matches() {
@@ -130,7 +130,9 @@ pub fn search_status_line(
                 let total = search.total_matches();
                 return Some(Line::from(vec![
                     Span::styled("/", Theme::INFO_STYLE),
-                    Span::raw(format!("{buffer}_ - {current}/{total} matches (Enter to confirm, Esc to cancel)")),
+                    Span::raw(format!(
+                        "{buffer}_ - {current}/{total} matches (Enter to confirm, Esc to cancel)"
+                    )),
                 ]));
             } else {
                 return Some(Line::from(vec![
@@ -143,7 +145,9 @@ pub fn search_status_line(
         } else {
             return Some(Line::from(vec![
                 Span::styled("/", Theme::INFO_STYLE),
-                Span::raw(format!("{buffer}_ (type to search, Enter to confirm, Esc to cancel)")),
+                Span::raw(format!(
+                    "{buffer}_ (type to search, Enter to confirm, Esc to cancel)"
+                )),
             ]));
         }
     }
@@ -162,7 +166,10 @@ pub fn search_status_line(
             let total = search.total_matches();
             return Some(Line::from(vec![
                 Span::styled("Search", Theme::INFO_STYLE),
-                Span::raw(format!(" Match {current}/{total}   /{} (n/N/Enter to exit)", search.query)),
+                Span::raw(format!(
+                    " Match {current}/{total}   /{} (n/N/Enter to exit)",
+                    search.query
+                )),
             ]));
         } else {
             return Some(Line::from(vec![

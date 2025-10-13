@@ -1,15 +1,17 @@
 //! Main TUI drawing and coordination module
-//! 
+//!
 //! This module provides the main drawing function that coordinates between
 //! all the UI modules (panes, state, keybindings, etc.) to render the complete
 //! terminal user interface.
 
 use crate::ui::{
     keybindings,
-    panes::{create_layout, render_footer, render_modules_pane, render_output_pane, render_profiles_pane},
+    panes::{
+        create_layout, render_footer, render_modules_pane, render_output_pane, render_profiles_pane,
+    },
 };
 use crossterm::event::KeyEvent;
-use ratatui::{backend::Backend, Terminal};
+use ratatui::{Terminal, backend::Backend};
 
 /// Re-export commonly used types for backward compatibility
 pub use crate::ui::keybindings::{CurrentView, Focus};
@@ -70,6 +72,7 @@ pub fn draw<B: Backend>(
             footer_area,
             state.current_view,
             state.focus,
+            state.menu_state(),
             state.search_status_line(),
         );
     })?;
@@ -84,9 +87,10 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ratatui::{backend::TestBackend, Terminal};
-    use tempfile::tempdir;
+    use crate::ui::state::MenuSection;
+    use ratatui::{Terminal, backend::TestBackend};
     use std::path::PathBuf;
+    use tempfile::tempdir;
 
     fn test_cfg() -> crate::config::Config {
         crate::config::Config {
@@ -122,18 +126,36 @@ mod tests {
 
         // Initial view is Modules
         assert_eq!(state.current_view, CurrentView::Modules);
+        assert!(!state.menu_state().active);
 
-        // Press 'p' to switch to Profiles
-        handle_key_event(crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char('p')), &mut state);
-        assert_eq!(state.current_view, CurrentView::Profiles);
-
-        // Press 'p' again to switch back to Modules
-        handle_key_event(crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char('p')), &mut state);
+        // Press 'o' to open Options
+        handle_key_event(
+            crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char('o')),
+            &mut state,
+        );
+        assert!(state.menu_state().active);
+        assert_eq!(state.menu_state().section, MenuSection::Options);
         assert_eq!(state.current_view, CurrentView::Modules);
+
+        // Press 'p' to activate Profiles from Options
+        handle_key_event(
+            crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char('p')),
+            &mut state,
+        );
+        assert_eq!(state.current_view, CurrentView::Profiles);
+        assert!(!state.menu_state().active);
+
+        // Press 'm' to return to Modules
+        handle_key_event(
+            crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char('m')),
+            &mut state,
+        );
+        assert_eq!(state.current_view, CurrentView::Modules);
+        assert!(!state.menu_state().active);
     }
 
     #[test]
-    fn test_build_command() {
+    fn test_package_command() {
         // 1. Setup temp project
         let project_dir = tempdir().unwrap();
         let project_root = project_dir.path();
@@ -151,11 +173,15 @@ mod tests {
 
         // 3. Create TuiState
         let modules = vec!["module1".to_string()];
-        let mut state = crate::ui::state::TuiState::new(modules, project_root.to_path_buf(), test_cfg());
+        let mut state =
+            crate::ui::state::TuiState::new(modules, project_root.to_path_buf(), test_cfg());
         state.active_profiles = vec!["p1".to_string()];
 
-        // 4. Simulate 'b' key press
-        handle_key_event(crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char('b')), &mut state);
+        // 4. Simulate 'k' key press for package
+        handle_key_event(
+            crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char('k')),
+            &mut state,
+        );
 
         // 5. Assert command output contains expected elements
         let cleaned_output: Vec<String> = state
@@ -164,5 +190,41 @@ mod tests {
             .filter_map(|line| crate::utils::clean_log_line(line))
             .collect();
         assert!(!cleaned_output.is_empty());
+    }
+
+    #[test]
+    fn test_build_command_runs_clean_install() {
+        let project_dir = tempdir().unwrap();
+        let project_root = project_dir.path();
+
+        let mvnw_path = project_root.join("mvnw");
+        let mut mvnw_file = std::fs::File::create(&mvnw_path).unwrap();
+        use std::io::Write;
+        mvnw_file.write_all(b"#!/bin/sh\necho $@").unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = mvnw_file.metadata().unwrap().permissions();
+        perms.set_mode(0o755);
+        mvnw_file.set_permissions(perms).unwrap();
+        drop(mvnw_file);
+
+        let modules = vec!["module1".to_string()];
+        let mut state =
+            crate::ui::state::TuiState::new(modules, project_root.to_path_buf(), test_cfg());
+
+        handle_key_event(
+            crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char('b')),
+            &mut state,
+        );
+
+        let cleaned_output: Vec<String> = state
+            .command_output
+            .iter()
+            .filter_map(|line| crate::utils::clean_log_line(line))
+            .collect();
+        assert!(
+            cleaned_output
+                .iter()
+                .any(|line| line.contains("clean install"))
+        );
     }
 }
