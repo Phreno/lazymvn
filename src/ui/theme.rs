@@ -36,6 +36,13 @@ impl Theme {
     pub const FOOTER_POINTER_STYLE: Style =
         Style::new().fg(Color::Yellow).add_modifier(Modifier::BOLD);
 
+    /// Style for disabled footer text
+    pub const FOOTER_DISABLED_TEXT_STYLE: Style = Style::new().fg(Color::DarkGray);
+
+    /// Style for disabled footer key hints
+    pub const FOOTER_DISABLED_KEY_STYLE: Style =
+        Style::new().fg(Color::Gray).add_modifier(Modifier::BOLD);
+
     /// Style for search match highlights
     pub const SEARCH_MATCH_STYLE: Style = Style::new().bg(Color::Yellow).fg(Color::Black);
 

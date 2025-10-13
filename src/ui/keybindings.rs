@@ -126,6 +126,13 @@ fn options_index_by_key(ch: char) -> Option<usize> {
     OPTIONS_MENU_ITEMS.iter().position(|item| item.key == ch)
 }
 
+#[derive(Clone, Copy)]
+enum ButtonState {
+    Normal,
+    Active,
+    Disabled,
+}
+
 /// Handle key events and update TUI state accordingly
 pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
     if let Some(search_mod) = state.search_mod.take() {
@@ -367,22 +374,24 @@ fn append_bracketed_word(
     prefix: &str,
     key: &str,
     suffix: &str,
-    active: bool,
+    state: ButtonState,
 ) {
-    let text_style = if active {
-        Theme::FOOTER_ACTIVE_TEXT_STYLE
-    } else {
-        Theme::DEFAULT_STYLE
+    let (key_style, text_style) = match state {
+        ButtonState::Active => (
+            Theme::KEY_HINT_STYLE.add_modifier(Modifier::UNDERLINED),
+            Theme::FOOTER_ACTIVE_TEXT_STYLE,
+        ),
+        ButtonState::Disabled => (
+            Theme::FOOTER_DISABLED_KEY_STYLE,
+            Theme::FOOTER_DISABLED_TEXT_STYLE,
+        ),
+        ButtonState::Normal => (Theme::KEY_HINT_STYLE, Theme::DEFAULT_STYLE),
     };
 
     if !prefix.is_empty() {
         spans.push(Span::styled(prefix.to_string(), text_style));
     }
 
-    let mut key_style = Theme::KEY_HINT_STYLE;
-    if active {
-        key_style = key_style.add_modifier(Modifier::UNDERLINED);
-    }
     spans.push(Span::styled("[", text_style));
     spans.push(Span::styled(key.to_string(), key_style));
     spans.push(Span::styled("]", text_style));
@@ -422,7 +431,11 @@ fn build_cycles_line(menu_state: MenuState) -> Line<'static> {
             action.prefix,
             action.key_display,
             action.suffix,
-            is_active,
+            if is_active {
+                ButtonState::Active
+            } else {
+                ButtonState::Normal
+            },
         );
         if idx < CYCLE_ACTIONS.len() - 1 {
             spans.push(Span::raw("  •  "));
@@ -435,7 +448,17 @@ fn build_options_line(view: CurrentView, menu_state: MenuState) -> Line<'static>
     let mut spans: Vec<Span<'static>> = Vec::new();
     spans.push(Span::styled("Options  ", Theme::FOOTER_SECTION_STYLE));
     let options_active = menu_state.active && matches!(menu_state.section, MenuSection::Options);
-    append_bracketed_word(&mut spans, "", "o", "ptions", options_active);
+    append_bracketed_word(
+        &mut spans,
+        "",
+        "o",
+        "ptions",
+        if options_active {
+            ButtonState::Active
+        } else {
+            ButtonState::Normal
+        },
+    );
 
     spans.push(Span::raw("  "));
 
@@ -455,7 +478,13 @@ fn build_options_line(view: CurrentView, menu_state: MenuState) -> Line<'static>
             item.prefix,
             item.key_display,
             item.suffix,
-            options_selected,
+            if options_selected {
+                ButtonState::Active
+            } else if options_active {
+                ButtonState::Normal
+            } else {
+                ButtonState::Disabled
+            },
         );
     }
 
@@ -471,7 +500,19 @@ fn build_modules_line(view: CurrentView, menu_state: MenuState) -> Line<'static>
     }
     let modules_selected = matches!(view, CurrentView::Modules)
         && (!menu_state.active || matches!(menu_state.section, MenuSection::Modules));
-    append_bracketed_word(&mut spans, "", "m", "odules", modules_selected);
+    append_bracketed_word(
+        &mut spans,
+        "",
+        "m",
+        "odules",
+        if modules_selected {
+            ButtonState::Active
+        } else if menu_state.active && !matches!(menu_state.section, MenuSection::Modules) {
+            ButtonState::Disabled
+        } else {
+            ButtonState::Normal
+        },
+    );
     Line::from(spans)
 }
 
