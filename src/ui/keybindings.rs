@@ -401,11 +401,11 @@ fn append_bracketed_word(
     }
 }
 
-fn blank_line() -> Line<'static> {
+pub(crate) fn blank_line() -> Line<'static> {
     Line::raw("")
 }
 
-fn build_navigation_line() -> Line<'static> {
+pub(crate) fn build_navigation_line() -> Line<'static> {
     let mut spans: Vec<Span<'static>> = Vec::new();
     spans.push(Span::styled("Navigation ", Theme::FOOTER_SECTION_STYLE));
     spans.push(key_token("←"));
@@ -419,7 +419,7 @@ fn build_navigation_line() -> Line<'static> {
     Line::from(spans)
 }
 
-fn build_cycles_line(menu_state: MenuState) -> Line<'static> {
+pub(crate) fn build_cycles_line(menu_state: MenuState) -> Line<'static> {
     let mut spans: Vec<Span<'static>> = Vec::new();
     spans.push(Span::styled("Cycles   ", Theme::FOOTER_SECTION_STYLE));
     for (idx, action) in CYCLE_ACTIONS.iter().enumerate() {
@@ -444,7 +444,7 @@ fn build_cycles_line(menu_state: MenuState) -> Line<'static> {
     Line::from(spans)
 }
 
-fn build_options_line(view: CurrentView, menu_state: MenuState) -> Line<'static> {
+pub(crate) fn build_options_line(view: CurrentView, menu_state: MenuState) -> Line<'static> {
     let mut spans: Vec<Span<'static>> = Vec::new();
     spans.push(Span::styled("Options  ", Theme::FOOTER_SECTION_STYLE));
     let options_active = menu_state.active && matches!(menu_state.section, MenuSection::Options);
@@ -491,7 +491,7 @@ fn build_options_line(view: CurrentView, menu_state: MenuState) -> Line<'static>
     Line::from(spans)
 }
 
-fn build_modules_line(view: CurrentView, menu_state: MenuState) -> Line<'static> {
+pub(crate) fn build_modules_line(view: CurrentView, menu_state: MenuState) -> Line<'static> {
     let mut spans: Vec<Span<'static>> = Vec::new();
     spans.push(Span::styled("Modules  ", Theme::FOOTER_SECTION_STYLE));
     if menu_state.active && matches!(menu_state.section, MenuSection::Modules) {
@@ -514,17 +514,4 @@ fn build_modules_line(view: CurrentView, menu_state: MenuState) -> Line<'static>
         },
     );
     Line::from(spans)
-}
-
-/// Generate navigation footer lines with key hints based on current view and focus
-pub fn footer_lines(view: CurrentView, _focus: Focus, menu_state: MenuState) -> Vec<Line<'static>> {
-    let mut lines = Vec::new();
-    lines.push(build_navigation_line());
-    lines.push(blank_line());
-    lines.push(build_cycles_line(menu_state));
-    lines.push(blank_line());
-    lines.push(build_options_line(view, menu_state));
-    lines.push(blank_line());
-    lines.push(build_modules_line(view, menu_state));
-    lines
 }

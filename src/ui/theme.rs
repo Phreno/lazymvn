@@ -36,6 +36,10 @@ impl Theme {
     pub const FOOTER_POINTER_STYLE: Style =
         Style::new().fg(Color::Yellow).add_modifier(Modifier::BOLD);
 
+    /// Style for cycles block borders
+    pub const CYCLES_BORDER_STYLE: Style =
+        Style::new().fg(Color::Blue).add_modifier(Modifier::BOLD);
+
     /// Style for disabled footer text
     pub const FOOTER_DISABLED_TEXT_STYLE: Style = Style::new().fg(Color::DarkGray);
 

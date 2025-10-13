@@ -156,14 +156,76 @@ pub fn render_footer(
     view: CurrentView,
     focus: Focus,
     menu_state: MenuState,
+    module_name: Option<&str>,
     search_status_line: Option<Line<'static>>,
 ) {
-    let mut footer_lines = crate::ui::keybindings::footer_lines(view, focus, menu_state);
-    if let Some(status_line) = search_status_line {
-        footer_lines.push(status_line);
+    let _ = focus;
+    let mut constraints = vec![
+        Constraint::Length(1), // navigation
+        Constraint::Length(1), // spacer
+        Constraint::Length(3), // cycles block with borders
+        Constraint::Length(1), // spacer
+        Constraint::Length(1), // options
+        Constraint::Length(1), // spacer
+        Constraint::Length(1), // modules
+    ];
+    if search_status_line.is_some() {
+        constraints.push(Constraint::Length(1));
     }
-    let footer = Paragraph::new(footer_lines).block(Block::default().borders(Borders::TOP));
-    f.render_widget(footer, area);
+
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(constraints)
+        .split(area);
+
+    // Navigation line
+    let navigation = Paragraph::new(crate::ui::keybindings::build_navigation_line());
+    f.render_widget(navigation, chunks[0]);
+
+    // Spacer
+    f.render_widget(
+        Paragraph::new(crate::ui::keybindings::blank_line()),
+        chunks[1],
+    );
+
+    // Cycles block with module title
+    let title_text = module_name
+        .map(|name| format!("Cycles – {}", name))
+        .unwrap_or_else(|| "Cycles".to_string());
+    let cycles_block = Block::default()
+        .title(Span::styled(title_text, Theme::FOOTER_SECTION_STYLE))
+        .borders(Borders::ALL)
+        .border_style(Theme::CYCLES_BORDER_STYLE);
+    let cycles_paragraph =
+        Paragraph::new(crate::ui::keybindings::build_cycles_line(menu_state)).block(cycles_block);
+    f.render_widget(cycles_paragraph, chunks[2]);
+
+    // Spacer
+    f.render_widget(
+        Paragraph::new(crate::ui::keybindings::blank_line()),
+        chunks[3],
+    );
+
+    // Options line
+    let options_line = Paragraph::new(crate::ui::keybindings::build_options_line(view, menu_state));
+    f.render_widget(options_line, chunks[4]);
+
+    // Spacer
+    f.render_widget(
+        Paragraph::new(crate::ui::keybindings::blank_line()),
+        chunks[5],
+    );
+
+    // Modules line
+    let modules_line = Paragraph::new(crate::ui::keybindings::build_modules_line(view, menu_state));
+    f.render_widget(modules_line, chunks[6]);
+
+    // Optional search status line
+    if let Some(status_line) = search_status_line {
+        let status_paragraph = Paragraph::new(status_line);
+        let idx = chunks.len() - 1;
+        f.render_widget(status_paragraph, chunks[idx]);
+    }
 }
 
 /// Create the main layout for the TUI

@@ -67,12 +67,14 @@ pub fn draw<B: Backend>(
         );
 
         // Render footer
+        let selected_module_label = state.selected_module().map(|s| s.to_string());
         render_footer(
             f,
             footer_area,
             state.current_view,
             state.focus,
             state.menu_state(),
+            selected_module_label.as_deref(),
             state.search_status_line(),
         );
     })?;
