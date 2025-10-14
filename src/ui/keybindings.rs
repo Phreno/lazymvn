@@ -521,21 +521,21 @@ pub(crate) fn simplified_footer_title(
     let mut parts = Vec::new();
 
     if let Some(name) = module_name {
-        parts.push(format!("Module: {}", name));
+        parts.push(name.to_string());
     }
 
     if !active_profiles.is_empty() {
-        parts.push(format!("Profiles: {}", active_profiles.join(", ")));
+        parts.push(active_profiles.join(", "));
     }
 
     if !enabled_flags.is_empty() {
-        parts.push(format!("Flags: {}", enabled_flags.join(", ")));
+        parts.push(enabled_flags.join(", "));
     }
 
     let text = if parts.is_empty() {
         "Commands".to_string()
     } else {
-        format!("Commands – {}", parts.join(" | "))
+        format!("Commands: {}", parts.join(" • "))
     };
 
     let style = match view {
@@ -548,12 +548,12 @@ pub(crate) fn simplified_footer_title(
 
 pub(crate) fn simplified_footer_body(view: CurrentView) -> Line<'static> {
     let mut spans: Vec<Span<'static>> = Vec::new();
-    spans.push(Span::raw("  "));
+    spans.push(Span::raw(" "));
 
     // Module commands
     for (idx, action) in MODULE_ACTIONS.iter().enumerate() {
         if idx > 0 {
-            spans.push(Span::raw("  •  "));
+            spans.push(Span::raw(" • "));
         }
         append_bracketed_word(
             &mut spans,
@@ -564,7 +564,7 @@ pub(crate) fn simplified_footer_body(view: CurrentView) -> Line<'static> {
         );
     }
 
-    spans.push(Span::raw("  •  "));
+    spans.push(Span::raw(" • "));
 
     // Options commands
     for (idx, item) in OPTIONS_MENU_ITEMS.iter().enumerate() {
