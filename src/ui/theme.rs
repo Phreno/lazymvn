@@ -27,6 +27,12 @@ impl Theme {
         .fg(Color::LightMagenta)
         .add_modifier(Modifier::BOLD);
 
+    /// Style for focused footer section titles
+    pub const FOOTER_SECTION_FOCUSED_STYLE: Style = Style::new()
+        .fg(Color::LightCyan)
+        .add_modifier(Modifier::BOLD)
+        .add_modifier(Modifier::UNDERLINED);
+
     /// Style for active footer text
     pub const FOOTER_ACTIVE_TEXT_STYLE: Style = Style::new()
         .fg(Color::White)
@@ -36,9 +42,12 @@ impl Theme {
     pub const FOOTER_POINTER_STYLE: Style =
         Style::new().fg(Color::Yellow).add_modifier(Modifier::BOLD);
 
-    /// Style for cycles block borders
-    pub const CYCLES_BORDER_STYLE: Style =
-        Style::new().fg(Color::Blue).add_modifier(Modifier::BOLD);
+    /// Style for footer box borders
+    pub const FOOTER_BOX_BORDER_STYLE: Style = Style::new().fg(Color::Blue);
+
+    /// Style for focused footer box borders
+    pub const FOOTER_BOX_FOCUSED_BORDER_STYLE: Style =
+        Style::new().fg(Color::Cyan).add_modifier(Modifier::BOLD);
 
     /// Style for disabled footer text
     pub const FOOTER_DISABLED_TEXT_STYLE: Style = Style::new().fg(Color::DarkGray);

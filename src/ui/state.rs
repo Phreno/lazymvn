@@ -9,9 +9,8 @@ use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 /// Menu sections available in the footer navigation
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MenuSection {
-    Cycles,
+    Module,
     Options,
-    Modules,
 }
 
 /// Menu interaction state for the top navigation
@@ -140,7 +139,7 @@ impl TuiState {
             config,
             menu_state: MenuState {
                 active: false,
-                section: MenuSection::Cycles,
+                section: MenuSection::Module,
                 cycles_index: 0,
                 options_index: 0,
             },
@@ -253,60 +252,31 @@ impl TuiState {
 
     pub fn menu_deactivate(&mut self) {
         self.menu_state.active = false;
+        self.menu_state.section = MenuSection::Module;
     }
 
     pub fn menu_next_section(&mut self) {
         self.menu_state.section = match self.menu_state.section {
-            MenuSection::Cycles => MenuSection::Options,
-            MenuSection::Options => MenuSection::Modules,
-            MenuSection::Modules => MenuSection::Cycles,
+            MenuSection::Module => MenuSection::Options,
+            MenuSection::Options => MenuSection::Module,
         };
         self.menu_clamp_indices();
     }
 
     pub fn menu_prev_section(&mut self) {
         self.menu_state.section = match self.menu_state.section {
-            MenuSection::Cycles => MenuSection::Modules,
-            MenuSection::Options => MenuSection::Cycles,
-            MenuSection::Modules => MenuSection::Options,
+            MenuSection::Module => MenuSection::Options,
+            MenuSection::Options => MenuSection::Module,
         };
         self.menu_clamp_indices();
     }
 
-    pub fn menu_next_item(&mut self) {
-        match self.menu_state.section {
-            MenuSection::Cycles => {
-                self.menu_state.cycles_index =
-                    (self.menu_state.cycles_index + 1) % crate::ui::keybindings::CYCLE_ACTION_COUNT;
-            }
-            MenuSection::Options => {
-                self.menu_state.options_index = (self.menu_state.options_index + 1)
-                    % crate::ui::keybindings::OPTIONS_ITEM_COUNT;
-            }
-            MenuSection::Modules => {}
-        }
-    }
-
-    pub fn menu_prev_item(&mut self) {
-        match self.menu_state.section {
-            MenuSection::Cycles => {
-                let count = crate::ui::keybindings::CYCLE_ACTION_COUNT;
-                self.menu_state.cycles_index = (self.menu_state.cycles_index + count - 1) % count;
-            }
-            MenuSection::Options => {
-                let count = crate::ui::keybindings::OPTIONS_ITEM_COUNT;
-                self.menu_state.options_index = (self.menu_state.options_index + count - 1) % count;
-            }
-            MenuSection::Modules => {}
-        }
-    }
-
     pub fn menu_set_cycles_index(&mut self, index: usize) {
-        if crate::ui::keybindings::CYCLE_ACTION_COUNT == 0 {
+        if crate::ui::keybindings::MODULE_ACTION_COUNT == 0 {
             self.menu_state.cycles_index = 0;
         } else {
             self.menu_state.cycles_index =
-                index.min(crate::ui::keybindings::CYCLE_ACTION_COUNT - 1);
+                index.min(crate::ui::keybindings::MODULE_ACTION_COUNT - 1);
         }
     }
 
@@ -353,10 +323,10 @@ impl TuiState {
     }
 
     fn menu_clamp_indices(&mut self) {
-        if crate::ui::keybindings::CYCLE_ACTION_COUNT == 0 {
+        if crate::ui::keybindings::MODULE_ACTION_COUNT == 0 {
             self.menu_state.cycles_index = 0;
         } else {
-            self.menu_state.cycles_index %= crate::ui::keybindings::CYCLE_ACTION_COUNT;
+            self.menu_state.cycles_index %= crate::ui::keybindings::MODULE_ACTION_COUNT;
         }
 
         if crate::ui::keybindings::OPTIONS_ITEM_COUNT == 0 {

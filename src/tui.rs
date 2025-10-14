@@ -67,14 +67,13 @@ pub fn draw<B: Backend>(
         );
 
         // Render footer
-        let selected_module_label = state.selected_module().map(|s| s.to_string());
         render_footer(
             f,
             footer_area,
             state.current_view,
             state.focus,
             state.menu_state(),
-            selected_module_label.as_deref(),
+            state.selected_module(),
             state.search_status_line(),
         );
     })?;
@@ -153,7 +152,8 @@ mod tests {
             &mut state,
         );
         assert_eq!(state.current_view, CurrentView::Modules);
-        assert!(!state.menu_state().active);
+        assert!(state.menu_state().active);
+        assert_eq!(state.menu_state().section, MenuSection::Module);
     }
 
     #[test]

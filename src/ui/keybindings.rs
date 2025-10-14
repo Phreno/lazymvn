@@ -26,7 +26,7 @@ pub enum SearchMode {
     Cycling,
 }
 
-struct CycleAction {
+struct ModuleAction {
     key: char,
     key_display: &'static str,
     prefix: &'static str,
@@ -47,50 +47,50 @@ enum OptionsAction {
     Profiles,
 }
 
-const CYCLE_ACTIONS: [CycleAction; 7] = [
-    CycleAction {
+const MODULE_ACTIONS: [ModuleAction; 7] = [
+    ModuleAction {
         key: 'b',
         key_display: "b",
         prefix: "",
         suffix: "uild",
         command: &["clean", "install"],
     },
-    CycleAction {
+    ModuleAction {
         key: 'C',
         key_display: "C",
         prefix: "",
         suffix: "lean",
         command: &["clean"],
     },
-    CycleAction {
+    ModuleAction {
         key: 'c',
         key_display: "c",
         prefix: "",
         suffix: "ompile",
         command: &["compile"],
     },
-    CycleAction {
+    ModuleAction {
         key: 'k',
         key_display: "k",
         prefix: "pac",
         suffix: "age",
         command: &["package"],
     },
-    CycleAction {
+    ModuleAction {
         key: 't',
         key_display: "t",
         prefix: "",
         suffix: "est",
         command: &["test"],
     },
-    CycleAction {
+    ModuleAction {
         key: 'i',
         key_display: "i",
         prefix: "",
         suffix: "nstall",
         command: &["install"],
     },
-    CycleAction {
+    ModuleAction {
         key: 'd',
         key_display: "d",
         prefix: "",
@@ -107,19 +107,19 @@ const OPTIONS_MENU_ITEMS: [OptionsItem; 1] = [OptionsItem {
     action: OptionsAction::Profiles,
 }];
 
-pub const CYCLE_ACTION_COUNT: usize = CYCLE_ACTIONS.len();
+pub const MODULE_ACTION_COUNT: usize = MODULE_ACTIONS.len();
 pub const OPTIONS_ITEM_COUNT: usize = OPTIONS_MENU_ITEMS.len();
 
-fn cycle_action(index: usize) -> &'static CycleAction {
-    &CYCLE_ACTIONS[index % CYCLE_ACTIONS.len()]
+fn module_action(index: usize) -> &'static ModuleAction {
+    &MODULE_ACTIONS[index % MODULE_ACTIONS.len()]
 }
 
 fn options_item(index: usize) -> &'static OptionsItem {
     &OPTIONS_MENU_ITEMS[index % OPTIONS_MENU_ITEMS.len()]
 }
 
-fn cycle_action_index_by_key(ch: char) -> Option<usize> {
-    CYCLE_ACTIONS.iter().position(|action| action.key == ch)
+fn module_action_index_by_key(ch: char) -> Option<usize> {
+    MODULE_ACTIONS.iter().position(|action| action.key == ch)
 }
 
 fn options_index_by_key(ch: char) -> Option<usize> {
@@ -214,14 +214,6 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
                 state.menu_next_section();
                 return;
             }
-            KeyCode::Up => {
-                state.menu_prev_item();
-                return;
-            }
-            KeyCode::Down => {
-                state.menu_next_item();
-                return;
-            }
             KeyCode::Enter | KeyCode::Char(' ') => {
                 execute_menu_selection(state);
                 return;
@@ -256,6 +248,7 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
         }
         KeyCode::Char('m') => {
             state.switch_to_modules();
+            state.menu_activate(MenuSection::Module);
         }
         KeyCode::Char('b') => {
             state.run_selected_module_command(&["clean", "install"]);
@@ -312,11 +305,11 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
     }
 }
 
-fn execute_cycle_action(state: &mut crate::ui::state::TuiState, index: usize) {
-    if CYCLE_ACTIONS.is_empty() {
+fn execute_module_action(state: &mut crate::ui::state::TuiState, index: usize) {
+    if MODULE_ACTIONS.is_empty() {
         return;
     }
-    let action = cycle_action(index % CYCLE_ACTION_COUNT);
+    let action = module_action(index % MODULE_ACTION_COUNT);
     state.run_selected_module_command(action.command);
 }
 
@@ -332,18 +325,19 @@ fn execute_options_action(state: &mut crate::ui::state::TuiState, index: usize) 
 fn execute_menu_selection(state: &mut crate::ui::state::TuiState) {
     let menu = state.menu_state();
     match menu.section {
-        MenuSection::Cycles => execute_cycle_action(state, menu.cycles_index),
+        MenuSection::Module => execute_module_action(state, menu.cycles_index),
         MenuSection::Options => execute_options_action(state, menu.options_index),
-        MenuSection::Modules => state.switch_to_modules(),
     }
 }
 
 fn handle_menu_char(state: &mut crate::ui::state::TuiState, ch: char) -> bool {
-    if let Some(idx) = cycle_action_index_by_key(ch) {
-        state.menu_activate(MenuSection::Cycles);
-        state.menu_set_cycles_index(idx);
-        execute_cycle_action(state, idx);
-        return true;
+    if matches!(state.menu_state().section, MenuSection::Module) {
+        if let Some(idx) = module_action_index_by_key(ch) {
+            state.menu_activate(MenuSection::Module);
+            state.menu_set_cycles_index(idx);
+            execute_module_action(state, idx);
+            return true;
+        }
     }
     if let Some(idx) = options_index_by_key(ch) {
         state.menu_activate(MenuSection::Options);
@@ -355,6 +349,7 @@ fn handle_menu_char(state: &mut crate::ui::state::TuiState, ch: char) -> bool {
         'o' => {
             state.menu_activate(MenuSection::Options);
             state.menu_set_options_index(0);
+            execute_options_action(state, 0);
             true
         }
         'm' => {
@@ -419,47 +414,48 @@ pub(crate) fn build_navigation_line() -> Line<'static> {
     Line::from(spans)
 }
 
-pub(crate) fn build_cycles_line(menu_state: MenuState) -> Line<'static> {
+pub(crate) fn module_box_body(menu_state: MenuState) -> Line<'static> {
     let mut spans: Vec<Span<'static>> = Vec::new();
-    spans.push(Span::styled("Cycles   ", Theme::FOOTER_SECTION_STYLE));
-    for (idx, action) in CYCLE_ACTIONS.iter().enumerate() {
-        let is_active = menu_state.active
-            && matches!(menu_state.section, MenuSection::Cycles)
-            && menu_state.cycles_index % CYCLE_ACTION_COUNT == idx;
+    spans.push(Span::raw("  "));
+    for (idx, action) in MODULE_ACTIONS.iter().enumerate() {
+        let module_focused = matches!(menu_state.section, MenuSection::Module);
+        let is_active = menu_state.cycles_index % MODULE_ACTION_COUNT == idx;
         append_bracketed_word(
             &mut spans,
             action.prefix,
             action.key_display,
             action.suffix,
-            if is_active {
-                ButtonState::Active
+            if module_focused {
+                if is_active {
+                    ButtonState::Active
+                } else {
+                    ButtonState::Normal
+                }
             } else {
-                ButtonState::Normal
+                ButtonState::Disabled
             },
         );
-        if idx < CYCLE_ACTIONS.len() - 1 {
+        if idx < MODULE_ACTIONS.len() - 1 {
             spans.push(Span::raw("  •  "));
         }
     }
     Line::from(spans)
 }
 
-pub(crate) fn build_options_line(view: CurrentView, menu_state: MenuState) -> Line<'static> {
-    let mut spans: Vec<Span<'static>> = Vec::new();
-    spans.push(Span::styled("Options  ", Theme::FOOTER_SECTION_STYLE));
-    let options_active = menu_state.active && matches!(menu_state.section, MenuSection::Options);
-    append_bracketed_word(
-        &mut spans,
-        "",
-        "o",
-        "ptions",
-        if options_active {
-            ButtonState::Active
-        } else {
-            ButtonState::Normal
-        },
-    );
+pub(crate) fn module_box_title(module_name: Option<&str>, focused: bool) -> Span<'static> {
+    let title_text = module_name
+        .map(|name| format!("[m]odule – {name}"))
+        .unwrap_or_else(|| "[m]odule".to_string());
+    if focused {
+        Span::styled(title_text, Theme::FOOTER_SECTION_FOCUSED_STYLE)
+    } else {
+        Span::styled(title_text, Theme::FOOTER_SECTION_STYLE)
+    }
+}
 
+pub(crate) fn options_box_body(view: CurrentView, menu_state: MenuState) -> Line<'static> {
+    let mut spans: Vec<Span<'static>> = Vec::new();
+    let options_active = matches!(menu_state.section, MenuSection::Options);
     spans.push(Span::raw("  "));
 
     let show_pointer = options_active || matches!(view, CurrentView::Profiles);
@@ -470,9 +466,8 @@ pub(crate) fn build_options_line(view: CurrentView, menu_state: MenuState) -> Li
 
     if !OPTIONS_MENU_ITEMS.is_empty() {
         let item = options_item(0);
-        let options_selected = (options_active
-            && menu_state.options_index % OPTIONS_ITEM_COUNT == 0)
-            || matches!(view, CurrentView::Profiles);
+        let options_selected = matches!(view, CurrentView::Profiles)
+            || (options_active && menu_state.options_index % OPTIONS_ITEM_COUNT == 0);
         append_bracketed_word(
             &mut spans,
             item.prefix,
@@ -481,37 +476,20 @@ pub(crate) fn build_options_line(view: CurrentView, menu_state: MenuState) -> Li
             if options_selected {
                 ButtonState::Active
             } else if options_active {
-                ButtonState::Normal
+                ButtonState::Active
             } else {
                 ButtonState::Disabled
             },
         );
     }
-
     Line::from(spans)
 }
 
-pub(crate) fn build_modules_line(view: CurrentView, menu_state: MenuState) -> Line<'static> {
-    let mut spans: Vec<Span<'static>> = Vec::new();
-    spans.push(Span::styled("Modules  ", Theme::FOOTER_SECTION_STYLE));
-    if menu_state.active && matches!(menu_state.section, MenuSection::Modules) {
-        spans.push(Span::styled(">", Theme::FOOTER_POINTER_STYLE));
-        spans.push(Span::raw("  "));
+pub(crate) fn options_box_title(focused: bool) -> Span<'static> {
+    let text = "[o]ptions".to_string();
+    if focused {
+        Span::styled(text, Theme::FOOTER_SECTION_FOCUSED_STYLE)
+    } else {
+        Span::styled(text, Theme::FOOTER_SECTION_STYLE)
     }
-    let modules_selected = matches!(view, CurrentView::Modules)
-        && (!menu_state.active || matches!(menu_state.section, MenuSection::Modules));
-    append_bracketed_word(
-        &mut spans,
-        "",
-        "m",
-        "odules",
-        if modules_selected {
-            ButtonState::Active
-        } else if menu_state.active && !matches!(menu_state.section, MenuSection::Modules) {
-            ButtonState::Disabled
-        } else {
-            ButtonState::Normal
-        },
-    );
-    Line::from(spans)
 }
