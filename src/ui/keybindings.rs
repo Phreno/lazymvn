@@ -509,8 +509,29 @@ pub(crate) fn options_box_body(view: CurrentView, menu_state: MenuState) -> Line
     Line::from(spans)
 }
 
-pub(crate) fn options_box_title(focused: bool) -> Span<'static> {
-    let text = "[o]ptions".to_string();
+pub(crate) fn options_box_title(
+    view: CurrentView,
+    active_profiles: &[String],
+    enabled_flags: &[String],
+    focused: bool,
+) -> Span<'static> {
+    let text = match view {
+        CurrentView::Profiles => {
+            if active_profiles.is_empty() {
+                "[o]ptions".to_string()
+            } else {
+                format!("[o]ptions – {}", active_profiles.join(", "))
+            }
+        }
+        CurrentView::Flags => {
+            if enabled_flags.is_empty() {
+                "[o]ptions".to_string()
+            } else {
+                format!("[o]ptions – {}", enabled_flags.join(", "))
+            }
+        }
+        CurrentView::Modules => "[o]ptions".to_string(),
+    };
     if focused {
         Span::styled(text, Theme::FOOTER_SECTION_FOCUSED_STYLE)
     } else {

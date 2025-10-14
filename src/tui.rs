@@ -84,6 +84,8 @@ pub fn draw<B: Backend>(
             state.focus,
             state.menu_state(),
             state.selected_module(),
+            &state.active_profiles,
+            &state.enabled_flag_names(),
             state.search_status_line(),
         );
     })?;

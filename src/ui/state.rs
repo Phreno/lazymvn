@@ -338,6 +338,14 @@ impl TuiState {
             .map(|s| s.as_str())
     }
 
+    pub fn enabled_flag_names(&self) -> Vec<String> {
+        self.flags
+            .iter()
+            .filter(|f| f.enabled)
+            .map(|f| f.name.clone())
+            .collect()
+    }
+
     pub fn menu_state(&self) -> MenuState {
         self.menu_state
     }

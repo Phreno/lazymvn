@@ -215,6 +215,8 @@ pub fn render_footer(
     focus: Focus,
     menu_state: MenuState,
     module_name: Option<&str>,
+    active_profiles: &[String],
+    enabled_flags: &[String],
     search_status_line: Option<Line<'static>>,
 ) {
     let _ = focus;
@@ -268,7 +270,12 @@ pub fn render_footer(
     );
 
     // Options box
-    let options_title = crate::ui::keybindings::options_box_title(options_focused);
+    let options_title = crate::ui::keybindings::options_box_title(
+        view,
+        active_profiles,
+        enabled_flags,
+        options_focused,
+    );
     let options_block = Block::default()
         .title(options_title)
         .borders(Borders::ALL)
