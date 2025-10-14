@@ -553,7 +553,7 @@ pub(crate) fn simplified_footer_body(view: CurrentView) -> Line<'static> {
     // Module commands
     for (idx, action) in MODULE_ACTIONS.iter().enumerate() {
         if idx > 0 {
-            spans.push(Span::raw(" • "));
+            spans.push(Span::raw(" "));
         }
         append_bracketed_word(
             &mut spans,
@@ -564,7 +564,7 @@ pub(crate) fn simplified_footer_body(view: CurrentView) -> Line<'static> {
         );
     }
 
-    spans.push(Span::raw(" • "));
+    spans.push(Span::raw(" "));
 
     // Options commands
     for (idx, item) in OPTIONS_MENU_ITEMS.iter().enumerate() {
