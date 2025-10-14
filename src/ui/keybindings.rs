@@ -1,4 +1,3 @@
-use crate::ui::state::{MenuSection, MenuState};
 use crate::ui::theme::Theme;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
@@ -28,15 +27,12 @@ pub enum SearchMode {
 }
 
 struct ModuleAction {
-    key: char,
     key_display: &'static str,
     prefix: &'static str,
     suffix: &'static str,
-    command: &'static [&'static str],
 }
 
 struct OptionsItem {
-    key: char,
     key_display: &'static str,
     prefix: &'static str,
     suffix: &'static str,
@@ -51,66 +47,50 @@ enum OptionsAction {
 
 const MODULE_ACTIONS: [ModuleAction; 7] = [
     ModuleAction {
-        key: 'b',
         key_display: "b",
         prefix: "",
         suffix: "uild",
-        command: &["clean", "install"],
     },
     ModuleAction {
-        key: 'C',
         key_display: "C",
         prefix: "",
         suffix: "lean",
-        command: &["clean"],
     },
     ModuleAction {
-        key: 'c',
         key_display: "c",
         prefix: "",
         suffix: "ompile",
-        command: &["compile"],
     },
     ModuleAction {
-        key: 'k',
         key_display: "k",
         prefix: "pac",
         suffix: "age",
-        command: &["package"],
     },
     ModuleAction {
-        key: 't',
         key_display: "t",
         prefix: "",
         suffix: "est",
-        command: &["test"],
     },
     ModuleAction {
-        key: 'i',
         key_display: "i",
         prefix: "",
         suffix: "nstall",
-        command: &["install"],
     },
     ModuleAction {
-        key: 'd',
         key_display: "d",
         prefix: "",
         suffix: "eps",
-        command: &["dependency:tree"],
     },
 ];
 
 const OPTIONS_MENU_ITEMS: [OptionsItem; 2] = [
     OptionsItem {
-        key: 'p',
         key_display: "p",
         prefix: "",
         suffix: "rofiles",
         action: OptionsAction::Profiles,
     },
     OptionsItem {
-        key: 'f',
         key_display: "f",
         prefix: "",
         suffix: "lags",
@@ -118,30 +98,10 @@ const OPTIONS_MENU_ITEMS: [OptionsItem; 2] = [
     },
 ];
 
-pub const MODULE_ACTION_COUNT: usize = MODULE_ACTIONS.len();
-pub const OPTIONS_ITEM_COUNT: usize = OPTIONS_MENU_ITEMS.len();
-
-fn module_action(index: usize) -> &'static ModuleAction {
-    &MODULE_ACTIONS[index % MODULE_ACTIONS.len()]
-}
-
-fn options_item(index: usize) -> &'static OptionsItem {
-    &OPTIONS_MENU_ITEMS[index % OPTIONS_MENU_ITEMS.len()]
-}
-
-fn module_action_index_by_key(ch: char) -> Option<usize> {
-    MODULE_ACTIONS.iter().position(|action| action.key == ch)
-}
-
-fn options_index_by_key(ch: char) -> Option<usize> {
-    OPTIONS_MENU_ITEMS.iter().position(|item| item.key == ch)
-}
-
 #[derive(Clone, Copy)]
 enum ButtonState {
     Normal,
     Active,
-    Disabled,
 }
 
 /// Handle key events and update TUI state accordingly
@@ -290,62 +250,6 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
     }
 }
 
-fn execute_module_action(state: &mut crate::ui::state::TuiState, index: usize) {
-    if MODULE_ACTIONS.is_empty() {
-        return;
-    }
-    let action = module_action(index % MODULE_ACTION_COUNT);
-    state.run_selected_module_command(action.command);
-}
-
-fn execute_options_action(state: &mut crate::ui::state::TuiState, index: usize) {
-    if OPTIONS_MENU_ITEMS.is_empty() {
-        return;
-    }
-    match options_item(index % OPTIONS_ITEM_COUNT).action {
-        OptionsAction::Profiles => state.switch_to_profiles(),
-        OptionsAction::Flags => state.switch_to_flags(),
-    }
-}
-
-fn execute_menu_selection(state: &mut crate::ui::state::TuiState) {
-    let menu = state.menu_state();
-    match menu.section {
-        MenuSection::Module => execute_module_action(state, menu.cycles_index),
-        MenuSection::Options => execute_options_action(state, menu.options_index),
-    }
-}
-
-fn handle_menu_char(state: &mut crate::ui::state::TuiState, ch: char) -> bool {
-    if matches!(state.menu_state().section, MenuSection::Module) {
-        if let Some(idx) = module_action_index_by_key(ch) {
-            state.menu_activate(MenuSection::Module);
-            state.menu_set_cycles_index(idx);
-            execute_module_action(state, idx);
-            return true;
-        }
-    }
-    if let Some(idx) = options_index_by_key(ch) {
-        state.menu_activate(MenuSection::Options);
-        state.menu_set_options_index(idx);
-        execute_options_action(state, idx);
-        return true;
-    }
-    match ch {
-        'o' => {
-            state.menu_activate(MenuSection::Options);
-            state.menu_set_options_index(0);
-            execute_options_action(state, 0);
-            true
-        }
-        'm' => {
-            state.switch_to_modules();
-            true
-        }
-        _ => false,
-    }
-}
-
 fn key_token(text: &str) -> Span<'static> {
     Span::styled(text.to_string(), Theme::KEY_HINT_STYLE)
 }
@@ -398,118 +302,6 @@ pub(crate) fn build_navigation_line() -> Line<'static> {
     spans.push(key_token("↓"));
     spans.push(Span::raw(" Select"));
     Line::from(spans)
-}
-
-pub(crate) fn module_box_body(menu_state: MenuState) -> Line<'static> {
-    let mut spans: Vec<Span<'static>> = Vec::new();
-    spans.push(Span::raw("  "));
-    for (idx, action) in MODULE_ACTIONS.iter().enumerate() {
-        let module_focused = matches!(menu_state.section, MenuSection::Module);
-        let is_active = menu_state.cycles_index % MODULE_ACTION_COUNT == idx;
-        append_bracketed_word(
-            &mut spans,
-            action.prefix,
-            action.key_display,
-            action.suffix,
-            if module_focused {
-                if is_active {
-                    ButtonState::Active
-                } else {
-                    ButtonState::Normal
-                }
-            } else {
-                ButtonState::Disabled
-            },
-        );
-        if idx < MODULE_ACTIONS.len() - 1 {
-            spans.push(Span::raw("  •  "));
-        }
-    }
-    Line::from(spans)
-}
-
-pub(crate) fn module_box_title(module_name: Option<&str>, focused: bool) -> Span<'static> {
-    let title_text = module_name
-        .map(|name| format!("[m]odule – {name}"))
-        .unwrap_or_else(|| "[m]odule".to_string());
-    if focused {
-        Span::styled(title_text, Theme::FOOTER_SECTION_FOCUSED_STYLE)
-    } else {
-        Span::styled(title_text, Theme::FOOTER_SECTION_STYLE)
-    }
-}
-
-pub(crate) fn options_box_body(view: CurrentView, menu_state: MenuState) -> Line<'static> {
-    let mut spans: Vec<Span<'static>> = Vec::new();
-    let options_active = matches!(menu_state.section, MenuSection::Options);
-    spans.push(Span::raw("  "));
-
-    let show_pointer = options_active || matches!(view, CurrentView::Profiles | CurrentView::Flags);
-    if show_pointer {
-        spans.push(Span::styled(">", Theme::FOOTER_POINTER_STYLE));
-        spans.push(Span::raw("  "));
-    }
-
-    for (idx, item) in OPTIONS_MENU_ITEMS.iter().enumerate() {
-        if idx > 0 {
-            spans.push(Span::raw(" "));
-        }
-
-        let is_active_view = match item.action {
-            OptionsAction::Profiles => matches!(view, CurrentView::Profiles),
-            OptionsAction::Flags => matches!(view, CurrentView::Flags),
-        };
-
-        let options_selected = is_active_view
-            || (options_active && menu_state.options_index % OPTIONS_ITEM_COUNT == idx);
-
-        append_bracketed_word(
-            &mut spans,
-            item.prefix,
-            item.key_display,
-            item.suffix,
-            if options_selected {
-                ButtonState::Active
-            } else if options_active {
-                ButtonState::Normal
-            } else {
-                ButtonState::Disabled
-            },
-        );
-    }
-
-    Line::from(spans)
-}
-
-pub(crate) fn options_box_title(
-    view: CurrentView,
-    active_profiles: &[String],
-    enabled_flags: &[String],
-    focused: bool,
-) -> Span<'static> {
-    let _ = view; // Not needed anymore since we always show all selections
-
-    let mut parts = Vec::new();
-
-    if !active_profiles.is_empty() {
-        parts.push(active_profiles.join(", "));
-    }
-
-    if !enabled_flags.is_empty() {
-        parts.push(enabled_flags.join(", "));
-    }
-
-    let text = if parts.is_empty() {
-        "[o]ptions".to_string()
-    } else {
-        format!("[o]ptions – {}", parts.join(" | "))
-    };
-
-    if focused {
-        Span::styled(text, Theme::FOOTER_SECTION_FOCUSED_STYLE)
-    } else {
-        Span::styled(text, Theme::FOOTER_SECTION_STYLE)
-    }
 }
 
 pub(crate) fn simplified_footer_title(

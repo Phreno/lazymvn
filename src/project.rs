@@ -1,4 +1,3 @@
-use dirs;
 use quick_xml::Reader;
 use quick_xml::events::Event;
 use std::collections::hash_map::DefaultHasher;

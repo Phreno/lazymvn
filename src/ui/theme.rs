@@ -39,15 +39,11 @@ impl Theme {
         .add_modifier(Modifier::UNDERLINED);
 
     /// Style for footer pointer indicators
-    pub const FOOTER_POINTER_STYLE: Style =
-        Style::new().fg(Color::Yellow).add_modifier(Modifier::BOLD);
 
     /// Style for footer box borders
     pub const FOOTER_BOX_BORDER_STYLE: Style = Style::new().fg(Color::Blue);
 
     /// Style for focused footer box borders
-    pub const FOOTER_BOX_FOCUSED_BORDER_STYLE: Style =
-        Style::new().fg(Color::Cyan).add_modifier(Modifier::BOLD);
 
     /// Style for disabled footer text
     pub const FOOTER_DISABLED_TEXT_STYLE: Style = Style::new().fg(Color::DarkGray);

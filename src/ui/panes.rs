@@ -1,5 +1,4 @@
 use crate::ui::keybindings::{CurrentView, Focus};
-use crate::ui::state::{MenuSection, MenuState};
 use crate::ui::theme::Theme;
 use ratatui::{
     Frame,
