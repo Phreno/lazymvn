@@ -515,23 +515,24 @@ pub(crate) fn options_box_title(
     enabled_flags: &[String],
     focused: bool,
 ) -> Span<'static> {
-    let text = match view {
-        CurrentView::Profiles => {
-            if active_profiles.is_empty() {
-                "[o]ptions".to_string()
-            } else {
-                format!("[o]ptions – {}", active_profiles.join(", "))
-            }
-        }
-        CurrentView::Flags => {
-            if enabled_flags.is_empty() {
-                "[o]ptions".to_string()
-            } else {
-                format!("[o]ptions – {}", enabled_flags.join(", "))
-            }
-        }
-        CurrentView::Modules => "[o]ptions".to_string(),
+    let _ = view; // Not needed anymore since we always show all selections
+
+    let mut parts = Vec::new();
+
+    if !active_profiles.is_empty() {
+        parts.push(active_profiles.join(", "));
+    }
+
+    if !enabled_flags.is_empty() {
+        parts.push(enabled_flags.join(", "));
+    }
+
+    let text = if parts.is_empty() {
+        "[o]ptions".to_string()
+    } else {
+        format!("[o]ptions – {}", parts.join(" | "))
     };
+
     if focused {
         Span::styled(text, Theme::FOOTER_SECTION_FOCUSED_STYLE)
     } else {
