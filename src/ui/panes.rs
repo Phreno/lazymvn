@@ -49,8 +49,14 @@ pub fn render_profiles_pane(
     list_state: &mut ListState,
     is_focused: bool,
 ) {
+    let title = if active_profiles.is_empty() {
+        "Profiles".to_string()
+    } else {
+        format!("Profiles ({})", active_profiles.len())
+    };
+
     let block = Block::default()
-        .title("Profiles")
+        .title(title)
         .borders(Borders::ALL)
         .border_style(if is_focused {
             Theme::FOCUS_STYLE
@@ -92,8 +98,15 @@ pub fn render_flags_pane(
     list_state: &mut ListState,
     is_focused: bool,
 ) {
+    let enabled_count = flags.iter().filter(|f| f.enabled).count();
+    let title = if enabled_count == 0 {
+        "Build Flags".to_string()
+    } else {
+        format!("Build Flags ({})", enabled_count)
+    };
+
     let block = Block::default()
-        .title("Build Flags")
+        .title(title)
         .borders(Borders::ALL)
         .border_style(if is_focused {
             Theme::FOCUS_STYLE
