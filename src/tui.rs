@@ -102,7 +102,6 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ui::state::MenuSection;
     use ratatui::{Terminal, backend::TestBackend};
     use std::path::PathBuf;
     use tempfile::tempdir;
@@ -235,6 +234,55 @@ mod tests {
             cleaned_output
                 .iter()
                 .any(|line| line.contains("clean install"))
+        );
+    }
+
+    #[test]
+    fn test_flags_toggle() {
+        let modules = vec!["module1".to_string()];
+        let project_root = PathBuf::from("/");
+        let mut state = crate::ui::state::TuiState::new(modules, project_root, test_cfg());
+
+        // Switch to flags view
+        handle_key_event(
+            crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char('f')),
+            &mut state,
+        );
+        assert_eq!(state.current_view, CurrentView::Flags);
+
+        // Check initial state - no flags enabled
+        assert_eq!(state.enabled_flag_names().len(), 0);
+
+        // Toggle first flag with Enter
+        handle_key_event(
+            crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Enter),
+            &mut state,
+        );
+        assert_eq!(state.enabled_flag_names().len(), 1);
+
+        // Toggle it off with Space
+        handle_key_event(
+            crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char(' ')),
+            &mut state,
+        );
+        assert_eq!(state.enabled_flag_names().len(), 0);
+    }
+
+    #[test]
+    #[test]
+    fn test_flags_initialized() {
+        let modules = vec!["module1".to_string()];
+        let project_root = PathBuf::from("/");
+        let state = crate::ui::state::TuiState::new(modules, project_root, test_cfg());
+
+        // Check flags are initialized
+        assert!(state.flags.len() > 0, "Flags should be initialized");
+
+        // Check all flags start disabled
+        assert_eq!(
+            state.enabled_flag_names().len(),
+            0,
+            "All flags should start disabled"
         );
     }
 }
