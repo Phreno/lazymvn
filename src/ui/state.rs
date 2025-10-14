@@ -27,6 +27,9 @@ pub struct MenuState {
 pub struct ModuleOutput {
     pub lines: Vec<String>,
     pub scroll_offset: usize,
+    pub command: Option<String>,
+    pub profiles: Vec<String>,
+    pub flags: Vec<String>,
 }
 
 /// Metrics for calculating output display and scrolling
@@ -346,6 +349,17 @@ impl TuiState {
             .collect()
     }
 
+    pub fn current_output_context(&self) -> Option<(String, Vec<String>, Vec<String>)> {
+        self.selected_module().and_then(|module| {
+            self.module_outputs.get(module).and_then(|output| {
+                output
+                    .command
+                    .clone()
+                    .map(|cmd| (cmd, output.profiles.clone(), output.flags.clone()))
+            })
+        })
+    }
+
     pub fn menu_state(&self) -> MenuState {
         self.menu_state
     }
@@ -493,9 +507,21 @@ impl TuiState {
 
     fn store_current_module_output(&mut self) {
         if let Some(module) = self.selected_module() {
-            let module_output = ModuleOutput {
-                lines: self.command_output.clone(),
-                scroll_offset: self.output_offset,
+            // Get the current execution context from the most recent command
+            let module_output = if let Some(existing) = self.module_outputs.get(module) {
+                ModuleOutput {
+                    lines: self.command_output.clone(),
+                    scroll_offset: self.output_offset,
+                    command: existing.command.clone(),
+                    profiles: existing.profiles.clone(),
+                    flags: existing.flags.clone(),
+                }
+            } else {
+                ModuleOutput {
+                    lines: self.command_output.clone(),
+                    scroll_offset: self.output_offset,
+                    ..Default::default()
+                }
             };
             self.module_outputs
                 .insert(module.to_string(), module_output);
@@ -528,6 +554,13 @@ impl TuiState {
                 .map(|f| f.flag.clone())
                 .collect();
 
+            let enabled_flag_names: Vec<String> = self
+                .flags
+                .iter()
+                .filter(|f| f.enabled)
+                .map(|f| f.name.clone())
+                .collect();
+
             match maven::execute_maven_command(
                 &self.project_root,
                 Some(&module),
@@ -539,6 +572,16 @@ impl TuiState {
                 Ok(output) => {
                     self.command_output = output;
                     self.output_offset = self.command_output.len();
+
+                    // Store metadata about this command execution
+                    let module_output = ModuleOutput {
+                        lines: self.command_output.clone(),
+                        scroll_offset: self.output_offset,
+                        command: Some(args.join(" ")),
+                        profiles: self.active_profiles.clone(),
+                        flags: enabled_flag_names,
+                    };
+                    self.module_outputs.insert(module, module_output);
                 }
                 Err(e) => {
                     self.command_output = vec![format!("Error: {e}")];
@@ -552,7 +595,6 @@ impl TuiState {
         self.clamp_output_offset();
         self.output_metrics = None;
         self.refresh_search_matches();
-        self.store_current_module_output();
         self.clamp_output_offset();
     }
 

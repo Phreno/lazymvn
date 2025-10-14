@@ -74,6 +74,8 @@ pub fn draw<B: Backend>(
             state.focus == Focus::Output,
             |line_index| state.search_line_style(line_index),
             state.search_mod.is_some(),
+            state.selected_module(),
+            state.current_output_context(),
         );
 
         // Render footer

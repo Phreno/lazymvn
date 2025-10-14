@@ -151,9 +151,28 @@ pub fn render_output_pane(
     is_focused: bool,
     search_line_style_fn: impl Fn(usize) -> Option<Vec<(Style, std::ops::Range<usize>)>>,
     is_search_active: bool,
+    module_name: Option<&str>,
+    output_context: Option<(String, Vec<String>, Vec<String>)>,
 ) {
+    // Build title with context
+    let title = if let (Some(module), Some((cmd, profiles, flags))) = (module_name, output_context)
+    {
+        let mut parts = vec![module.to_string(), cmd];
+        if !profiles.is_empty() {
+            parts.push(profiles.join(", "));
+        }
+        if !flags.is_empty() {
+            parts.push(flags.join(", "));
+        }
+        format!("Output: {}", parts.join(" • "))
+    } else if let Some(module) = module_name {
+        format!("Output: {}", module)
+    } else {
+        "Output".to_string()
+    };
+
     let output_block = Block::default()
-        .title("Output")
+        .title(title)
         .borders(Borders::ALL)
         .border_style(if is_focused {
             Theme::FOCUS_STYLE
