@@ -84,6 +84,48 @@ pub fn render_profiles_pane(
     f.render_stateful_widget(list, area, list_state);
 }
 
+/// Render the build flags pane
+pub fn render_flags_pane(
+    f: &mut Frame,
+    area: Rect,
+    flags: &[crate::ui::state::BuildFlag],
+    list_state: &mut ListState,
+    is_focused: bool,
+) {
+    let block = Block::default()
+        .title("Build Flags")
+        .borders(Borders::ALL)
+        .border_style(if is_focused {
+            Theme::FOCUS_STYLE
+        } else {
+            Theme::DEFAULT_STYLE
+        });
+
+    let items: Vec<ListItem> = flags
+        .iter()
+        .map(|flag| {
+            let checkbox = if flag.enabled { "[X]" } else { "[ ]" };
+            let style = if flag.enabled {
+                Theme::ACTIVE_PROFILE_STYLE
+            } else {
+                Theme::DEFAULT_STYLE
+            };
+            ListItem::new(Line::from(Span::styled(
+                format!("{} {}", checkbox, flag.name),
+                style,
+            )))
+        })
+        .collect();
+
+    let list = List::new(items)
+        .block(block)
+        .style(Theme::DEFAULT_STYLE)
+        .highlight_style(Theme::SELECTED_STYLE)
+        .highlight_symbol(">> ");
+
+    f.render_stateful_widget(list, area, list_state);
+}
+
 /// Render the output pane
 pub fn render_output_pane(
     f: &mut Frame,

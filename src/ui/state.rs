@@ -87,8 +87,10 @@ pub struct TuiState {
     pub modules: Vec<String>,
     pub profiles: Vec<String>,
     pub active_profiles: Vec<String>,
+    pub flags: Vec<BuildFlag>,
     pub modules_list_state: ListState,
     pub profiles_list_state: ListState,
+    pub flags_list_state: ListState,
     pub command_output: Vec<String>,
     pub output_offset: usize,
     pub output_view_height: u16,
@@ -107,21 +109,82 @@ pub struct TuiState {
     menu_state: MenuState,
 }
 
+/// Maven build flags that can be toggled
+#[derive(Clone, Debug)]
+pub struct BuildFlag {
+    pub name: String,
+    pub flag: String,
+    #[allow(dead_code)]
+    pub description: String,
+    pub enabled: bool,
+}
+
 impl TuiState {
     pub fn new(modules: Vec<String>, project_root: PathBuf, config: crate::config::Config) -> Self {
         let mut modules_list_state = ListState::default();
         let profiles_list_state = ListState::default();
+        let flags_list_state = ListState::default();
         if !modules.is_empty() {
             modules_list_state.select(Some(0));
         }
+
+        // Initialize common Maven build flags
+        let flags = vec![
+            BuildFlag {
+                name: "Also Make".to_string(),
+                flag: "--also-make".to_string(),
+                description: "Build dependencies of specified modules".to_string(),
+                enabled: false,
+            },
+            BuildFlag {
+                name: "Also Make Dependents".to_string(),
+                flag: "--also-make-dependents".to_string(),
+                description: "Build modules that depend on specified modules".to_string(),
+                enabled: false,
+            },
+            BuildFlag {
+                name: "Update Snapshots".to_string(),
+                flag: "--update-snapshots".to_string(),
+                description: "Force update of snapshot dependencies".to_string(),
+                enabled: false,
+            },
+            BuildFlag {
+                name: "Skip Tests".to_string(),
+                flag: "-DskipTests".to_string(),
+                description: "Skip running tests".to_string(),
+                enabled: false,
+            },
+            BuildFlag {
+                name: "Offline".to_string(),
+                flag: "--offline".to_string(),
+                description: "Work offline (don't download dependencies)".to_string(),
+                enabled: false,
+            },
+            BuildFlag {
+                name: "Fail Fast".to_string(),
+                flag: "--fail-fast".to_string(),
+                description: "Stop at first failure in multi-module build".to_string(),
+                enabled: false,
+            },
+            BuildFlag {
+                name: "Fail At End".to_string(),
+                flag: "--fail-at-end".to_string(),
+                description: "Fail build at end; allow all non-impacted builds to continue"
+                    .to_string(),
+                enabled: false,
+            },
+        ];
+
         let mut state = Self {
             current_view: CurrentView::Modules,
             focus: Focus::Modules,
             modules,
             profiles: vec![],
             active_profiles: vec![],
+            flags,
             modules_list_state,
             profiles_list_state,
+            flags_list_state,
             command_output: vec![],
             output_offset: 0,
             output_view_height: 0,
@@ -178,6 +241,15 @@ impl TuiState {
                     self.profiles_list_state.select(Some(i));
                 }
             }
+            CurrentView::Flags => {
+                if !self.flags.is_empty() {
+                    let i = match self.flags_list_state.selected() {
+                        Some(i) => (i + 1) % self.flags.len(),
+                        None => 0,
+                    };
+                    self.flags_list_state.select(Some(i));
+                }
+            }
         }
     }
 
@@ -215,6 +287,21 @@ impl TuiState {
                     self.profiles_list_state.select(Some(i));
                 }
             }
+            CurrentView::Flags => {
+                if !self.flags.is_empty() {
+                    let i = match self.flags_list_state.selected() {
+                        Some(i) => {
+                            if i == 0 {
+                                self.flags.len() - 1
+                            } else {
+                                i - 1
+                            }
+                        }
+                        None => 0,
+                    };
+                    self.flags_list_state.select(Some(i));
+                }
+            }
         }
     }
 
@@ -229,6 +316,17 @@ impl TuiState {
                 } else {
                     self.active_profiles.push(profile.clone());
                 }
+            }
+        }
+    }
+
+    pub fn toggle_flag(&mut self) {
+        if self.current_view != CurrentView::Flags {
+            return;
+        }
+        if let Some(selected) = self.flags_list_state.selected() {
+            if let Some(flag) = self.flags.get_mut(selected) {
+                flag.enabled = !flag.enabled;
             }
         }
     }
@@ -300,6 +398,15 @@ impl TuiState {
         self.current_view = CurrentView::Profiles;
         if self.profiles_list_state.selected().is_none() && !self.profiles.is_empty() {
             self.profiles_list_state.select(Some(0));
+        }
+        self.focus_modules();
+        self.menu_deactivate();
+    }
+
+    pub fn switch_to_flags(&mut self) {
+        self.current_view = CurrentView::Flags;
+        if self.flags_list_state.selected().is_none() && !self.flags.is_empty() {
+            self.flags_list_state.select(Some(0));
         }
         self.focus_modules();
         self.menu_deactivate();
@@ -405,12 +512,21 @@ impl TuiState {
     // Command execution
     pub fn run_selected_module_command(&mut self, args: &[&str]) {
         if let Some(module) = self.selected_module().map(|m| m.to_string()) {
+            // Collect enabled flags
+            let enabled_flags: Vec<String> = self
+                .flags
+                .iter()
+                .filter(|f| f.enabled)
+                .map(|f| f.flag.clone())
+                .collect();
+
             match maven::execute_maven_command(
                 &self.project_root,
                 Some(&module),
                 args,
                 &self.active_profiles,
                 self.config.maven_settings.as_deref(),
+                &enabled_flags,
             ) {
                 Ok(output) => {
                     self.command_output = output;

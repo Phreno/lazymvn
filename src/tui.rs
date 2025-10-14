@@ -7,7 +7,8 @@
 use crate::ui::{
     keybindings,
     panes::{
-        create_layout, render_footer, render_modules_pane, render_output_pane, render_profiles_pane,
+        create_layout, render_flags_pane, render_footer, render_modules_pane, render_output_pane,
+        render_profiles_pane,
     },
 };
 use crossterm::event::KeyEvent;
@@ -43,6 +44,15 @@ pub fn draw<B: Backend>(
                     &state.profiles,
                     &state.active_profiles,
                     &mut state.profiles_list_state,
+                    state.focus == Focus::Modules,
+                );
+            }
+            CurrentView::Flags => {
+                render_flags_pane(
+                    f,
+                    left_area,
+                    &state.flags,
+                    &mut state.flags_list_state,
                     state.focus == Focus::Modules,
                 );
             }

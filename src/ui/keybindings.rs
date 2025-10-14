@@ -11,6 +11,7 @@ use ratatui::{
 pub enum CurrentView {
     Modules,
     Profiles,
+    Flags,
 }
 
 /// Represents which pane currently has focus
@@ -45,6 +46,7 @@ struct OptionsItem {
 #[derive(Clone, Copy)]
 enum OptionsAction {
     Profiles,
+    Flags,
 }
 
 const MODULE_ACTIONS: [ModuleAction; 7] = [
@@ -99,13 +101,22 @@ const MODULE_ACTIONS: [ModuleAction; 7] = [
     },
 ];
 
-const OPTIONS_MENU_ITEMS: [OptionsItem; 1] = [OptionsItem {
-    key: 'p',
-    key_display: "p",
-    prefix: "",
-    suffix: "rofiles",
-    action: OptionsAction::Profiles,
-}];
+const OPTIONS_MENU_ITEMS: [OptionsItem; 2] = [
+    OptionsItem {
+        key: 'p',
+        key_display: "p",
+        prefix: "",
+        suffix: "rofiles",
+        action: OptionsAction::Profiles,
+    },
+    OptionsItem {
+        key: 'f',
+        key_display: "f",
+        prefix: "",
+        suffix: "lags",
+        action: OptionsAction::Flags,
+    },
+];
 
 pub const MODULE_ACTION_COUNT: usize = MODULE_ACTIONS.len();
 pub const OPTIONS_ITEM_COUNT: usize = OPTIONS_MENU_ITEMS.len();
@@ -296,6 +307,8 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
         KeyCode::Enter => {
             if state.current_view == CurrentView::Profiles {
                 state.toggle_profile();
+            } else if state.current_view == CurrentView::Flags {
+                state.toggle_flag();
             }
         }
         KeyCode::Esc => {
@@ -319,6 +332,7 @@ fn execute_options_action(state: &mut crate::ui::state::TuiState, index: usize) 
     }
     match options_item(index % OPTIONS_ITEM_COUNT).action {
         OptionsAction::Profiles => state.switch_to_profiles(),
+        OptionsAction::Flags => state.switch_to_flags(),
     }
 }
 
@@ -458,16 +472,25 @@ pub(crate) fn options_box_body(view: CurrentView, menu_state: MenuState) -> Line
     let options_active = matches!(menu_state.section, MenuSection::Options);
     spans.push(Span::raw("  "));
 
-    let show_pointer = options_active || matches!(view, CurrentView::Profiles);
+    let show_pointer = options_active || matches!(view, CurrentView::Profiles | CurrentView::Flags);
     if show_pointer {
         spans.push(Span::styled(">", Theme::FOOTER_POINTER_STYLE));
         spans.push(Span::raw("  "));
     }
 
-    if !OPTIONS_MENU_ITEMS.is_empty() {
-        let item = options_item(0);
-        let options_selected = matches!(view, CurrentView::Profiles)
-            || (options_active && menu_state.options_index % OPTIONS_ITEM_COUNT == 0);
+    for (idx, item) in OPTIONS_MENU_ITEMS.iter().enumerate() {
+        if idx > 0 {
+            spans.push(Span::raw(" "));
+        }
+
+        let is_active_view = match item.action {
+            OptionsAction::Profiles => matches!(view, CurrentView::Profiles),
+            OptionsAction::Flags => matches!(view, CurrentView::Flags),
+        };
+
+        let options_selected = is_active_view
+            || (options_active && menu_state.options_index % OPTIONS_ITEM_COUNT == idx);
+
         append_bracketed_word(
             &mut spans,
             item.prefix,
@@ -476,12 +499,13 @@ pub(crate) fn options_box_body(view: CurrentView, menu_state: MenuState) -> Line
             if options_selected {
                 ButtonState::Active
             } else if options_active {
-                ButtonState::Active
+                ButtonState::Normal
             } else {
                 ButtonState::Disabled
             },
         );
     }
+
     Line::from(spans)
 }
 
