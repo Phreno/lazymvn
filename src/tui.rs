@@ -268,7 +268,6 @@ mod tests {
     }
 
     #[test]
-    #[test]
     fn test_flags_initialized() {
         let modules = vec!["module1".to_string()];
         let project_root = PathBuf::from("/");
