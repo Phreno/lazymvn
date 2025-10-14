@@ -139,24 +139,20 @@ mod tests {
 
         // Initial view is Modules
         assert_eq!(state.current_view, CurrentView::Modules);
-        assert!(!state.menu_state().active);
 
-        // Press 'o' to open Options
-        handle_key_event(
-            crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char('o')),
-            &mut state,
-        );
-        assert!(state.menu_state().active);
-        assert_eq!(state.menu_state().section, MenuSection::Options);
-        assert_eq!(state.current_view, CurrentView::Modules);
-
-        // Press 'p' to activate Profiles from Options
+        // Press 'p' to switch to Profiles
         handle_key_event(
             crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char('p')),
             &mut state,
         );
         assert_eq!(state.current_view, CurrentView::Profiles);
-        assert!(!state.menu_state().active);
+
+        // Press 'f' to switch to Flags
+        handle_key_event(
+            crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char('f')),
+            &mut state,
+        );
+        assert_eq!(state.current_view, CurrentView::Flags);
 
         // Press 'm' to return to Modules
         handle_key_event(
@@ -164,8 +160,6 @@ mod tests {
             &mut state,
         );
         assert_eq!(state.current_view, CurrentView::Modules);
-        assert!(state.menu_state().active);
-        assert_eq!(state.menu_state().section, MenuSection::Module);
     }
 
     #[test]

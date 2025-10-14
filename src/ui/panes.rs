@@ -219,13 +219,12 @@ pub fn render_footer(
     enabled_flags: &[String],
     search_status_line: Option<Line<'static>>,
 ) {
-    let _ = focus;
+    let _ = (focus, menu_state); // Not needed in simplified footer
+
     let mut constraints = vec![
         Constraint::Length(1), // navigation
         Constraint::Length(1), // spacer
-        Constraint::Length(3), // module box
-        Constraint::Length(1), // spacer
-        Constraint::Length(3), // options box
+        Constraint::Length(3), // commands box
     ];
     if search_status_line.is_some() {
         constraints.push(Constraint::Length(1));
@@ -235,9 +234,6 @@ pub fn render_footer(
         .direction(Direction::Vertical)
         .constraints(constraints)
         .split(area);
-
-    let module_focused = matches!(menu_state.section, MenuSection::Module);
-    let options_focused = matches!(menu_state.section, MenuSection::Options);
 
     // Navigation line
     let navigation = Paragraph::new(crate::ui::keybindings::build_navigation_line());
@@ -249,45 +245,20 @@ pub fn render_footer(
         chunks[1],
     );
 
-    // Module box
-    let module_title = crate::ui::keybindings::module_box_title(module_name, module_focused);
-    let module_block = Block::default()
-        .title(module_title)
-        .borders(Borders::ALL)
-        .border_style(if module_focused {
-            Theme::FOOTER_BOX_FOCUSED_BORDER_STYLE
-        } else {
-            Theme::FOOTER_BOX_BORDER_STYLE
-        });
-    let module_paragraph =
-        Paragraph::new(crate::ui::keybindings::module_box_body(menu_state)).block(module_block);
-    f.render_widget(module_paragraph, chunks[2]);
-
-    // Spacer
-    f.render_widget(
-        Paragraph::new(crate::ui::keybindings::blank_line()),
-        chunks[3],
-    );
-
-    // Options box
-    let options_title = crate::ui::keybindings::options_box_title(
+    // Simplified commands box - single row with all commands
+    let title = crate::ui::keybindings::simplified_footer_title(
         view,
+        module_name,
         active_profiles,
         enabled_flags,
-        options_focused,
     );
-    let options_block = Block::default()
-        .title(options_title)
+    let commands_block = Block::default()
+        .title(title)
         .borders(Borders::ALL)
-        .border_style(if options_focused {
-            Theme::FOOTER_BOX_FOCUSED_BORDER_STYLE
-        } else {
-            Theme::FOOTER_BOX_BORDER_STYLE
-        });
-    let options_paragraph =
-        Paragraph::new(crate::ui::keybindings::options_box_body(view, menu_state))
-            .block(options_block);
-    f.render_widget(options_paragraph, chunks[4]);
+        .border_style(Theme::FOOTER_BOX_BORDER_STYLE);
+    let commands_paragraph =
+        Paragraph::new(crate::ui::keybindings::simplified_footer_body(view)).block(commands_block);
+    f.render_widget(commands_paragraph, chunks[2]);
 
     // Optional search status line
     if let Some(status_line) = search_status_line {

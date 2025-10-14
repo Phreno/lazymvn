@@ -215,33 +215,7 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
         }
     }
 
-    if state.menu_state().active {
-        match key.code {
-            KeyCode::Left => {
-                state.menu_prev_section();
-                return;
-            }
-            KeyCode::Right => {
-                state.menu_next_section();
-                return;
-            }
-            KeyCode::Enter | KeyCode::Char(' ') => {
-                execute_menu_selection(state);
-                return;
-            }
-            KeyCode::Esc => {
-                state.menu_deactivate();
-                return;
-            }
-            KeyCode::Char(ch) => {
-                if handle_menu_char(state, ch) {
-                    return;
-                }
-            }
-            _ => {}
-        }
-    }
-
+    // Direct command execution - no menu navigation needed
     match key.code {
         KeyCode::Left => state.focus_modules(),
         KeyCode::Right => state.focus_output(),
@@ -253,13 +227,8 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
             Focus::Modules => state.previous_item(),
             Focus::Output => state.scroll_output_lines(-1),
         },
-        KeyCode::Char('o') => {
-            state.menu_activate(MenuSection::Options);
-            state.menu_set_options_index(0);
-        }
         KeyCode::Char('m') => {
             state.switch_to_modules();
-            state.menu_activate(MenuSection::Module);
         }
         KeyCode::Char('b') => {
             state.run_selected_module_command(&["clean", "install"]);
@@ -281,6 +250,12 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
         }
         KeyCode::Char('d') => {
             state.run_selected_module_command(&["dependency:tree"]);
+        }
+        KeyCode::Char('p') => {
+            state.switch_to_profiles();
+        }
+        KeyCode::Char('f') => {
+            state.switch_to_flags();
         }
         KeyCode::Char('/') => {
             state.begin_search_input();
@@ -310,9 +285,6 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
             } else if state.current_view == CurrentView::Flags {
                 state.toggle_flag();
             }
-        }
-        KeyCode::Esc => {
-            state.menu_deactivate();
         }
         _ => {}
     }
@@ -538,4 +510,82 @@ pub(crate) fn options_box_title(
     } else {
         Span::styled(text, Theme::FOOTER_SECTION_STYLE)
     }
+}
+
+pub(crate) fn simplified_footer_title(
+    view: CurrentView,
+    module_name: Option<&str>,
+    active_profiles: &[String],
+    enabled_flags: &[String],
+) -> Span<'static> {
+    let mut parts = Vec::new();
+
+    if let Some(name) = module_name {
+        parts.push(format!("Module: {}", name));
+    }
+
+    if !active_profiles.is_empty() {
+        parts.push(format!("Profiles: {}", active_profiles.join(", ")));
+    }
+
+    if !enabled_flags.is_empty() {
+        parts.push(format!("Flags: {}", enabled_flags.join(", ")));
+    }
+
+    let text = if parts.is_empty() {
+        "Commands".to_string()
+    } else {
+        format!("Commands – {}", parts.join(" | "))
+    };
+
+    let style = match view {
+        CurrentView::Modules => Theme::FOOTER_SECTION_STYLE,
+        CurrentView::Profiles | CurrentView::Flags => Theme::FOOTER_SECTION_FOCUSED_STYLE,
+    };
+
+    Span::styled(text, style)
+}
+
+pub(crate) fn simplified_footer_body(view: CurrentView) -> Line<'static> {
+    let mut spans: Vec<Span<'static>> = Vec::new();
+    spans.push(Span::raw("  "));
+
+    // Module commands
+    for (idx, action) in MODULE_ACTIONS.iter().enumerate() {
+        if idx > 0 {
+            spans.push(Span::raw("  •  "));
+        }
+        append_bracketed_word(
+            &mut spans,
+            action.prefix,
+            action.key_display,
+            action.suffix,
+            ButtonState::Normal,
+        );
+    }
+
+    spans.push(Span::raw("  •  "));
+
+    // Options commands
+    for (idx, item) in OPTIONS_MENU_ITEMS.iter().enumerate() {
+        if idx > 0 {
+            spans.push(Span::raw(" "));
+        }
+
+        let state = match item.action {
+            OptionsAction::Profiles if matches!(view, CurrentView::Profiles) => ButtonState::Active,
+            OptionsAction::Flags if matches!(view, CurrentView::Flags) => ButtonState::Active,
+            _ => ButtonState::Normal,
+        };
+
+        append_bracketed_word(
+            &mut spans,
+            item.prefix,
+            item.key_display,
+            item.suffix,
+            state,
+        );
+    }
+
+    Line::from(spans)
 }
