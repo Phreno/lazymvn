@@ -84,7 +84,6 @@ pub fn draw<B: Backend>(
             footer_area,
             state.current_view,
             state.focus,
-            state.menu_state(),
             state.selected_module(),
             &state.active_profiles,
             &state.enabled_flag_names(),

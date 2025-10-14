@@ -231,13 +231,12 @@ pub fn render_footer(
     area: Rect,
     view: CurrentView,
     focus: Focus,
-    menu_state: MenuState,
     module_name: Option<&str>,
     active_profiles: &[String],
     enabled_flags: &[String],
     search_status_line: Option<Line<'static>>,
 ) {
-    let _ = (focus, menu_state); // Not needed in simplified footer
+    let _ = focus; // Not needed in simplified footer
 
     let mut constraints = vec![
         Constraint::Length(1), // navigation

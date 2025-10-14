@@ -266,10 +266,6 @@ fn append_bracketed_word(
             Theme::KEY_HINT_STYLE.add_modifier(Modifier::UNDERLINED),
             Theme::FOOTER_ACTIVE_TEXT_STYLE,
         ),
-        ButtonState::Disabled => (
-            Theme::FOOTER_DISABLED_KEY_STYLE,
-            Theme::FOOTER_DISABLED_TEXT_STYLE,
-        ),
         ButtonState::Normal => (Theme::KEY_HINT_STYLE, Theme::DEFAULT_STYLE),
     };
 

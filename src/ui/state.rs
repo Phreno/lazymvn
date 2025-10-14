@@ -6,22 +6,6 @@ use regex::Regex;
 use std::{collections::HashMap, path::PathBuf};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
-/// Menu sections available in the footer navigation
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum MenuSection {
-    Module,
-    Options,
-}
-
-/// Menu interaction state for the top navigation
-#[derive(Clone, Copy, Debug)]
-pub struct MenuState {
-    pub active: bool,
-    pub section: MenuSection,
-    pub cycles_index: usize,
-    pub options_index: usize,
-}
-
 /// Output data for a specific module
 #[derive(Clone, Debug, Default)]
 pub struct ModuleOutput {
@@ -109,7 +93,6 @@ pub struct TuiState {
     pending_center: Option<SearchMatch>,
     pub search_mod: Option<SearchMode>,
     pub config: crate::config::Config,
-    menu_state: MenuState,
 }
 
 /// Maven build flags that can be toggled
@@ -203,12 +186,6 @@ impl TuiState {
             pending_center: None,
             search_mod: None,
             config,
-            menu_state: MenuState {
-                active: false,
-                section: MenuSection::Module,
-                cycles_index: 0,
-                options_index: 0,
-            },
         };
         state.sync_selected_module_output();
         state
@@ -360,60 +337,10 @@ impl TuiState {
         })
     }
 
-    pub fn menu_state(&self) -> MenuState {
-        self.menu_state
-    }
-
-    pub fn menu_activate(&mut self, section: MenuSection) {
-        self.menu_state.active = true;
-        self.menu_state.section = section;
-        self.menu_clamp_indices();
-    }
-
-    pub fn menu_deactivate(&mut self) {
-        self.menu_state.active = false;
-        self.menu_state.section = MenuSection::Module;
-    }
-
-    pub fn menu_next_section(&mut self) {
-        self.menu_state.section = match self.menu_state.section {
-            MenuSection::Module => MenuSection::Options,
-            MenuSection::Options => MenuSection::Module,
-        };
-        self.menu_clamp_indices();
-    }
-
-    pub fn menu_prev_section(&mut self) {
-        self.menu_state.section = match self.menu_state.section {
-            MenuSection::Module => MenuSection::Options,
-            MenuSection::Options => MenuSection::Module,
-        };
-        self.menu_clamp_indices();
-    }
-
-    pub fn menu_set_cycles_index(&mut self, index: usize) {
-        if crate::ui::keybindings::MODULE_ACTION_COUNT == 0 {
-            self.menu_state.cycles_index = 0;
-        } else {
-            self.menu_state.cycles_index =
-                index.min(crate::ui::keybindings::MODULE_ACTION_COUNT - 1);
-        }
-    }
-
-    pub fn menu_set_options_index(&mut self, index: usize) {
-        if crate::ui::keybindings::OPTIONS_ITEM_COUNT == 0 {
-            self.menu_state.options_index = 0;
-        } else {
-            self.menu_state.options_index =
-                index.min(crate::ui::keybindings::OPTIONS_ITEM_COUNT - 1);
-        }
-    }
-
     pub fn switch_to_modules(&mut self) {
         self.current_view = CurrentView::Modules;
         self.focus_modules();
         self.sync_selected_module_output();
-        self.menu_deactivate();
     }
 
     pub fn switch_to_profiles(&mut self) {
@@ -422,7 +349,6 @@ impl TuiState {
             self.profiles_list_state.select(Some(0));
         }
         self.focus_modules();
-        self.menu_deactivate();
     }
 
     pub fn switch_to_flags(&mut self) {
@@ -431,7 +357,6 @@ impl TuiState {
             self.flags_list_state.select(Some(0));
         }
         self.focus_modules();
-        self.menu_deactivate();
     }
 
     // Focus management
@@ -449,20 +374,6 @@ impl TuiState {
             .as_ref()
             .map(|s| s.has_matches())
             .unwrap_or(false)
-    }
-
-    fn menu_clamp_indices(&mut self) {
-        if crate::ui::keybindings::MODULE_ACTION_COUNT == 0 {
-            self.menu_state.cycles_index = 0;
-        } else {
-            self.menu_state.cycles_index %= crate::ui::keybindings::MODULE_ACTION_COUNT;
-        }
-
-        if crate::ui::keybindings::OPTIONS_ITEM_COUNT == 0 {
-            self.menu_state.options_index = 0;
-        } else {
-            self.menu_state.options_index %= crate::ui::keybindings::OPTIONS_ITEM_COUNT;
-        }
     }
 
     // Live search - performs search as user types without storing in history
