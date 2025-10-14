@@ -67,17 +67,20 @@ pub fn render_profiles_pane(
     let items: Vec<ListItem> = profiles
         .iter()
         .map(|p| {
-            let prefix = if active_profiles.contains(p) {
-                "* "
+            let checkbox = if active_profiles.contains(p) {
+                "☑"
             } else {
-                "  "
+                "☐"
             };
             let style = if active_profiles.contains(p) {
                 Theme::ACTIVE_PROFILE_STYLE
             } else {
                 Theme::DEFAULT_STYLE
             };
-            ListItem::new(Line::from(Span::styled(format!("{prefix}{p}"), style)))
+            ListItem::new(Line::from(Span::styled(
+                format!("{} {}", checkbox, p),
+                style,
+            )))
         })
         .collect();
 
@@ -117,7 +120,7 @@ pub fn render_flags_pane(
     let items: Vec<ListItem> = flags
         .iter()
         .map(|flag| {
-            let checkbox = if flag.enabled { "[X]" } else { "[ ]" };
+            let checkbox = if flag.enabled { "☑" } else { "☐" };
             let style = if flag.enabled {
                 Theme::ACTIVE_PROFILE_STYLE
             } else {
