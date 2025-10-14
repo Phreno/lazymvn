@@ -1,15 +1,18 @@
 //! Main TUI drawing and coordination module
-//! 
+//!
 //! This module provides the main drawing function that coordinates between
 //! all the UI modules (panes, state, keybindings, etc.) to render the complete
 //! terminal user interface.
 
 use crate::ui::{
     keybindings,
-    panes::{create_layout, render_footer, render_modules_pane, render_output_pane, render_profiles_pane},
+    panes::{
+        create_layout, render_flags_pane, render_footer, render_modules_pane, render_output_pane,
+        render_profiles_pane,
+    },
 };
 use crossterm::event::KeyEvent;
-use ratatui::{backend::Backend, Terminal};
+use ratatui::{Terminal, backend::Backend};
 
 /// Re-export commonly used types for backward compatibility
 pub use crate::ui::keybindings::{CurrentView, Focus};
@@ -44,6 +47,15 @@ pub fn draw<B: Backend>(
                     state.focus == Focus::Modules,
                 );
             }
+            CurrentView::Flags => {
+                render_flags_pane(
+                    f,
+                    left_area,
+                    &state.flags,
+                    &mut state.flags_list_state,
+                    state.focus == Focus::Modules,
+                );
+            }
         }
 
         // Update output metrics for proper scrolling calculations
@@ -62,6 +74,8 @@ pub fn draw<B: Backend>(
             state.focus == Focus::Output,
             |line_index| state.search_line_style(line_index),
             state.search_mod.is_some(),
+            state.selected_module(),
+            state.current_output_context(),
         );
 
         // Render footer
@@ -70,6 +84,9 @@ pub fn draw<B: Backend>(
             footer_area,
             state.current_view,
             state.focus,
+            state.selected_module(),
+            &state.active_profiles,
+            &state.enabled_flag_names(),
             state.search_status_line(),
         );
     })?;
@@ -84,9 +101,9 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ratatui::{backend::TestBackend, Terminal};
-    use tempfile::tempdir;
+    use ratatui::{Terminal, backend::TestBackend};
     use std::path::PathBuf;
+    use tempfile::tempdir;
 
     fn test_cfg() -> crate::config::Config {
         crate::config::Config {
@@ -124,16 +141,29 @@ mod tests {
         assert_eq!(state.current_view, CurrentView::Modules);
 
         // Press 'p' to switch to Profiles
-        handle_key_event(crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char('p')), &mut state);
+        handle_key_event(
+            crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char('p')),
+            &mut state,
+        );
         assert_eq!(state.current_view, CurrentView::Profiles);
 
-        // Press 'p' again to switch back to Modules
-        handle_key_event(crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char('p')), &mut state);
+        // Press 'f' to switch to Flags
+        handle_key_event(
+            crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char('f')),
+            &mut state,
+        );
+        assert_eq!(state.current_view, CurrentView::Flags);
+
+        // Press 'm' to return to Modules
+        handle_key_event(
+            crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char('m')),
+            &mut state,
+        );
         assert_eq!(state.current_view, CurrentView::Modules);
     }
 
     #[test]
-    fn test_build_command() {
+    fn test_package_command() {
         // 1. Setup temp project
         let project_dir = tempdir().unwrap();
         let project_root = project_dir.path();
@@ -151,11 +181,15 @@ mod tests {
 
         // 3. Create TuiState
         let modules = vec!["module1".to_string()];
-        let mut state = crate::ui::state::TuiState::new(modules, project_root.to_path_buf(), test_cfg());
+        let mut state =
+            crate::ui::state::TuiState::new(modules, project_root.to_path_buf(), test_cfg());
         state.active_profiles = vec!["p1".to_string()];
 
-        // 4. Simulate 'b' key press
-        handle_key_event(crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char('b')), &mut state);
+        // 4. Simulate 'k' key press for package
+        handle_key_event(
+            crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char('k')),
+            &mut state,
+        );
 
         // 5. Assert command output contains expected elements
         let cleaned_output: Vec<String> = state
@@ -164,5 +198,89 @@ mod tests {
             .filter_map(|line| crate::utils::clean_log_line(line))
             .collect();
         assert!(!cleaned_output.is_empty());
+    }
+
+    #[test]
+    fn test_build_command_runs_clean_install() {
+        let project_dir = tempdir().unwrap();
+        let project_root = project_dir.path();
+
+        let mvnw_path = project_root.join("mvnw");
+        let mut mvnw_file = std::fs::File::create(&mvnw_path).unwrap();
+        use std::io::Write;
+        mvnw_file.write_all(b"#!/bin/sh\necho $@").unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = mvnw_file.metadata().unwrap().permissions();
+        perms.set_mode(0o755);
+        mvnw_file.set_permissions(perms).unwrap();
+        drop(mvnw_file);
+
+        let modules = vec!["module1".to_string()];
+        let mut state =
+            crate::ui::state::TuiState::new(modules, project_root.to_path_buf(), test_cfg());
+
+        handle_key_event(
+            crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char('b')),
+            &mut state,
+        );
+
+        let cleaned_output: Vec<String> = state
+            .command_output
+            .iter()
+            .filter_map(|line| crate::utils::clean_log_line(line))
+            .collect();
+        assert!(
+            cleaned_output
+                .iter()
+                .any(|line| line.contains("clean install"))
+        );
+    }
+
+    #[test]
+    fn test_flags_toggle() {
+        let modules = vec!["module1".to_string()];
+        let project_root = PathBuf::from("/");
+        let mut state = crate::ui::state::TuiState::new(modules, project_root, test_cfg());
+
+        // Switch to flags view
+        handle_key_event(
+            crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char('f')),
+            &mut state,
+        );
+        assert_eq!(state.current_view, CurrentView::Flags);
+
+        // Check initial state - no flags enabled
+        assert_eq!(state.enabled_flag_names().len(), 0);
+
+        // Toggle first flag with Enter
+        handle_key_event(
+            crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Enter),
+            &mut state,
+        );
+        assert_eq!(state.enabled_flag_names().len(), 1);
+
+        // Toggle it off with Space
+        handle_key_event(
+            crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char(' ')),
+            &mut state,
+        );
+        assert_eq!(state.enabled_flag_names().len(), 0);
+    }
+
+    #[test]
+    fn test_flags_initialized() {
+        let modules = vec!["module1".to_string()];
+        let project_root = PathBuf::from("/");
+        let state = crate::ui::state::TuiState::new(modules, project_root, test_cfg());
+
+        // Check flags are initialized
+        assert!(state.flags.len() > 0, "Flags should be initialized");
+
+        // Check all flags start disabled
+        assert_eq!(
+            state.enabled_flag_names().len(),
+            0,
+            "All flags should start disabled"
+        );
     }
 }

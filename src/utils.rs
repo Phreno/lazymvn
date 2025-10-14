@@ -1,4 +1,7 @@
-use ratatui::{style::{Color, Style}, text::{Line, Span}};
+use ratatui::{
+    style::{Color, Style},
+    text::{Line, Span},
+};
 
 pub fn clean_log_line(raw: &str) -> Option<String> {
     let mut result = String::with_capacity(raw.len());
@@ -33,13 +36,16 @@ pub fn clean_log_line(raw: &str) -> Option<String> {
 /// Create a line with keyword-based coloring (simple approach)
 pub fn colorize_log_line(text: &str) -> Line<'static> {
     let mut spans = Vec::new();
-    
+
     if let Some(info_pos) = text.find("[INFO]") {
         // Split around [INFO]
         if info_pos > 0 {
             spans.push(Span::raw(text[..info_pos].to_string()));
         }
-        spans.push(Span::styled("[INFO]".to_string(), Style::default().fg(Color::Green)));
+        spans.push(Span::styled(
+            "[INFO]".to_string(),
+            Style::default().fg(Color::Green),
+        ));
         let remaining = &text[info_pos + 6..];
         if !remaining.is_empty() {
             spans.push(Span::raw(remaining.to_string()));
@@ -49,7 +55,10 @@ pub fn colorize_log_line(text: &str) -> Line<'static> {
         if warn_pos > 0 {
             spans.push(Span::raw(text[..warn_pos].to_string()));
         }
-        spans.push(Span::styled("[WARNING]".to_string(), Style::default().fg(Color::Yellow)));
+        spans.push(Span::styled(
+            "[WARNING]".to_string(),
+            Style::default().fg(Color::Yellow),
+        ));
         let remaining = &text[warn_pos + 9..];
         if !remaining.is_empty() {
             spans.push(Span::raw(remaining.to_string()));
@@ -61,11 +70,14 @@ pub fn colorize_log_line(text: &str) -> Line<'static> {
         } else {
             ("[ERR]", 5)
         };
-        
+
         if error_pos > 0 {
             spans.push(Span::raw(text[..error_pos].to_string()));
         }
-        spans.push(Span::styled(keyword.to_string(), Style::default().fg(Color::Red)));
+        spans.push(Span::styled(
+            keyword.to_string(),
+            Style::default().fg(Color::Red),
+        ));
         let remaining = &text[error_pos + len..];
         if !remaining.is_empty() {
             spans.push(Span::raw(remaining.to_string()));

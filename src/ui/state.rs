@@ -1,6 +1,6 @@
 use crate::maven;
 use crate::ui::keybindings::{CurrentView, Focus, SearchMode};
-use crate::ui::search::{collect_search_matches, SearchMatch, SearchState};
+use crate::ui::search::{SearchMatch, SearchState, collect_search_matches};
 use ratatui::widgets::ListState;
 use regex::Regex;
 use std::{collections::HashMap, path::PathBuf};
@@ -11,6 +11,9 @@ use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 pub struct ModuleOutput {
     pub lines: Vec<String>,
     pub scroll_offset: usize,
+    pub command: Option<String>,
+    pub profiles: Vec<String>,
+    pub flags: Vec<String>,
 }
 
 /// Metrics for calculating output display and scrolling
@@ -71,8 +74,10 @@ pub struct TuiState {
     pub modules: Vec<String>,
     pub profiles: Vec<String>,
     pub active_profiles: Vec<String>,
+    pub flags: Vec<BuildFlag>,
     pub modules_list_state: ListState,
     pub profiles_list_state: ListState,
+    pub flags_list_state: ListState,
     pub command_output: Vec<String>,
     pub output_offset: usize,
     pub output_view_height: u16,
@@ -90,21 +95,82 @@ pub struct TuiState {
     pub config: crate::config::Config,
 }
 
+/// Maven build flags that can be toggled
+#[derive(Clone, Debug)]
+pub struct BuildFlag {
+    pub name: String,
+    pub flag: String,
+    #[allow(dead_code)]
+    pub description: String,
+    pub enabled: bool,
+}
+
 impl TuiState {
     pub fn new(modules: Vec<String>, project_root: PathBuf, config: crate::config::Config) -> Self {
         let mut modules_list_state = ListState::default();
         let profiles_list_state = ListState::default();
+        let flags_list_state = ListState::default();
         if !modules.is_empty() {
             modules_list_state.select(Some(0));
         }
+
+        // Initialize common Maven build flags
+        let flags = vec![
+            BuildFlag {
+                name: "Also Make".to_string(),
+                flag: "--also-make".to_string(),
+                description: "Build dependencies of specified modules".to_string(),
+                enabled: false,
+            },
+            BuildFlag {
+                name: "Also Make Dependents".to_string(),
+                flag: "--also-make-dependents".to_string(),
+                description: "Build modules that depend on specified modules".to_string(),
+                enabled: false,
+            },
+            BuildFlag {
+                name: "Update Snapshots".to_string(),
+                flag: "--update-snapshots".to_string(),
+                description: "Force update of snapshot dependencies".to_string(),
+                enabled: false,
+            },
+            BuildFlag {
+                name: "Skip Tests".to_string(),
+                flag: "-DskipTests".to_string(),
+                description: "Skip running tests".to_string(),
+                enabled: false,
+            },
+            BuildFlag {
+                name: "Offline".to_string(),
+                flag: "--offline".to_string(),
+                description: "Work offline (don't download dependencies)".to_string(),
+                enabled: false,
+            },
+            BuildFlag {
+                name: "Fail Fast".to_string(),
+                flag: "--fail-fast".to_string(),
+                description: "Stop at first failure in multi-module build".to_string(),
+                enabled: false,
+            },
+            BuildFlag {
+                name: "Fail At End".to_string(),
+                flag: "--fail-at-end".to_string(),
+                description: "Fail build at end; allow all non-impacted builds to continue"
+                    .to_string(),
+                enabled: false,
+            },
+        ];
+
         let mut state = Self {
             current_view: CurrentView::Modules,
             focus: Focus::Modules,
             modules,
             profiles: vec![],
             active_profiles: vec![],
+            flags,
             modules_list_state,
             profiles_list_state,
+            flags_list_state,
             command_output: vec![],
             output_offset: 0,
             output_view_height: 0,
@@ -155,6 +221,15 @@ impl TuiState {
                     self.profiles_list_state.select(Some(i));
                 }
             }
+            CurrentView::Flags => {
+                if !self.flags.is_empty() {
+                    let i = match self.flags_list_state.selected() {
+                        Some(i) => (i + 1) % self.flags.len(),
+                        None => 0,
+                    };
+                    self.flags_list_state.select(Some(i));
+                }
+            }
         }
     }
 
@@ -192,10 +267,28 @@ impl TuiState {
                     self.profiles_list_state.select(Some(i));
                 }
             }
+            CurrentView::Flags => {
+                if !self.flags.is_empty() {
+                    let i = match self.flags_list_state.selected() {
+                        Some(i) => {
+                            if i == 0 {
+                                self.flags.len() - 1
+                            } else {
+                                i - 1
+                            }
+                        }
+                        None => 0,
+                    };
+                    self.flags_list_state.select(Some(i));
+                }
+            }
         }
     }
 
     pub fn toggle_profile(&mut self) {
+        if self.current_view != CurrentView::Profiles {
+            return;
+        }
         if let Some(selected) = self.profiles_list_state.selected() {
             if let Some(profile) = self.profiles.get(selected) {
                 if let Some(pos) = self.active_profiles.iter().position(|p| p == profile) {
@@ -207,11 +300,63 @@ impl TuiState {
         }
     }
 
+    pub fn toggle_flag(&mut self) {
+        if self.current_view != CurrentView::Flags {
+            return;
+        }
+        if let Some(selected) = self.flags_list_state.selected() {
+            if let Some(flag) = self.flags.get_mut(selected) {
+                flag.enabled = !flag.enabled;
+            }
+        }
+    }
+
     pub fn selected_module(&self) -> Option<&str> {
         self.modules_list_state
             .selected()
             .and_then(|i| self.modules.get(i))
             .map(|s| s.as_str())
+    }
+
+    pub fn enabled_flag_names(&self) -> Vec<String> {
+        self.flags
+            .iter()
+            .filter(|f| f.enabled)
+            .map(|f| f.name.clone())
+            .collect()
+    }
+
+    pub fn current_output_context(&self) -> Option<(String, Vec<String>, Vec<String>)> {
+        self.selected_module().and_then(|module| {
+            self.module_outputs.get(module).and_then(|output| {
+                output
+                    .command
+                    .clone()
+                    .map(|cmd| (cmd, output.profiles.clone(), output.flags.clone()))
+            })
+        })
+    }
+
+    pub fn switch_to_modules(&mut self) {
+        self.current_view = CurrentView::Modules;
+        self.focus_modules();
+        self.sync_selected_module_output();
+    }
+
+    pub fn switch_to_profiles(&mut self) {
+        self.current_view = CurrentView::Profiles;
+        if self.profiles_list_state.selected().is_none() && !self.profiles.is_empty() {
+            self.profiles_list_state.select(Some(0));
+        }
+        self.focus_modules();
+    }
+
+    pub fn switch_to_flags(&mut self) {
+        self.current_view = CurrentView::Flags;
+        if self.flags_list_state.selected().is_none() && !self.flags.is_empty() {
+            self.flags_list_state.select(Some(0));
+        }
+        self.focus_modules();
     }
 
     // Focus management
@@ -225,7 +370,8 @@ impl TuiState {
     }
 
     pub fn has_search_results(&self) -> bool {
-        self.search_state.as_ref()
+        self.search_state
+            .as_ref()
             .map(|s| s.has_matches())
             .unwrap_or(false)
     }
@@ -238,7 +384,7 @@ impl TuiState {
                 self.search_error = None;
                 return;
             }
-            
+
             match self.apply_search_query(pattern.clone(), false) {
                 Ok(_) => {
                     self.search_error = None;
@@ -272,11 +418,24 @@ impl TuiState {
 
     fn store_current_module_output(&mut self) {
         if let Some(module) = self.selected_module() {
-            let module_output = ModuleOutput {
-                lines: self.command_output.clone(),
-                scroll_offset: self.output_offset,
+            // Get the current execution context from the most recent command
+            let module_output = if let Some(existing) = self.module_outputs.get(module) {
+                ModuleOutput {
+                    lines: self.command_output.clone(),
+                    scroll_offset: self.output_offset,
+                    command: existing.command.clone(),
+                    profiles: existing.profiles.clone(),
+                    flags: existing.flags.clone(),
+                }
+            } else {
+                ModuleOutput {
+                    lines: self.command_output.clone(),
+                    scroll_offset: self.output_offset,
+                    ..Default::default()
+                }
             };
-            self.module_outputs.insert(module.to_string(), module_output);
+            self.module_outputs
+                .insert(module.to_string(), module_output);
         }
     }
 
@@ -298,10 +457,42 @@ impl TuiState {
     // Command execution
     pub fn run_selected_module_command(&mut self, args: &[&str]) {
         if let Some(module) = self.selected_module().map(|m| m.to_string()) {
-            match maven::execute_maven_command(&self.project_root, Some(&module), args, &self.active_profiles, self.config.maven_settings.as_deref()) {
+            // Collect enabled flags
+            let enabled_flags: Vec<String> = self
+                .flags
+                .iter()
+                .filter(|f| f.enabled)
+                .map(|f| f.flag.clone())
+                .collect();
+
+            let enabled_flag_names: Vec<String> = self
+                .flags
+                .iter()
+                .filter(|f| f.enabled)
+                .map(|f| f.name.clone())
+                .collect();
+
+            match maven::execute_maven_command(
+                &self.project_root,
+                Some(&module),
+                args,
+                &self.active_profiles,
+                self.config.maven_settings.as_deref(),
+                &enabled_flags,
+            ) {
                 Ok(output) => {
                     self.command_output = output;
                     self.output_offset = self.command_output.len();
+
+                    // Store metadata about this command execution
+                    let module_output = ModuleOutput {
+                        lines: self.command_output.clone(),
+                        scroll_offset: self.output_offset,
+                        command: Some(args.join(" ")),
+                        profiles: self.active_profiles.clone(),
+                        flags: enabled_flag_names,
+                    };
+                    self.module_outputs.insert(module, module_output);
                 }
                 Err(e) => {
                     self.command_output = vec![format!("Error: {e}")];
@@ -315,7 +506,6 @@ impl TuiState {
         self.clamp_output_offset();
         self.output_metrics = None;
         self.refresh_search_matches();
-        self.store_current_module_output();
         self.clamp_output_offset();
     }
 
@@ -504,7 +694,7 @@ impl TuiState {
         } else {
             None
         };
-        
+
         if let Some(match_to_center) = current_match {
             self.center_on_match(match_to_center);
         }
@@ -531,7 +721,7 @@ impl TuiState {
         } else {
             None
         };
-        
+
         if let Some(match_to_center) = current_match {
             self.center_on_match(match_to_center);
         }
@@ -548,7 +738,7 @@ impl TuiState {
         } else {
             None
         };
-        
+
         if let Some(match_to_center) = current_match {
             self.center_on_match(match_to_center);
         }
@@ -599,10 +789,13 @@ impl TuiState {
     }
 
     // Getters for search state
-    pub fn search_line_style(&self, line_index: usize) -> Option<Vec<(ratatui::style::Style, std::ops::Range<usize>)>> {
-        self.search_state.as_ref().and_then(|search| {
-            crate::ui::search::search_line_style(line_index, search)
-        })
+    pub fn search_line_style(
+        &self,
+        line_index: usize,
+    ) -> Option<Vec<(ratatui::style::Style, std::ops::Range<usize>)>> {
+        self.search_state
+            .as_ref()
+            .and_then(|search| crate::ui::search::search_line_style(line_index, search))
     }
 
     pub fn search_status_line(&self) -> Option<ratatui::text::Line<'static>> {

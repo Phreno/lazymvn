@@ -18,7 +18,8 @@ pub fn load_config(project_root: &Path) -> Config {
     };
 
     if config.maven_settings.is_none() {
-        config.maven_settings = find_maven_settings(project_root).map(|p| p.to_str().unwrap().to_string());
+        config.maven_settings =
+            find_maven_settings(project_root).map(|p| p.to_str().unwrap().to_string());
     }
 
     config

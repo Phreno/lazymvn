@@ -1,7 +1,8 @@
 use crate::ui::theme::Theme;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
-    text::Span,
+    style::Modifier,
+    text::{Line, Span},
 };
 
 /// Represents the current view in the TUI
@@ -9,6 +10,7 @@ use ratatui::{
 pub enum CurrentView {
     Modules,
     Profiles,
+    Flags,
 }
 
 /// Represents which pane currently has focus
@@ -24,6 +26,84 @@ pub enum SearchMode {
     Cycling,
 }
 
+struct ModuleAction {
+    key_display: &'static str,
+    prefix: &'static str,
+    suffix: &'static str,
+}
+
+struct OptionsItem {
+    key_display: &'static str,
+    prefix: &'static str,
+    suffix: &'static str,
+    action: OptionsAction,
+}
+
+#[derive(Clone, Copy)]
+enum OptionsAction {
+    Profiles,
+    Flags,
+}
+
+const MODULE_ACTIONS: [ModuleAction; 7] = [
+    ModuleAction {
+        key_display: "b",
+        prefix: "",
+        suffix: "uild",
+    },
+    ModuleAction {
+        key_display: "C",
+        prefix: "",
+        suffix: "lean",
+    },
+    ModuleAction {
+        key_display: "c",
+        prefix: "",
+        suffix: "ompile",
+    },
+    ModuleAction {
+        key_display: "k",
+        prefix: "pac",
+        suffix: "age",
+    },
+    ModuleAction {
+        key_display: "t",
+        prefix: "",
+        suffix: "est",
+    },
+    ModuleAction {
+        key_display: "i",
+        prefix: "",
+        suffix: "nstall",
+    },
+    ModuleAction {
+        key_display: "d",
+        prefix: "",
+        suffix: "eps",
+    },
+];
+
+const OPTIONS_MENU_ITEMS: [OptionsItem; 2] = [
+    OptionsItem {
+        key_display: "p",
+        prefix: "",
+        suffix: "rofiles",
+        action: OptionsAction::Profiles,
+    },
+    OptionsItem {
+        key_display: "f",
+        prefix: "",
+        suffix: "lags",
+        action: OptionsAction::Flags,
+    },
+];
+
+#[derive(Clone, Copy)]
+enum ButtonState {
+    Normal,
+    Active,
+}
+
 /// Handle key events and update TUI state accordingly
 pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
     if let Some(search_mod) = state.search_mod.take() {
@@ -32,27 +112,26 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
                 match key.code {
                     KeyCode::Char(ch) => {
                         state.push_search_char(ch);
-                        state.live_search(); // Trigger live search as user types
+                        state.live_search();
                         state.search_mod = Some(SearchMode::Input);
                     }
                     KeyCode::Backspace => {
                         state.backspace_search_char();
-                        state.live_search(); // Update search as user deletes
+                        state.live_search();
                         state.search_mod = Some(SearchMode::Input);
                     }
                     KeyCode::Up => {
                         state.recall_previous_search();
-                        state.live_search(); // Update search when recalling history
+                        state.live_search();
                         state.search_mod = Some(SearchMode::Input);
                     }
                     KeyCode::Down => {
                         state.recall_next_search();
-                        state.live_search(); // Update search when recalling history
+                        state.live_search();
                         state.search_mod = Some(SearchMode::Input);
                     }
                     KeyCode::Enter => {
                         state.submit_search();
-                        // If search has results, enter cycling mode; otherwise exit
                         if state.has_search_results() {
                             state.search_mod = Some(SearchMode::Cycling);
                         } else {
@@ -84,13 +163,10 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
                         state.search_mod = Some(SearchMode::Input);
                     }
                     KeyCode::Enter | KeyCode::Esc => {
-                        // Exit search mode and restore normal coloration
                         state.search_mod = None;
                     }
                     _ => {
-                        // Exit search mode for other keys and handle them normally
                         state.search_mod = None;
-                        // Re-process the key if we exited search mode
                         handle_key_event(key, state);
                     }
                 }
@@ -99,6 +175,7 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
         }
     }
 
+    // Direct command execution - no menu navigation needed
     match key.code {
         KeyCode::Left => state.focus_modules(),
         KeyCode::Right => state.focus_output(),
@@ -110,30 +187,35 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
             Focus::Modules => state.previous_item(),
             Focus::Output => state.scroll_output_lines(-1),
         },
-        KeyCode::Char('p') => match state.current_view {
-            CurrentView::Modules => {
-                state.current_view = CurrentView::Profiles;
-                state.focus_modules();
-            }
-            CurrentView::Profiles => {
-                state.current_view = CurrentView::Modules;
-                state.focus_modules();
-            }
-        },
+        KeyCode::Char('m') => {
+            state.switch_to_modules();
+        }
         KeyCode::Char('b') => {
+            state.run_selected_module_command(&["clean", "install"]);
+        }
+        KeyCode::Char('C') => {
+            state.run_selected_module_command(&["clean"]);
+        }
+        KeyCode::Char('c') => {
+            state.run_selected_module_command(&["compile"]);
+        }
+        KeyCode::Char('k') => {
             state.run_selected_module_command(&["package"]);
         }
         KeyCode::Char('t') => {
             state.run_selected_module_command(&["test"]);
-        }
-        KeyCode::Char('c') => {
-            state.run_selected_module_command(&["clean"]);
         }
         KeyCode::Char('i') => {
             state.run_selected_module_command(&["install"]);
         }
         KeyCode::Char('d') => {
             state.run_selected_module_command(&["dependency:tree"]);
+        }
+        KeyCode::Char('p') => {
+            state.switch_to_profiles();
+        }
+        KeyCode::Char('f') => {
+            state.switch_to_flags();
         }
         KeyCode::Char('/') => {
             state.begin_search_input();
@@ -157,66 +239,141 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
         KeyCode::End => {
             state.scroll_output_to_end();
         }
-        KeyCode::Enter => {
-            state.toggle_profile();
+        KeyCode::Enter | KeyCode::Char(' ') => {
+            if state.current_view == CurrentView::Profiles {
+                state.toggle_profile();
+            } else if state.current_view == CurrentView::Flags {
+                state.toggle_flag();
+            }
         }
         _ => {}
     }
 }
 
-/// Generate footer spans with key hints based on current view and focus
-pub fn footer_spans(view: CurrentView, focus: Focus) -> Vec<Span<'static>> {
-    let mut hints: Vec<(&str, &str)> = vec![("←/→", "Focus")];
+fn key_token(text: &str) -> Span<'static> {
+    Span::styled(text.to_string(), Theme::KEY_HINT_STYLE)
+}
 
-    match focus {
-        Focus::Modules => {
-            match view {
-                CurrentView::Modules => {
-                    hints.extend_from_slice(&[
-                        ("↑/↓", "Select"),
-                        ("p", "Profiles"),
-                        ("Enter", "Build"),
-                    ]);
-                }
-                CurrentView::Profiles => {
-                    hints.extend_from_slice(&[
-                        ("↑/↓", "Select"),
-                        ("Enter", "Toggle profile"),
-                        ("p", "Back to modules"),
-                    ]);
-                }
-            }
-        }
-        Focus::Output => {
-            hints.extend_from_slice(&[
-                ("↑/↓", "Scroll"),
-                ("PgUp/PgDn", "Page up/down"),
-                ("/", "Search"),
-                ("n/N", "Next/Prev match"),
-            ]);
-        }
+fn append_bracketed_word(
+    spans: &mut Vec<Span<'static>>,
+    prefix: &str,
+    key: &str,
+    suffix: &str,
+    state: ButtonState,
+) {
+    let (key_style, text_style) = match state {
+        ButtonState::Active => (
+            Theme::KEY_HINT_STYLE.add_modifier(Modifier::UNDERLINED),
+            Theme::FOOTER_ACTIVE_TEXT_STYLE,
+        ),
+        ButtonState::Normal => (Theme::KEY_HINT_STYLE, Theme::DEFAULT_STYLE),
+    };
+
+    if !prefix.is_empty() {
+        spans.push(Span::styled(prefix.to_string(), text_style));
     }
 
-    hints.extend_from_slice(&[
-        ("b", "Package"),
-        ("t", "Test"),
-        ("c", "Clean"),
-        ("i", "Install"),
-        ("d", "Deps"),
-        ("q", "Quit"),
-    ]);
+    spans.push(Span::styled("[", text_style));
+    spans.push(Span::styled(key.to_string(), key_style));
+    spans.push(Span::styled("]", text_style));
 
-    let mut spans = Vec::with_capacity(hints.len() * 3);
-    for (idx, (key, label)) in hints.iter().enumerate() {
-        spans.push(Span::styled(
-            format!(" {key} "),
-            Theme::KEY_HINT_STYLE,
-        ));
-        spans.push(Span::raw(format!(" {label} ")));
-        if idx < hints.len() - 1 {
-            spans.push(Span::raw(" • "));
-        }
+    if !suffix.is_empty() {
+        spans.push(Span::styled(suffix.to_string(), text_style));
+    }
+}
+
+pub(crate) fn blank_line() -> Line<'static> {
+    Line::raw("")
+}
+
+pub(crate) fn build_navigation_line() -> Line<'static> {
+    let mut spans: Vec<Span<'static>> = Vec::new();
+    spans.push(Span::styled("Navigation ", Theme::FOOTER_SECTION_STYLE));
+    spans.push(key_token("←"));
+    spans.push(Span::raw("  "));
+    spans.push(key_token("→"));
+    spans.push(Span::raw(" Focus  • "));
+    spans.push(key_token("↑"));
+    spans.push(Span::raw("  "));
+    spans.push(key_token("↓"));
+    spans.push(Span::raw(" Select"));
+    Line::from(spans)
+}
+
+pub(crate) fn simplified_footer_title(
+    view: CurrentView,
+    module_name: Option<&str>,
+    active_profiles: &[String],
+    enabled_flags: &[String],
+) -> Span<'static> {
+    let mut parts = Vec::new();
+
+    if let Some(name) = module_name {
+        parts.push(name.to_string());
     }
 
-    spans
+    if !active_profiles.is_empty() {
+        parts.push(active_profiles.join(", "));
+    }
+
+    if !enabled_flags.is_empty() {
+        parts.push(enabled_flags.join(", "));
+    }
+
+    let text = if parts.is_empty() {
+        "Commands".to_string()
+    } else {
+        format!("Commands: {}", parts.join(" • "))
+    };
+
+    let style = match view {
+        CurrentView::Modules => Theme::FOOTER_SECTION_STYLE,
+        CurrentView::Profiles | CurrentView::Flags => Theme::FOOTER_SECTION_FOCUSED_STYLE,
+    };
+
+    Span::styled(text, style)
+}
+
+pub(crate) fn simplified_footer_body(view: CurrentView) -> Line<'static> {
+    let mut spans: Vec<Span<'static>> = Vec::new();
+    spans.push(Span::raw(" "));
+
+    // Module commands
+    for (idx, action) in MODULE_ACTIONS.iter().enumerate() {
+        if idx > 0 {
+            spans.push(Span::raw(" "));
+        }
+        append_bracketed_word(
+            &mut spans,
+            action.prefix,
+            action.key_display,
+            action.suffix,
+            ButtonState::Normal,
+        );
+    }
+
+    spans.push(Span::raw(" "));
+
+    // Options commands
+    for (idx, item) in OPTIONS_MENU_ITEMS.iter().enumerate() {
+        if idx > 0 {
+            spans.push(Span::raw(" "));
+        }
+
+        let state = match item.action {
+            OptionsAction::Profiles if matches!(view, CurrentView::Profiles) => ButtonState::Active,
+            OptionsAction::Flags if matches!(view, CurrentView::Flags) => ButtonState::Active,
+            _ => ButtonState::Normal,
+        };
+
+        append_bracketed_word(
+            &mut spans,
+            item.prefix,
+            item.key_display,
+            item.suffix,
+            state,
+        );
+    }
+
+    Line::from(spans)
 }

@@ -21,6 +21,7 @@ pub fn execute_maven_command(
     args: &[&str],
     profiles: &[String],
     settings_path: Option<&str>,
+    flags: &[String],
 ) -> Result<Vec<String>, std::io::Error> {
     let maven_command = get_maven_command(project_root);
     let mut command = Command::new(maven_command);
@@ -32,6 +33,10 @@ pub fn execute_maven_command(
     }
     if let Some(module) = module {
         command.arg("-pl").arg(module);
+    }
+    // Add build flags
+    for flag in flags {
+        command.arg(flag);
     }
     let mut child = command
         .args(args)
@@ -90,11 +95,12 @@ pub fn get_profiles(project_root: &Path) -> Result<Vec<String>, std::io::Error> 
     // Try to load config and use settings if available
     let config = crate::config::load_config(project_root);
     let output = execute_maven_command(
-        project_root, 
-        None, 
-        &["help:all-profiles", "-N"], 
-        &[], 
-        config.maven_settings.as_deref()
+        project_root,
+        None,
+        &["help:all-profiles", "-N"],
+        &[],
+        config.maven_settings.as_deref(),
+        &[],
     )?;
     let profiles = output
         .iter()
@@ -172,17 +178,15 @@ mod tests {
 
         // Create a mock mvnw script
         let mvnw_path = project_root.join("mvnw");
-                    write_script(&mvnw_path, "#!/bin/sh\necho 'line 1'\necho 'line 2'\n");
-        
-                            let output: Vec<String> = execute_maven_command(project_root, None, &["test"], &[], None)
-        
-                                .unwrap()
-        
-                                .iter()
-        
-                                .map(|line| utils::clean_log_line(line).unwrap())
-        
-                                .collect();        assert_eq!(output, vec!["line 1", "line 2"]);
+        write_script(&mvnw_path, "#!/bin/sh\necho 'line 1'\necho 'line 2'\n");
+
+        let output: Vec<String> =
+            execute_maven_command(project_root, None, &["test"], &[], None, &[])
+                .unwrap()
+                .iter()
+                .map(|line| utils::clean_log_line(line).unwrap())
+                .collect();
+        assert_eq!(output, vec!["line 1", "line 2"]);
     }
 
     #[test]
@@ -197,11 +201,12 @@ mod tests {
             "#!/bin/sh\necho 'line 1'\n>&2 echo 'warn message'\n",
         );
 
-        let output: Vec<String> = execute_maven_command(project_root, None, &["test"], &[], None)
-            .unwrap()
-            .iter()
-            .map(|line| utils::clean_log_line(line).unwrap())
-            .collect();
+        let output: Vec<String> =
+            execute_maven_command(project_root, None, &["test"], &[], None, &[])
+                .unwrap()
+                .iter()
+                .map(|line| utils::clean_log_line(line).unwrap())
+                .collect();
         assert!(
             output.contains(&"line 1".to_string()),
             "stdout line should be present"
@@ -223,11 +228,12 @@ mod tests {
         write_script(&mvnw_path, "#!/bin/sh\necho $@\n");
 
         let profiles = vec!["p1".to_string(), "p2".to_string()];
-        let output: Vec<String> = execute_maven_command(project_root, None, &["test"], &profiles, None)
-            .unwrap()
-            .iter()
-            .map(|line| utils::clean_log_line(line).unwrap())
-            .collect();
+        let output: Vec<String> =
+            execute_maven_command(project_root, None, &["test"], &profiles, None, &[])
+                .unwrap()
+                .iter()
+                .map(|line| utils::clean_log_line(line).unwrap())
+                .collect();
         assert_eq!(output, vec!["-P p1,p2 test"]);
     }
 
@@ -257,11 +263,12 @@ mod tests {
         let mvnw_path = project_root.join("mvnw");
         write_script(&mvnw_path, "#!/bin/sh\necho $@\n");
 
-        let output: Vec<String> = execute_maven_command(project_root, Some("module-a"), &["test"], &[], None)
-            .unwrap()
-            .iter()
-            .map(|line| utils::clean_log_line(line).unwrap())
-            .collect();
+        let output: Vec<String> =
+            execute_maven_command(project_root, Some("module-a"), &["test"], &[], None, &[])
+                .unwrap()
+                .iter()
+                .map(|line| utils::clean_log_line(line).unwrap())
+                .collect();
         assert_eq!(output, vec!["-pl module-a test"]);
     }
 }
