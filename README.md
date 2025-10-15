@@ -5,6 +5,7 @@ Inspired by *LazyGit*, it provides a minimalist interface to explore, build, and
 
 ## Features
 
+- Works with both single-module and multi-module Maven projects.
 - List Maven modules from a multi-module project.
 - Run common Maven commands (`clean`, `install`, `package`, `test`, `dependency:tree`, etc.).
 - Quickly select a Maven module or profile.
@@ -45,6 +46,25 @@ chmod +x /usr/local/bin/lazymvn
 Run lazymvn from within a Maven project directory:
 
 ```bash
+lazymvn
+```
+
+Lazymvn automatically detects:
+- **Multi-module projects**: Shows all modules from the `<modules>` section
+- **Single-module projects**: Shows "(root project)" and runs commands on the entire project
+
+### Demo Projects
+
+Two demonstration projects are included in the `demo/` folder:
+- `demo/multi-module/` - A multi-module project with library and app modules
+- `demo/single-module/` - A simple single-module project
+
+Try them out:
+```bash
+cd demo/multi-module
+lazymvn
+
+cd demo/single-module
 lazymvn
 ```
 

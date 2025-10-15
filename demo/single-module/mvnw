@@ -1,0 +1,82 @@
+#!/bin/sh
+# Mock Maven wrapper for demonstration
+# This script simulates Maven commands for testing lazymvn
+
+echo "[INFO] Scanning for projects..."
+echo "[INFO] "
+echo "[INFO] ------------------< com.example:demo-single >------------------"
+echo "[INFO] Building Demo Single Module Project 1.0-SNAPSHOT"
+echo "[INFO] --------------------------------[ jar ]---------------------------------"
+echo "[INFO] "
+
+# Simulate different commands based on arguments
+case "$*" in
+    *clean*)
+        echo "[INFO] --- maven-clean-plugin:3.1.0:clean (default-clean) @ demo-single ---"
+        echo "[INFO] Deleting target"
+        ;;
+esac
+
+case "$*" in
+    *compile*)
+        echo "[INFO] --- maven-resources-plugin:3.2.0:resources (default-resources) @ demo-single ---"
+        echo "[INFO] Using 'UTF-8' encoding to copy filtered resources."
+        echo "[INFO] "
+        echo "[INFO] --- maven-compiler-plugin:3.11.0:compile (default-compile) @ demo-single ---"
+        echo "[INFO] Changes detected - recompiling the module!"
+        echo "[INFO] Compiling 2 source files to target/classes"
+        ;;
+esac
+
+case "$*" in
+    *test*)
+        echo "[INFO] --- maven-surefire-plugin:3.0.0:test (default-test) @ demo-single ---"
+        echo "[INFO] "
+        echo "[INFO] -------------------------------------------------------"
+        echo "[INFO]  T E S T S"
+        echo "[INFO] -------------------------------------------------------"
+        echo "[INFO] Running com.example.demo.CalculatorTest"
+        echo "[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0"
+        echo "[INFO] "
+        echo "[INFO] Results:"
+        echo "[INFO] "
+        echo "[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0"
+        ;;
+esac
+
+case "$*" in
+    *package*)
+        echo "[INFO] --- maven-jar-plugin:3.0.2:jar (default-jar) @ demo-single ---"
+        echo "[INFO] Building jar: target/demo-single-1.0-SNAPSHOT.jar"
+        ;;
+esac
+
+case "$*" in
+    *install*)
+        echo "[INFO] --- maven-install-plugin:2.5.2:install (default-install) @ demo-single ---"
+        echo "[INFO] Installing target/demo-single-1.0-SNAPSHOT.jar to repository"
+        ;;
+esac
+
+case "$*" in
+    *dependency:tree*)
+        echo "[INFO] --- maven-dependency-plugin:3.1.2:tree (default-cli) @ demo-single ---"
+        echo "[INFO] com.example:demo-single:jar:1.0-SNAPSHOT"
+        echo "[INFO] \\- junit:junit:jar:4.13.2:test"
+        echo "[INFO]    \\- org.hamcrest:hamcrest-core:jar:1.3:test"
+        ;;
+esac
+
+case "$*" in
+    *help:all-profiles*)
+        echo "  Profile Id: dev (Active: false , Source: pom)"
+        echo "  Profile Id: prod (Active: false , Source: pom)"
+        ;;
+esac
+
+echo "[INFO] ------------------------------------------------------------------------"
+echo "[INFO] BUILD SUCCESS"
+echo "[INFO] ------------------------------------------------------------------------"
+echo "[INFO] Total time:  1.234 s"
+echo "[INFO] Finished at: $(date -Iseconds)"
+echo "[INFO] ------------------------------------------------------------------------"
