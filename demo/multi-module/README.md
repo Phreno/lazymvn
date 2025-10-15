@@ -159,7 +159,16 @@ Then visit:
 
 ## Maven Settings
 
-This project includes a `settings.xml` file demonstrating custom Maven settings. LazyMVN automatically detects and uses it when running commands.
+This project includes a comprehensive `settings.xml` file demonstrating various Maven settings configurations. LazyMVN automatically detects and uses it when running commands.
+
+**Features demonstrated:**
+- Multiple profiles (development, production, testing, security-scan, etc.)
+- Local repository configuration
+- Plugin groups
+- Proxy and mirror settings
+- Repository credentials
+
+For detailed information about the Maven settings configuration, see [MAVEN_SETTINGS.md](MAVEN_SETTINGS.md).
 
 ## Testing Scenarios
 
