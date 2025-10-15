@@ -31,7 +31,7 @@ pub fn execute_maven_command(
     log::debug!("  profiles: {:?}", profiles);
     log::debug!("  settings_path: {:?}", settings_path);
     log::debug!("  flags: {:?}", flags);
-    
+
     let mut command = Command::new(maven_command);
     if let Some(settings_path) = settings_path {
         command.arg("--settings").arg(settings_path);
@@ -43,15 +43,20 @@ pub fn execute_maven_command(
         log::debug!("Added profiles: {}", profile_str);
     }
     if let Some(module) = module {
-        command.arg("-pl").arg(module);
-        log::debug!("Scoped to module: {}", module);
+        // Only use -pl flag if module is not "." (project root)
+        if module != "." {
+            command.arg("-pl").arg(module);
+            log::debug!("Scoped to module: {}", module);
+        } else {
+            log::debug!("Running on project root, no -pl flag needed");
+        }
     }
     // Add build flags
     for flag in flags {
         command.arg(flag);
         log::debug!("Added flag: {}", flag);
     }
-    
+
     log::info!("Spawning Maven process...");
     let mut child = command
         .args(args)
@@ -109,14 +114,20 @@ pub fn execute_maven_command(
     let exit_status = child.wait()?;
     log::info!("Maven process completed with status: {:?}", exit_status);
     if !exit_status.success() {
-        log::warn!("Maven command failed with exit code: {:?}", exit_status.code());
+        log::warn!(
+            "Maven command failed with exit code: {:?}",
+            exit_status.code()
+        );
     }
-    
+
     Ok(output)
 }
 
 pub fn get_profiles(project_root: &Path) -> Result<Vec<String>, std::io::Error> {
-    log::debug!("get_profiles: Fetching Maven profiles from {:?}", project_root);
+    log::debug!(
+        "get_profiles: Fetching Maven profiles from {:?}",
+        project_root
+    );
     // Try to load config and use settings if available
     let config = crate::config::load_config(project_root);
     let output = execute_maven_command(
@@ -297,5 +308,23 @@ mod tests {
                 .map(|line| utils::clean_log_line(line).unwrap())
                 .collect();
         assert_eq!(output, vec!["-pl module-a test"]);
+    }
+
+    #[test]
+    fn execute_maven_command_without_pl_for_root_module() {
+        let _guard = test_lock().lock().unwrap();
+        let dir = tempdir().unwrap();
+        let project_root = dir.path();
+
+        let mvnw_path = project_root.join("mvnw");
+        write_script(&mvnw_path, "#!/bin/sh\necho $@\n");
+
+        let output: Vec<String> =
+            execute_maven_command(project_root, Some("."), &["test"], &[], None, &[])
+                .unwrap()
+                .iter()
+                .map(|line| utils::clean_log_line(line).unwrap())
+                .collect();
+        assert_eq!(output, vec!["test"]);
     }
 }

@@ -67,7 +67,7 @@ fn run<B: ratatui::backend::Backend>(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let (modules, project_root) = project::get_project_modules()?;
     log::debug!("Loaded {} modules from {:?}", modules.len(), project_root);
-    
+
     let config = config::load_config(&project_root);
     let mut state = tui::TuiState::new(modules, project_root.clone(), config);
 
