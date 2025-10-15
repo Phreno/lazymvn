@@ -24,20 +24,35 @@ pub fn execute_maven_command(
     flags: &[String],
 ) -> Result<Vec<String>, std::io::Error> {
     let maven_command = get_maven_command(project_root);
+    log::debug!("execute_maven_command: Using command: {}", maven_command);
+    log::debug!("  project_root: {:?}", project_root);
+    log::debug!("  module: {:?}", module);
+    log::debug!("  args: {:?}", args);
+    log::debug!("  profiles: {:?}", profiles);
+    log::debug!("  settings_path: {:?}", settings_path);
+    log::debug!("  flags: {:?}", flags);
+    
     let mut command = Command::new(maven_command);
     if let Some(settings_path) = settings_path {
         command.arg("--settings").arg(settings_path);
+        log::debug!("Added settings argument: {}", settings_path);
     }
     if !profiles.is_empty() {
-        command.arg("-P").arg(profiles.join(","));
+        let profile_str = profiles.join(",");
+        command.arg("-P").arg(&profile_str);
+        log::debug!("Added profiles: {}", profile_str);
     }
     if let Some(module) = module {
         command.arg("-pl").arg(module);
+        log::debug!("Scoped to module: {}", module);
     }
     // Add build flags
     for flag in flags {
         command.arg(flag);
+        log::debug!("Added flag: {}", flag);
     }
+    
+    log::info!("Spawning Maven process...");
     let mut child = command
         .args(args)
         .current_dir(project_root)
@@ -45,6 +60,7 @@ pub fn execute_maven_command(
         .stderr(Stdio::piped())
         .spawn()?;
 
+    log::debug!("Maven process spawned with PID: {:?}", child.id());
     let mut output = Vec::new();
     let (tx, rx) = mpsc::channel();
     let mut handles = Vec::new();
@@ -79,19 +95,28 @@ pub fn execute_maven_command(
 
     drop(tx);
 
+    let mut line_count = 0;
     for line in rx {
         output.push(line);
+        line_count += 1;
     }
+    log::debug!("Received {} lines of output from Maven", line_count);
 
     for handle in handles {
         let _ = handle.join();
     }
 
-    child.wait()?;
+    let exit_status = child.wait()?;
+    log::info!("Maven process completed with status: {:?}", exit_status);
+    if !exit_status.success() {
+        log::warn!("Maven command failed with exit code: {:?}", exit_status.code());
+    }
+    
     Ok(output)
 }
 
 pub fn get_profiles(project_root: &Path) -> Result<Vec<String>, std::io::Error> {
+    log::debug!("get_profiles: Fetching Maven profiles from {:?}", project_root);
     // Try to load config and use settings if available
     let config = crate::config::load_config(project_root);
     let output = execute_maven_command(
@@ -102,7 +127,7 @@ pub fn get_profiles(project_root: &Path) -> Result<Vec<String>, std::io::Error> 
         config.maven_settings.as_deref(),
         &[],
     )?;
-    let profiles = output
+    let profiles: Vec<String> = output
         .iter()
         .filter_map(|line| {
             if line.contains("Profile Id:") {
@@ -119,6 +144,7 @@ pub fn get_profiles(project_root: &Path) -> Result<Vec<String>, std::io::Error> 
                         .unwrap_or("")
                         .trim();
                     if !profile_name.is_empty() {
+                        log::debug!("Found profile: {}", profile_name);
                         Some(profile_name.to_string())
                     } else {
                         None
@@ -131,6 +157,7 @@ pub fn get_profiles(project_root: &Path) -> Result<Vec<String>, std::io::Error> 
             }
         })
         .collect();
+    log::info!("Discovered {} Maven profiles", profiles.len());
     Ok(profiles)
 }
 
