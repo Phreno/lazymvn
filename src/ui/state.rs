@@ -292,10 +292,13 @@ impl TuiState {
         if let Some(selected) = self.profiles_list_state.selected() {
             if let Some(profile) = self.profiles.get(selected) {
                 if let Some(pos) = self.active_profiles.iter().position(|p| p == profile) {
+                    log::info!("Deactivating profile: {}", profile);
                     self.active_profiles.remove(pos);
                 } else {
+                    log::info!("Activating profile: {}", profile);
                     self.active_profiles.push(profile.clone());
                 }
+                log::debug!("Active profiles now: {:?}", self.active_profiles);
             }
         }
     }
@@ -307,6 +310,7 @@ impl TuiState {
         if let Some(selected) = self.flags_list_state.selected() {
             if let Some(flag) = self.flags.get_mut(selected) {
                 flag.enabled = !flag.enabled;
+                log::info!("Toggled flag '{}' ({}): {}", flag.name, flag.flag, flag.enabled);
             }
         }
     }
@@ -456,7 +460,11 @@ impl TuiState {
 
     // Command execution
     pub fn run_selected_module_command(&mut self, args: &[&str]) {
+        log::debug!("run_selected_module_command called with args: {:?}", args);
+        
         if let Some(module) = self.selected_module().map(|m| m.to_string()) {
+            log::info!("Running command for module: {}", module);
+            
             // Collect enabled flags
             let enabled_flags: Vec<String> = self
                 .flags
@@ -472,6 +480,9 @@ impl TuiState {
                 .map(|f| f.name.clone())
                 .collect();
 
+            log::debug!("Enabled flags: {:?}", enabled_flag_names);
+            log::debug!("Active profiles: {:?}", self.active_profiles);
+
             match maven::execute_maven_command(
                 &self.project_root,
                 Some(&module),
@@ -481,6 +492,7 @@ impl TuiState {
                 &enabled_flags,
             ) {
                 Ok(output) => {
+                    log::info!("Command completed successfully, {} lines of output", output.len());
                     self.command_output = output;
                     self.output_offset = self.command_output.len();
 
@@ -495,11 +507,13 @@ impl TuiState {
                     self.module_outputs.insert(module, module_output);
                 }
                 Err(e) => {
+                    log::error!("Command failed: {}", e);
                     self.command_output = vec![format!("Error: {e}")];
                     self.output_offset = 0;
                 }
             }
         } else {
+            log::warn!("No module selected for command execution");
             self.command_output = vec!["No module selected".to_string()];
             self.output_offset = 0;
         }

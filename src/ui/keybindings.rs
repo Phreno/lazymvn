@@ -106,39 +106,53 @@ enum ButtonState {
 
 /// Handle key events and update TUI state accordingly
 pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
+    log::debug!("Key event: {:?}", key);
+    
     if let Some(search_mod) = state.search_mod.take() {
+        log::debug!("In search mode: {:?}", match search_mod {
+            SearchMode::Input => "Input",
+            SearchMode::Cycling => "Cycling",
+        });
         match search_mod {
             SearchMode::Input => {
                 match key.code {
                     KeyCode::Char(ch) => {
+                        log::debug!("Search input: '{}'", ch);
                         state.push_search_char(ch);
                         state.live_search();
                         state.search_mod = Some(SearchMode::Input);
                     }
                     KeyCode::Backspace => {
+                        log::debug!("Search backspace");
                         state.backspace_search_char();
                         state.live_search();
                         state.search_mod = Some(SearchMode::Input);
                     }
                     KeyCode::Up => {
+                        log::debug!("Search recall previous");
                         state.recall_previous_search();
                         state.live_search();
                         state.search_mod = Some(SearchMode::Input);
                     }
                     KeyCode::Down => {
+                        log::debug!("Search recall next");
                         state.recall_next_search();
                         state.live_search();
                         state.search_mod = Some(SearchMode::Input);
                     }
                     KeyCode::Enter => {
+                        log::debug!("Search submit");
                         state.submit_search();
                         if state.has_search_results() {
+                            log::debug!("Search has results, entering cycling mode");
                             state.search_mod = Some(SearchMode::Cycling);
                         } else {
+                            log::debug!("No search results, exiting search");
                             state.search_mod = None;
                         }
                     }
                     KeyCode::Esc => {
+                        log::debug!("Search cancelled");
                         state.cancel_search_input();
                         state.search_mod = None;
                     }
@@ -177,66 +191,101 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
 
     // Direct command execution - no menu navigation needed
     match key.code {
-        KeyCode::Left => state.focus_modules(),
-        KeyCode::Right => state.focus_output(),
+        KeyCode::Left => {
+            log::debug!("Focus left -> modules");
+            state.focus_modules();
+        }
+        KeyCode::Right => {
+            log::debug!("Focus right -> output");
+            state.focus_output();
+        }
         KeyCode::Down => match state.focus {
-            Focus::Modules => state.next_item(),
-            Focus::Output => state.scroll_output_lines(1),
+            Focus::Modules => {
+                log::debug!("Navigate down in modules list");
+                state.next_item();
+            }
+            Focus::Output => {
+                log::debug!("Scroll output down");
+                state.scroll_output_lines(1);
+            }
         },
         KeyCode::Up => match state.focus {
-            Focus::Modules => state.previous_item(),
-            Focus::Output => state.scroll_output_lines(-1),
+            Focus::Modules => {
+                log::debug!("Navigate up in modules list");
+                state.previous_item();
+            }
+            Focus::Output => {
+                log::debug!("Scroll output up");
+                state.scroll_output_lines(-1);
+            }
         },
         KeyCode::Char('m') => {
+            log::info!("Switch to modules view");
             state.switch_to_modules();
         }
         KeyCode::Char('b') => {
+            log::info!("Execute: clean install");
             state.run_selected_module_command(&["clean", "install"]);
         }
         KeyCode::Char('C') => {
+            log::info!("Execute: clean");
             state.run_selected_module_command(&["clean"]);
         }
         KeyCode::Char('c') => {
+            log::info!("Execute: compile");
             state.run_selected_module_command(&["compile"]);
         }
         KeyCode::Char('k') => {
+            log::info!("Execute: package");
             state.run_selected_module_command(&["package"]);
         }
         KeyCode::Char('t') => {
+            log::info!("Execute: test");
             state.run_selected_module_command(&["test"]);
         }
         KeyCode::Char('i') => {
+            log::info!("Execute: install");
             state.run_selected_module_command(&["install"]);
         }
         KeyCode::Char('d') => {
+            log::info!("Execute: dependency:tree");
             state.run_selected_module_command(&["dependency:tree"]);
         }
         KeyCode::Char('p') => {
+            log::info!("Switch to profiles view");
             state.switch_to_profiles();
         }
         KeyCode::Char('f') => {
+            log::info!("Switch to flags view");
             state.switch_to_flags();
         }
         KeyCode::Char('/') => {
+            log::info!("Begin search input");
             state.begin_search_input();
             state.search_mod = Some(SearchMode::Input);
         }
         KeyCode::Char('n') => {
+            log::debug!("Next search match");
             state.next_search_match();
         }
         KeyCode::Char('N') => {
+            log::debug!("Previous search match");
             state.previous_search_match();
         }
         KeyCode::PageUp => {
+            log::debug!("Page up");
             state.scroll_output_pages(-1);
         }
         KeyCode::PageDown => {
+            log::debug!("Page down");
             state.scroll_output_pages(1);
         }
         KeyCode::Home => {
+            log::debug!("Scroll to start");
             state.scroll_output_to_start();
         }
         KeyCode::End => {
+            log::debug!("Scroll to end");
             state.scroll_output_to_end();
         }
         KeyCode::Enter | KeyCode::Char(' ') => {

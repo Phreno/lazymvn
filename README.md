@@ -40,6 +40,34 @@ curl -sSL https://github.com/etienne/lazymvn/releases/latest/download/lazymvn -o
 chmod +x /usr/local/bin/lazymvn
 ```
 
+## Usage
+
+Run lazymvn from within a Maven project directory:
+
+```bash
+lazymvn
+```
+
+### Command-line Options
+
+- `-d, --debug` - Enable debug logging to `lazymvn-debug.log` in the current directory
+- `-p, --project <PATH>` - Specify the path to a Maven project (defaults to current directory)
+- `-h, --help` - Display help information
+
+### Debug Logging
+
+When debugging issues or troubleshooting, enable debug logging:
+
+```bash
+lazymvn --debug
+```
+
+This creates a `lazymvn-debug.log` file with timestamped log entries including INFO, DEBUG, and ERROR levels. The log file does not interfere with the TUI and can be monitored in a separate terminal:
+
+```bash
+tail -f lazymvn-debug.log
+```
+
 ## License
 
 MIT License
