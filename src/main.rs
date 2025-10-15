@@ -34,6 +34,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     log::info!("Starting lazymvn");
 
+    // Change to project directory if specified
+    if let Some(ref project_path) = cli.project {
+        log::info!("Changing to project directory: {}", project_path);
+        std::env::set_current_dir(project_path).map_err(|e| {
+            format!("Failed to change to project directory '{}': {}", project_path, e)
+        })?;
+    }
+
     // setup terminal
     let mut stdout = io::stdout();
     crossterm::terminal::enable_raw_mode()?;

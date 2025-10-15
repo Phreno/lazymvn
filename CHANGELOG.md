@@ -48,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Commands now execute correctly on single-module projects (without `-pl` flag)
 - Cache invalidation when POM file changes
 - Module selection state initialization for empty projects
+- `--project` / `-p` command-line argument now correctly changes to specified directory
 
 ## [0.1.0] - Initial Development
 
