@@ -27,7 +27,14 @@ pub fn render_modules_pane(
 
     let items: Vec<ListItem> = modules
         .iter()
-        .map(|m| ListItem::new(Line::from(m.as_str())))
+        .map(|m| {
+            let display_name = if m == "." {
+                "(root project)"
+            } else {
+                m.as_str()
+            };
+            ListItem::new(Line::from(display_name))
+        })
         .collect();
 
     let list = List::new(items)

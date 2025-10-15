@@ -77,21 +77,29 @@ pub fn get_project_modules() -> Result<(Vec<String>, PathBuf), Box<dyn std::erro
 
     let current_dir = std::env::current_dir()?;
     log::debug!("Current directory: {:?}", current_dir);
-    
+
     if let Some(cache) = cached_entry.as_ref() {
         log::debug!("Checking cached project root: {:?}", cache.project_root);
         if current_dir.starts_with(&cache.project_root) {
             let pom_path = cache.project_root.join("pom.xml");
             if let Ok(pom_content) = fs::read_to_string(&pom_path) {
                 let pom_hash = compute_pom_hash(&pom_content);
-                log::debug!("Current pom hash: {}, cached hash: {:?}", pom_hash, cache.pom_hash);
+                log::debug!(
+                    "Current pom hash: {}, cached hash: {:?}",
+                    pom_hash,
+                    cache.pom_hash
+                );
                 if cache.pom_hash == Some(pom_hash) {
-                    log::info!("Using cached modules (hash match): {} modules", cache.modules.len());
-                    return Ok((cache.modules.clone(), cache.project_root.clone()));
+                    log::info!(
+                        "Using cached modules (hash match): {} modules",
+                        cache.modules.len()
+                    );
+                    let modules = normalize_modules(cache.modules.clone());
+                    return Ok((modules, cache.project_root.clone()));
                 }
 
                 log::info!("POM changed, reparsing modules");
-                let modules = parse_modules_from_str(&pom_content);
+                let modules = normalize_modules(parse_modules_from_str(&pom_content));
                 log::debug!("Parsed {} modules from updated POM", modules.len());
                 fs::create_dir_all(&cache_dir)?;
                 let updated_cache = cache::Cache {
@@ -104,7 +112,8 @@ pub fn get_project_modules() -> Result<(Vec<String>, PathBuf), Box<dyn std::erro
                 return Ok((modules, cache.project_root.clone()));
             } else {
                 log::warn!("Could not read POM, using cached modules");
-                return Ok((cache.modules.clone(), cache.project_root.clone()));
+                let modules = normalize_modules(cache.modules.clone());
+                return Ok((modules, cache.project_root.clone()));
             }
         } else {
             log::debug!("Current dir not under cached project root, discovering new project");
@@ -115,14 +124,14 @@ pub fn get_project_modules() -> Result<(Vec<String>, PathBuf), Box<dyn std::erro
     let pom_path = find_pom().ok_or("pom.xml not found")?;
     let project_root = pom_path.parent().unwrap().to_path_buf();
     log::info!("Discovered project root: {:?}", project_root);
-    
+
     let pom_content = fs::read_to_string(&pom_path).unwrap_or_default();
-    let modules = parse_modules_from_str(&pom_content);
+    let modules = normalize_modules(parse_modules_from_str(&pom_content));
     log::debug!("Parsed {} modules from POM", modules.len());
     for (i, module) in modules.iter().enumerate() {
         log::debug!("  Module {}: {}", i + 1, module);
     }
-    
+
     let pom_hash = compute_pom_hash(&pom_content);
     log::debug!("Computed POM hash: {}", pom_hash);
 
@@ -136,6 +145,15 @@ pub fn get_project_modules() -> Result<(Vec<String>, PathBuf), Box<dyn std::erro
     log::debug!("New cache saved");
 
     Ok((modules, project_root))
+}
+
+fn normalize_modules(modules: Vec<String>) -> Vec<String> {
+    if modules.is_empty() {
+        log::info!("No modules found, treating as single-module project");
+        vec![".".to_string()]
+    } else {
+        modules
+    }
 }
 
 pub mod cache {
@@ -235,6 +253,37 @@ mod tests {
         let content = std::fs::read_to_string(&pom_path).unwrap();
         let modules = parse_modules_from_str(&content);
         assert_eq!(modules, vec!["module1", "module2"]);
+    }
+
+    #[test]
+    fn get_modules_from_pom_without_modules() {
+        let dir = tempdir().unwrap();
+        let pom_path = dir.path().join("pom.xml");
+        let mut pom_file = File::create(&pom_path).unwrap();
+        use std::io::Write;
+        pom_file
+            .write_all(
+                b"<project><groupId>com.example</groupId><artifactId>simple</artifactId></project>",
+            )
+            .unwrap();
+
+        let content = std::fs::read_to_string(&pom_path).unwrap();
+        let modules = parse_modules_from_str(&content);
+        assert_eq!(modules, Vec::<String>::new());
+    }
+
+    #[test]
+    fn normalize_modules_returns_dot_for_empty() {
+        let empty_modules = vec![];
+        let normalized = super::normalize_modules(empty_modules);
+        assert_eq!(normalized, vec!["."]);
+    }
+
+    #[test]
+    fn normalize_modules_preserves_non_empty() {
+        let modules = vec!["module1".to_string(), "module2".to_string()];
+        let normalized = super::normalize_modules(modules.clone());
+        assert_eq!(normalized, modules);
     }
 
     #[test]
@@ -345,6 +394,34 @@ mod tests {
         let cache = cache::load_cache(&cache_path).unwrap();
         assert_eq!(cache.modules, vec!["module3".to_string()]);
         assert_eq!(cache.pom_hash, Some(expected_hash));
+
+        env::set_current_dir(original_dir).unwrap();
+        restore_home(original_home);
+    }
+
+    #[test]
+    fn get_project_modules_for_project_without_modules() {
+        let _guard = home_lock().lock().unwrap();
+        let project_dir = tempdir().unwrap();
+        let home_dir = tempdir().unwrap();
+        let original_home = env::var("HOME").ok();
+        set_home(home_dir.path());
+
+        let original_dir = env::current_dir().unwrap();
+        env::set_current_dir(project_dir.path()).unwrap();
+
+        let pom_path = project_dir.path().join("pom.xml");
+        {
+            let mut pom_file = File::create(&pom_path).unwrap();
+            use std::io::Write;
+            pom_file
+                .write_all(b"<project><groupId>com.example</groupId><artifactId>simple</artifactId></project>")
+                .unwrap();
+        }
+
+        let (modules, project_root) = get_project_modules().unwrap();
+        assert_eq!(modules, vec!["."]);
+        assert_eq!(project_root, project_dir.path());
 
         env::set_current_dir(original_dir).unwrap();
         restore_home(original_home);

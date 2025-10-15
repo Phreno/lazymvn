@@ -310,7 +310,12 @@ impl TuiState {
         if let Some(selected) = self.flags_list_state.selected() {
             if let Some(flag) = self.flags.get_mut(selected) {
                 flag.enabled = !flag.enabled;
-                log::info!("Toggled flag '{}' ({}): {}", flag.name, flag.flag, flag.enabled);
+                log::info!(
+                    "Toggled flag '{}' ({}): {}",
+                    flag.name,
+                    flag.flag,
+                    flag.enabled
+                );
             }
         }
     }
@@ -461,10 +466,10 @@ impl TuiState {
     // Command execution
     pub fn run_selected_module_command(&mut self, args: &[&str]) {
         log::debug!("run_selected_module_command called with args: {:?}", args);
-        
+
         if let Some(module) = self.selected_module().map(|m| m.to_string()) {
             log::info!("Running command for module: {}", module);
-            
+
             // Collect enabled flags
             let enabled_flags: Vec<String> = self
                 .flags
@@ -492,7 +497,10 @@ impl TuiState {
                 &enabled_flags,
             ) {
                 Ok(output) => {
-                    log::info!("Command completed successfully, {} lines of output", output.len());
+                    log::info!(
+                        "Command completed successfully, {} lines of output",
+                        output.len()
+                    );
                     self.command_output = output;
                     self.output_offset = self.command_output.len();
 
