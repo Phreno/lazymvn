@@ -15,7 +15,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      # Install Maven (Linux)
       - uses: actions/checkout@v4
+      - name: Install Maven
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y maven
       - uses: dtolnay/rust-toolchain@stable
       - name: Build
         run: cargo build --verbose
