@@ -107,12 +107,15 @@ enum ButtonState {
 /// Handle key events and update TUI state accordingly
 pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
     log::debug!("Key event: {:?}", key);
-    
+
     if let Some(search_mod) = state.search_mod.take() {
-        log::debug!("In search mode: {:?}", match search_mod {
-            SearchMode::Input => "Input",
-            SearchMode::Cycling => "Cycling",
-        });
+        log::debug!(
+            "In search mode: {:?}",
+            match search_mod {
+                SearchMode::Input => "Input",
+                SearchMode::Cycling => "Cycling",
+            }
+        );
         match search_mod {
             SearchMode::Input => {
                 match key.code {
@@ -358,7 +361,8 @@ pub(crate) fn simplified_footer_title(
     let mut parts = Vec::new();
 
     if let Some(name) = module_name {
-        parts.push(name.to_string());
+        let display_name = if name == "." { "(root project)" } else { name };
+        parts.push(display_name.to_string());
     }
 
     if !active_profiles.is_empty() {
