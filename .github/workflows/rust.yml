@@ -6,40 +6,36 @@ on:
   pull_request:
     branches: [ "main" ]
   release:
-    types: [ published ]
+    types: [ published ]   # déclenche quand la release est publiée
 
 permissions:
-  contents: write
+  contents: write          # nécessaire pour uploader les assets
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v4
-    - name: Build
-      run: cargo build --verbose
-    - name: Run tests
-      run: cargo test --verbose
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build
+        run: cargo build --verbose
+      - name: Run tests
+        run: cargo test --verbose
 
-  release:
+  release-win:
     if: github.event_name == 'release'
     runs-on: windows-latest
-    
     steps:
-    - uses: actions/checkout@v4
-    - name: Build release binary
-      run: cargo build --release --verbose
-    - name: Upload Windows x86_64 binary
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ github.event.release.upload_url }}
-        asset_path: ./target/release/lazymvn.exe
-        asset_name: lazymvn-windows-x86_64.exe
-        asset_content_type: application/octet-stream
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build release binary
+        run: cargo build --release --verbose
+      - name: Upload asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: target/release/lazymvn.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
