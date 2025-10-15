@@ -176,7 +176,6 @@ pub fn get_profiles(project_root: &Path) -> Result<Vec<String>, std::io::Error> 
 mod tests {
     use super::*;
     use std::fs;
-    use std::os::unix::fs::PermissionsExt;
     use std::path::Path;
     use std::sync::{Mutex, OnceLock};
     use tempfile::tempdir;
