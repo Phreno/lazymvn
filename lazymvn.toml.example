@@ -1,0 +1,14 @@
+# LazyMVN Configuration File
+# Place this file as 'lazymvn.toml' in your project root
+
+# Custom Maven settings file path
+# If not specified, lazymvn searches in this order:
+# 1. settings.xml in project directory
+# 2. maven_settings.xml in project directory
+# 3. ~/.m2/settings.xml in user home
+maven_settings = "./settings.xml"
+
+# Future configuration options (not yet implemented):
+# default_profiles = ["dev"]
+# default_flags = ["--also-make"]
+# log_level = "info"
