@@ -173,10 +173,13 @@ mod tests {
         let mut mvnw_file = std::fs::File::create(&mvnw_path).unwrap();
         use std::io::Write;
         mvnw_file.write_all(b"#!/bin/sh\necho $@").unwrap();
-        use std::os::unix::fs::PermissionsExt;
-        let mut perms = mvnw_file.metadata().unwrap().permissions();
-        perms.set_mode(0o755);
-        mvnw_file.set_permissions(perms).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = mvnw_file.metadata().unwrap().permissions();
+            perms.set_mode(0o755);
+            mvnw_file.set_permissions(perms).unwrap();
+        }
         drop(mvnw_file);
 
         // 3. Create TuiState
@@ -209,10 +212,13 @@ mod tests {
         let mut mvnw_file = std::fs::File::create(&mvnw_path).unwrap();
         use std::io::Write;
         mvnw_file.write_all(b"#!/bin/sh\necho $@").unwrap();
-        use std::os::unix::fs::PermissionsExt;
-        let mut perms = mvnw_file.metadata().unwrap().permissions();
-        perms.set_mode(0o755);
-        mvnw_file.set_permissions(perms).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = mvnw_file.metadata().unwrap().permissions();
+            perms.set_mode(0o755);
+            mvnw_file.set_permissions(perms).unwrap();
+        }
         drop(mvnw_file);
 
         let modules = vec!["module1".to_string()];

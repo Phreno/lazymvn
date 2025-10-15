@@ -183,9 +183,15 @@ mod tests {
 
     fn write_script(path: &Path, content: &str) {
         fs::write(path, content).unwrap();
-        let mut perms = fs::metadata(path).unwrap().permissions();
-        perms.set_mode(0o755);
-        fs::set_permissions(path, perms).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = fs::metadata(path).unwrap().permissions();
+            perms.set_mode(0o755);
+            fs::set_permissions(path, perms).unwrap();
+        }
+        // On Windows, files are executable by default if they have .exe extension
+        // For tests, we don't need to set permissions on Windows
     }
 
     fn test_lock() -> &'static Mutex<()> {
