@@ -8,18 +8,17 @@ pub fn clean_log_line(raw: &str) -> Option<String> {
     let mut chars = raw.chars().peekable();
 
     while let Some(ch) = chars.next() {
-        if ch == '\u{1b}' {
-            if let Some('[') = chars.peek() {
+        if ch == '\u{1b}'
+            && let Some('[') = chars.peek() {
                 chars.next();
                 // Consume until we reach end of ANSI sequence
-                while let Some(next) = chars.next() {
+                for next in chars.by_ref() {
                     if ('@'..='~').contains(&next) {
                         break;
                     }
                 }
                 continue;
             }
-        }
 
         if ch != '\r' {
             result.push(ch);

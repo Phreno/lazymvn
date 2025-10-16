@@ -149,6 +149,7 @@ pub fn render_flags_pane(
 }
 
 /// Render the output pane
+#[allow(clippy::too_many_arguments)]
 pub fn render_output_pane(
     f: &mut Frame,
     area: Rect,
@@ -233,6 +234,7 @@ pub fn render_output_pane(
 }
 
 /// Render the footer with key hints and search status
+#[allow(clippy::too_many_arguments)]
 pub fn render_footer(
     f: &mut Frame,
     area: Rect,
