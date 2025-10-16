@@ -7,42 +7,12 @@ use std::{
     thread,
 };
 
-/// Check if Maven is available on the system
-pub fn check_maven_availability(project_root: &Path) -> Result<String, String> {
-    let maven_command = get_maven_command(project_root);
-    log::debug!("Checking Maven availability with command: {}", maven_command);
-    
-    let output = Command::new(&maven_command)
-        .arg("--version")
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output();
-        
-    match output {
-        Ok(output) => {
-            if output.status.success() {
-                let version_info = String::from_utf8_lossy(&output.stdout);
-                let first_line = version_info.lines().next().unwrap_or("Unknown version");
-                log::info!("Maven check successful: {}", first_line);
-                Ok(first_line.to_string())
-            } else {
-                let error = String::from_utf8_lossy(&output.stderr);
-                let error_msg = format!("Maven command failed: {}", error);
-                log::error!("{}", error_msg);
-                Err(error_msg)
-            }
-        }
-        Err(e) => {
-            let error_msg = match e.kind() {
-                std::io::ErrorKind::NotFound => {
-                    format!("Maven command '{}' not found. Please ensure Maven is installed and in your PATH.", maven_command)
-                },
-                _ => format!("Failed to execute Maven: {}", e)
-            };
-            log::error!("{}", error_msg);
-            Err(error_msg)
-        }
-    }
+/// Updates from async command execution
+#[derive(Debug, Clone)]
+pub enum CommandUpdate {
+    OutputLine(String),
+    Completed,
+    Error(String),
 }
 
 pub fn get_maven_command(project_root: &Path) -> String {
@@ -53,7 +23,7 @@ pub fn get_maven_command(project_root: &Path) -> String {
             return "./mvnw".to_string();
         }
     }
-    
+
     // On Windows, check for mvnw.bat, mvnw.cmd, or mvnw
     #[cfg(windows)]
     {
@@ -67,16 +37,8 @@ pub fn get_maven_command(project_root: &Path) -> String {
             return "mvnw".to_string();
         }
     }
-    
-    // Fall back to system Maven
-    #[cfg(windows)]
-    {
-        "mvn.cmd".to_string()
-    }
-    #[cfg(not(windows))]
-    {
-        "mvn".to_string()
-    }
+
+    "mvn".to_string()
 }
 
 pub fn execute_maven_command(
@@ -122,29 +84,12 @@ pub fn execute_maven_command(
     }
 
     log::info!("Spawning Maven process...");
-    let mut child = match command
+    let mut child = command
         .args(args)
         .current_dir(project_root)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .spawn() {
-            Ok(child) => child,
-            Err(e) => {
-                log::error!("Failed to spawn Maven process: {}", e);
-                log::error!("Command: {:?}", command);
-                log::error!("Working directory: {:?}", project_root);
-                log::error!("Full args: {:?}", args);
-                
-                // Provide more helpful error message
-                let error_msg = match e.kind() {
-                    std::io::ErrorKind::NotFound => {
-                        format!("Maven command '{}' not found. Please ensure Maven is installed and in your PATH.", get_maven_command(project_root))
-                    },
-                    _ => format!("Failed to execute Maven: {}", e)
-                };
-                return Err(std::io::Error::new(e.kind(), error_msg));
-            }
-        };
+        .spawn()?;
 
     log::debug!("Maven process spawned with PID: {:?}", child.id());
     let mut output = Vec::new();
@@ -157,9 +102,10 @@ pub fn execute_maven_command(
             let reader = BufReader::new(stdout);
             for line in reader.lines() {
                 if let Ok(line) = line
-                    && let Some(text) = utils::clean_log_line(&line) {
-                        let _ = tx.send(text);
-                    }
+                    && let Some(text) = utils::clean_log_line(&line)
+                {
+                    let _ = tx.send(text);
+                }
             }
         }));
     }
@@ -170,9 +116,10 @@ pub fn execute_maven_command(
             let reader = BufReader::new(stderr);
             for line in reader.lines() {
                 if let Ok(line) = line
-                    && let Some(text) = utils::clean_log_line(&line) {
-                        let _ = tx.send(format!("[ERR] {text}"));
-                    }
+                    && let Some(text) = utils::clean_log_line(&line)
+                {
+                    let _ = tx.send(format!("[ERR] {text}"));
+                }
             }
         }));
     }
@@ -202,6 +149,119 @@ pub fn execute_maven_command(
     Ok(output)
 }
 
+/// Async version that streams output line by line
+/// Returns a receiver that will receive output lines as they arrive
+pub fn execute_maven_command_async(
+    project_root: &Path,
+    module: Option<&str>,
+    args: &[&str],
+    profiles: &[String],
+    settings_path: Option<&str>,
+    flags: &[String],
+) -> Result<mpsc::Receiver<CommandUpdate>, std::io::Error> {
+    let maven_command = get_maven_command(project_root);
+    log::debug!(
+        "execute_maven_command_async: Using command: {}",
+        maven_command
+    );
+    log::debug!("  project_root: {:?}", project_root);
+    log::debug!("  module: {:?}", module);
+    log::debug!("  args: {:?}", args);
+
+    let mut command = Command::new(maven_command);
+    if let Some(settings_path) = settings_path {
+        command.arg("--settings").arg(settings_path);
+    }
+    if !profiles.is_empty() {
+        let profile_str = profiles.join(",");
+        command.arg("-P").arg(&profile_str);
+    }
+    if let Some(module) = module
+        && module != "."
+    {
+        command.arg("-pl").arg(module);
+    }
+    for flag in flags {
+        command.arg(flag);
+    }
+
+    let project_root = project_root.to_path_buf();
+    let args: Vec<String> = args.iter().map(|s| s.to_string()).collect();
+
+    let (tx, rx) = mpsc::channel();
+
+    // Spawn command execution in background thread
+    thread::spawn(move || {
+        let result = (|| -> Result<(), std::io::Error> {
+            log::info!("Spawning Maven process asynchronously...");
+            let mut child = command
+                .args(&args)
+                .current_dir(&project_root)
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()?;
+
+            log::debug!("Maven process spawned with PID: {:?}", child.id());
+
+            let stdout_tx = tx.clone();
+            let stderr_tx = tx.clone();
+            let mut handles = Vec::new();
+
+            if let Some(stdout) = child.stdout.take() {
+                handles.push(thread::spawn(move || {
+                    let reader = BufReader::new(stdout);
+                    for line in reader.lines() {
+                        if let Ok(line) = line
+                            && let Some(text) = utils::clean_log_line(&line)
+                        {
+                            let _ = stdout_tx.send(CommandUpdate::OutputLine(text));
+                        }
+                    }
+                }));
+            }
+
+            if let Some(stderr) = child.stderr.take() {
+                handles.push(thread::spawn(move || {
+                    let reader = BufReader::new(stderr);
+                    for line in reader.lines() {
+                        if let Ok(line) = line
+                            && let Some(text) = utils::clean_log_line(&line)
+                        {
+                            let _ =
+                                stderr_tx.send(CommandUpdate::OutputLine(format!("[ERR] {text}")));
+                        }
+                    }
+                }));
+            }
+
+            for handle in handles {
+                let _ = handle.join();
+            }
+
+            let exit_status = child.wait()?;
+            log::info!("Maven process completed with status: {:?}", exit_status);
+
+            if exit_status.success() {
+                let _ = tx.send(CommandUpdate::Completed);
+            } else {
+                let _ = tx.send(CommandUpdate::Error(format!(
+                    "Command failed with exit code: {:?}",
+                    exit_status.code()
+                )));
+            }
+
+            Ok(())
+        })();
+
+        if let Err(e) = result {
+            log::error!("Command execution error: {}", e);
+            let _ = tx.send(CommandUpdate::Error(format!("Execution error: {e}")));
+        }
+    });
+
+    Ok(rx)
+}
+
 pub fn get_profiles(project_root: &Path) -> Result<Vec<String>, std::io::Error> {
     log::debug!(
         "get_profiles: Fetching Maven profiles from {:?}",
@@ -209,45 +269,47 @@ pub fn get_profiles(project_root: &Path) -> Result<Vec<String>, std::io::Error> 
     );
     // Try to load config and use settings if available
     let config = crate::config::load_config(project_root);
+    // Run without -N flag to include profiles from all modules
     let output = execute_maven_command(
         project_root,
         None,
-        &["help:all-profiles", "-N"],
+        &["help:all-profiles"],
         &[],
         config.maven_settings.as_deref(),
         &[],
     )?;
-    let profiles: Vec<String> = output
-        .iter()
-        .filter_map(|line| {
-            if line.contains("Profile Id:") {
-                let parts: Vec<&str> = line.split("Profile Id:").collect();
-                if parts.len() > 1 {
-                    // Extract just the profile name, stop at first space or parenthesis
-                    let profile_part = parts[1].trim();
-                    let profile_name = profile_part
-                        .split_whitespace()
-                        .next()
-                        .unwrap_or("")
-                        .split('(')
-                        .next()
-                        .unwrap_or("")
-                        .trim();
-                    if !profile_name.is_empty() {
-                        log::debug!("Found profile: {}", profile_name);
-                        Some(profile_name.to_string())
-                    } else {
-                        None
-                    }
-                } else {
-                    None
+
+    // Use a HashSet to deduplicate profiles as they may appear multiple times
+    // (once per module that inherits or defines them)
+    let mut profile_set = std::collections::HashSet::new();
+
+    for line in output.iter() {
+        if line.contains("Profile Id:") {
+            let parts: Vec<&str> = line.split("Profile Id:").collect();
+            if parts.len() > 1 {
+                // Extract just the profile name, stop at first space or parenthesis
+                let profile_part = parts[1].trim();
+                let profile_name = profile_part
+                    .split_whitespace()
+                    .next()
+                    .unwrap_or("")
+                    .split('(')
+                    .next()
+                    .unwrap_or("")
+                    .trim();
+                if !profile_name.is_empty() {
+                    log::debug!("Found profile: {}", profile_name);
+                    profile_set.insert(profile_name.to_string());
                 }
-            } else {
-                None
             }
-        })
-        .collect();
-    log::info!("Discovered {} Maven profiles", profiles.len());
+        }
+    }
+
+    // Convert to sorted Vec for consistent ordering
+    let mut profiles: Vec<String> = profile_set.into_iter().collect();
+    profiles.sort();
+
+    log::info!("Discovered {} unique Maven profiles", profiles.len());
     Ok(profiles)
 }
 
@@ -300,7 +362,7 @@ mod tests {
             assert_eq!(get_maven_command(project_root), "./mvnw");
             std::fs::remove_file(&mvnw_path).unwrap();
         }
-        
+
         #[cfg(windows)]
         {
             let mvnw_path = project_root.join("mvnw.bat");
@@ -310,38 +372,7 @@ mod tests {
         }
 
         // Test without mvnw present
-        #[cfg(windows)]
-        {
-            assert_eq!(get_maven_command(project_root), "mvn.cmd");
-        }
-        #[cfg(not(windows))]
-        {
-            assert_eq!(get_maven_command(project_root), "mvn");
-        }
-    }
-
-    #[test]
-    fn get_maven_command_windows_extensions() {
-        let dir = tempdir().unwrap();
-        let _project_root = dir.path();
-
-        #[cfg(windows)]
-        {
-            // Test with mvnw.cmd present
-            let mvnw_cmd_path = _project_root.join("mvnw.cmd");
-            fs::File::create(&mvnw_cmd_path).unwrap();
-            assert_eq!(get_maven_command(_project_root), "mvnw.cmd");
-            std::fs::remove_file(&mvnw_cmd_path).unwrap();
-
-            // Test with mvnw.bat present
-            let mvnw_bat_path = _project_root.join("mvnw.bat");
-            fs::File::create(&mvnw_bat_path).unwrap();
-            assert_eq!(get_maven_command(_project_root), "mvnw.bat");
-            std::fs::remove_file(&mvnw_bat_path).unwrap();
-
-            // Test fallback to mvn.cmd
-            assert_eq!(get_maven_command(_project_root), "mvn.cmd");
-        }
+        assert_eq!(get_maven_command(project_root), "mvn");
     }
 
     #[test]
@@ -430,6 +461,26 @@ mod tests {
 
         let profiles = get_profiles(project_root).unwrap();
         assert_eq!(profiles, vec!["profile-1", "profile-2"]);
+    }
+
+    #[test]
+    #[cfg(unix)] // Shell script execution not supported on Windows
+    fn test_get_profiles_deduplicates_and_sorts() {
+        let _guard = test_lock().lock().unwrap();
+        let dir = tempdir().unwrap();
+        let project_root = dir.path();
+
+        // Create a mock mvnw script that simulates Maven's help:all-profiles output
+        // with duplicates (as would happen in multi-module projects without -N)
+        let mvnw_path = project_root.join("mvnw");
+        write_script(
+            &mvnw_path,
+            "#!/bin/sh\necho '  Profile Id: profile-2 (Active: false, Source: pom)'\necho '  Profile Id: profile-1 (Active: false, Source: pom)'\necho '  Profile Id: profile-2 (Active: false, Source: pom)'\necho '  Profile Id: child-profile (Active: false, Source: pom)'\n",
+        );
+
+        let profiles = get_profiles(project_root).unwrap();
+        // Should be deduplicated and sorted
+        assert_eq!(profiles, vec!["child-profile", "profile-1", "profile-2"]);
     }
 
     #[test]

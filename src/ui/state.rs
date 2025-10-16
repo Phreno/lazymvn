@@ -3,7 +3,12 @@ use crate::ui::keybindings::{CurrentView, Focus, SearchMode};
 use crate::ui::search::{SearchMatch, SearchState, collect_search_matches};
 use ratatui::widgets::ListState;
 use regex::Regex;
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::mpsc,
+    time::{Duration, Instant},
+};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 /// Output data for a specific module
@@ -93,6 +98,13 @@ pub struct TuiState {
     pending_center: Option<SearchMatch>,
     pub search_mod: Option<SearchMode>,
     pub config: crate::config::Config,
+    // Debouncing for navigation keys
+    last_nav_key_time: Option<Instant>,
+    nav_debounce_duration: Duration,
+    // Async command execution
+    command_receiver: Option<mpsc::Receiver<maven::CommandUpdate>>,
+    pub is_command_running: bool,
+    command_start_time: Option<Instant>,
 }
 
 /// Maven build flags that can be toggled
@@ -186,6 +198,11 @@ impl TuiState {
             pending_center: None,
             search_mod: None,
             config,
+            last_nav_key_time: None,
+            nav_debounce_duration: Duration::from_millis(100),
+            command_receiver: None,
+            is_command_running: false,
+            command_start_time: None,
         };
         state.sync_selected_module_output();
         state
@@ -198,8 +215,28 @@ impl TuiState {
         }
     }
 
+    /// Check if enough time has passed since last navigation key
+    /// Returns true if navigation should be allowed
+    fn should_allow_navigation(&mut self) -> bool {
+        let now = Instant::now();
+
+        if let Some(last_time) = self.last_nav_key_time
+            && now.duration_since(last_time) < self.nav_debounce_duration
+        {
+            log::debug!("Navigation debounced (too fast)");
+            return false;
+        }
+
+        self.last_nav_key_time = Some(now);
+        true
+    }
+
     // Navigation methods
     pub fn next_item(&mut self) {
+        if !self.should_allow_navigation() {
+            return;
+        }
+
         match self.current_view {
             CurrentView::Modules => {
                 if self.modules.is_empty() {
@@ -234,6 +271,10 @@ impl TuiState {
     }
 
     pub fn previous_item(&mut self) {
+        if !self.should_allow_navigation() {
+            return;
+        }
+
         match self.current_view {
             CurrentView::Modules => {
                 if self.modules.is_empty() {
@@ -290,16 +331,17 @@ impl TuiState {
             return;
         }
         if let Some(selected) = self.profiles_list_state.selected()
-            && let Some(profile) = self.profiles.get(selected) {
-                if let Some(pos) = self.active_profiles.iter().position(|p| p == profile) {
-                    log::info!("Deactivating profile: {}", profile);
-                    self.active_profiles.remove(pos);
-                } else {
-                    log::info!("Activating profile: {}", profile);
-                    self.active_profiles.push(profile.clone());
-                }
-                log::debug!("Active profiles now: {:?}", self.active_profiles);
+            && let Some(profile) = self.profiles.get(selected)
+        {
+            if let Some(pos) = self.active_profiles.iter().position(|p| p == profile) {
+                log::info!("Deactivating profile: {}", profile);
+                self.active_profiles.remove(pos);
+            } else {
+                log::info!("Activating profile: {}", profile);
+                self.active_profiles.push(profile.clone());
             }
+            log::debug!("Active profiles now: {:?}", self.active_profiles);
+        }
     }
 
     pub fn toggle_flag(&mut self) {
@@ -307,15 +349,16 @@ impl TuiState {
             return;
         }
         if let Some(selected) = self.flags_list_state.selected()
-            && let Some(flag) = self.flags.get_mut(selected) {
-                flag.enabled = !flag.enabled;
-                log::info!(
-                    "Toggled flag '{}' ({}): {}",
-                    flag.name,
-                    flag.flag,
-                    flag.enabled
-                );
-            }
+            && let Some(flag) = self.flags.get_mut(selected)
+        {
+            flag.enabled = !flag.enabled;
+            log::info!(
+                "Toggled flag '{}' ({}): {}",
+                flag.name,
+                flag.flag,
+                flag.enabled
+            );
+        }
     }
 
     pub fn selected_module(&self) -> Option<&str> {
@@ -465,8 +508,14 @@ impl TuiState {
     pub fn run_selected_module_command(&mut self, args: &[&str]) {
         log::debug!("run_selected_module_command called with args: {:?}", args);
 
+        // Don't start a new command if one is already running
+        if self.is_command_running {
+            log::warn!("Command already running, ignoring new command request");
+            return;
+        }
+
         if let Some(module) = self.selected_module().map(|m| m.to_string()) {
-            log::info!("Running command for module: {}", module);
+            log::info!("Running async command for module: {}", module);
 
             // Collect enabled flags
             let enabled_flags: Vec<String> = self
@@ -486,7 +535,11 @@ impl TuiState {
             log::debug!("Enabled flags: {:?}", enabled_flag_names);
             log::debug!("Active profiles: {:?}", self.active_profiles);
 
-            match maven::execute_maven_command(
+            // Clear previous output and prepare for new command
+            self.command_output = vec![format!("Running: {} ...", args.join(" "))];
+            self.output_offset = 0;
+
+            match maven::execute_maven_command_async(
                 &self.project_root,
                 Some(&module),
                 args,
@@ -494,13 +547,11 @@ impl TuiState {
                 self.config.maven_settings.as_deref(),
                 &enabled_flags,
             ) {
-                Ok(output) => {
-                    log::info!(
-                        "Command completed successfully, {} lines of output",
-                        output.len()
-                    );
-                    self.command_output = output;
-                    self.output_offset = self.command_output.len();
+                Ok(receiver) => {
+                    log::info!("Async command started successfully");
+                    self.command_receiver = Some(receiver);
+                    self.is_command_running = true;
+                    self.command_start_time = Some(Instant::now());
 
                     // Store metadata about this command execution
                     let module_output = ModuleOutput {
@@ -513,18 +564,8 @@ impl TuiState {
                     self.module_outputs.insert(module, module_output);
                 }
                 Err(e) => {
-                    log::error!("Command failed: {}", e);
-                    let error_msg = format!("Error: {}", e);
-                    log::error!("Showing error to user: {}", error_msg);
-                    self.command_output = vec![
-                        error_msg,
-                        String::new(),
-                        "Troubleshooting:".to_string(),
-                        "- Verify Maven is installed: mvn -v".to_string(),
-                        "- Check PATH contains Maven bin directory".to_string(),
-                        "- On Windows, ensure mvn.cmd is accessible".to_string(),
-                        "- Check lazymvn-error.log for detailed error information".to_string(),
-                    ];
+                    log::error!("Failed to start async command: {}", e);
+                    self.command_output = vec![format!("Error starting command: {e}")];
                     self.output_offset = 0;
                 }
             }
@@ -535,8 +576,72 @@ impl TuiState {
         }
         self.clamp_output_offset();
         self.output_metrics = None;
-        self.refresh_search_matches();
-        self.clamp_output_offset();
+    }
+
+    /// Check for and process any pending command updates
+    /// Should be called regularly from the main event loop
+    pub fn poll_command_updates(&mut self) {
+        // Collect all pending updates first to avoid borrowing issues
+        let mut updates = Vec::new();
+        let mut should_clear_receiver = false;
+
+        if let Some(receiver) = self.command_receiver.as_ref() {
+            loop {
+                match receiver.try_recv() {
+                    Ok(update) => updates.push(update),
+                    Err(mpsc::TryRecvError::Empty) => break,
+                    Err(mpsc::TryRecvError::Disconnected) => {
+                        log::warn!("Command channel disconnected unexpectedly");
+                        should_clear_receiver = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Now process all updates
+        for update in updates {
+            match update {
+                maven::CommandUpdate::OutputLine(line) => {
+                    self.command_output.push(line);
+                    // Auto-scroll to bottom while command is running
+                    if self.focus == Focus::Output {
+                        self.output_offset = self.command_output.len().saturating_sub(1);
+                    }
+                    self.store_current_module_output();
+                }
+                maven::CommandUpdate::Completed => {
+                    log::info!("Command completed successfully");
+                    self.command_output.push(String::new());
+                    self.command_output
+                        .push("✓ Command completed successfully".to_string());
+                    self.is_command_running = false;
+                    self.command_receiver = None;
+                    self.store_current_module_output();
+                    self.output_metrics = None;
+                }
+                maven::CommandUpdate::Error(msg) => {
+                    log::error!("Command failed: {}", msg);
+                    self.command_output.push(String::new());
+                    self.command_output.push(format!("✗ {}", msg));
+                    self.is_command_running = false;
+                    self.command_receiver = None;
+                    self.store_current_module_output();
+                    self.output_metrics = None;
+                }
+            }
+        }
+
+        if should_clear_receiver {
+            self.is_command_running = false;
+            self.command_receiver = None;
+        }
+    }
+
+    /// Get elapsed time of current command in seconds
+    pub fn command_elapsed_seconds(&self) -> Option<u64> {
+        self.command_start_time
+            .map(|start| start.elapsed().as_secs())
     }
 
     // Output display and metrics
@@ -567,6 +672,9 @@ impl TuiState {
     }
 
     pub fn scroll_output_lines(&mut self, delta: isize) {
+        if !self.should_allow_navigation() {
+            return;
+        }
         if self.command_output.is_empty() {
             return;
         }
@@ -653,10 +761,11 @@ impl TuiState {
             Some(i) => Some(i - 1),
         };
         if let Some(idx) = next_index
-            && let Some(query) = self.search_history.get(idx) {
-                self.search_input = Some(query.clone());
-                self.search_history_index = Some(idx);
-            }
+            && let Some(query) = self.search_history.get(idx)
+        {
+            self.search_input = Some(query.clone());
+            self.search_history_index = Some(idx);
+        }
     }
 
     pub fn recall_next_search(&mut self) {
@@ -709,10 +818,9 @@ impl TuiState {
         let matches = collect_search_matches(&self.command_output, &regex);
         let mut current_index = 0usize;
 
-        if keep_current
-            && let Some(existing) = self.search_state.as_ref() {
-                current_index = existing.current.min(matches.len().saturating_sub(1));
-            }
+        if keep_current && let Some(existing) = self.search_state.as_ref() {
+            current_index = existing.current.min(matches.len().saturating_sub(1));
+        }
 
         self.search_state = Some(SearchState::new(query, matches));
 
@@ -806,9 +914,10 @@ impl TuiState {
 
     fn ensure_current_match_visible(&mut self) {
         if let Some(search) = self.search_state.as_ref()
-            && let Some(current_match) = search.current_match() {
-                self.center_on_match(current_match.clone());
-            }
+            && let Some(current_match) = search.current_match()
+        {
+            self.center_on_match(current_match.clone());
+        }
     }
 
     // Getters for search state
