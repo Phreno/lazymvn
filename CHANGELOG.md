@@ -49,6 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cache invalidation when POM file changes
 - Module selection state initialization for empty projects
 - `--project` / `-p` command-line argument now correctly changes to specified directory
+- Windows Maven command execution now uses `mvn.cmd` instead of `mvn` to prevent "program not found" errors
 
 ## [0.1.0] - Initial Development
 
