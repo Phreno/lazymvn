@@ -514,7 +514,17 @@ impl TuiState {
                 }
                 Err(e) => {
                     log::error!("Command failed: {}", e);
-                    self.command_output = vec![format!("Error: {e}")];
+                    let error_msg = format!("Error: {}", e);
+                    log::error!("Showing error to user: {}", error_msg);
+                    self.command_output = vec![
+                        error_msg,
+                        String::new(),
+                        "Troubleshooting:".to_string(),
+                        "- Verify Maven is installed: mvn -v".to_string(),
+                        "- Check PATH contains Maven bin directory".to_string(),
+                        "- On Windows, ensure mvn.cmd is accessible".to_string(),
+                        "- Check lazymvn-error.log for detailed error information".to_string(),
+                    ];
                     self.output_offset = 0;
                 }
             }

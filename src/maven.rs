@@ -7,6 +7,44 @@ use std::{
     thread,
 };
 
+/// Check if Maven is available on the system
+pub fn check_maven_availability(project_root: &Path) -> Result<String, String> {
+    let maven_command = get_maven_command(project_root);
+    log::debug!("Checking Maven availability with command: {}", maven_command);
+    
+    let output = Command::new(&maven_command)
+        .arg("--version")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output();
+        
+    match output {
+        Ok(output) => {
+            if output.status.success() {
+                let version_info = String::from_utf8_lossy(&output.stdout);
+                let first_line = version_info.lines().next().unwrap_or("Unknown version");
+                log::info!("Maven check successful: {}", first_line);
+                Ok(first_line.to_string())
+            } else {
+                let error = String::from_utf8_lossy(&output.stderr);
+                let error_msg = format!("Maven command failed: {}", error);
+                log::error!("{}", error_msg);
+                Err(error_msg)
+            }
+        }
+        Err(e) => {
+            let error_msg = match e.kind() {
+                std::io::ErrorKind::NotFound => {
+                    format!("Maven command '{}' not found. Please ensure Maven is installed and in your PATH.", maven_command)
+                },
+                _ => format!("Failed to execute Maven: {}", e)
+            };
+            log::error!("{}", error_msg);
+            Err(error_msg)
+        }
+    }
+}
+
 pub fn get_maven_command(project_root: &Path) -> String {
     // On Unix, check for mvnw
     #[cfg(unix)]
@@ -30,7 +68,15 @@ pub fn get_maven_command(project_root: &Path) -> String {
         }
     }
     
-    "mvn".to_string()
+    // Fall back to system Maven
+    #[cfg(windows)]
+    {
+        "mvn.cmd".to_string()
+    }
+    #[cfg(not(windows))]
+    {
+        "mvn".to_string()
+    }
 }
 
 pub fn execute_maven_command(
@@ -76,12 +122,29 @@ pub fn execute_maven_command(
     }
 
     log::info!("Spawning Maven process...");
-    let mut child = command
+    let mut child = match command
         .args(args)
         .current_dir(project_root)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .spawn()?;
+        .spawn() {
+            Ok(child) => child,
+            Err(e) => {
+                log::error!("Failed to spawn Maven process: {}", e);
+                log::error!("Command: {:?}", command);
+                log::error!("Working directory: {:?}", project_root);
+                log::error!("Full args: {:?}", args);
+                
+                // Provide more helpful error message
+                let error_msg = match e.kind() {
+                    std::io::ErrorKind::NotFound => {
+                        format!("Maven command '{}' not found. Please ensure Maven is installed and in your PATH.", get_maven_command(project_root))
+                    },
+                    _ => format!("Failed to execute Maven: {}", e)
+                };
+                return Err(std::io::Error::new(e.kind(), error_msg));
+            }
+        };
 
     log::debug!("Maven process spawned with PID: {:?}", child.id());
     let mut output = Vec::new();
@@ -247,7 +310,38 @@ mod tests {
         }
 
         // Test without mvnw present
-        assert_eq!(get_maven_command(project_root), "mvn");
+        #[cfg(windows)]
+        {
+            assert_eq!(get_maven_command(project_root), "mvn.cmd");
+        }
+        #[cfg(not(windows))]
+        {
+            assert_eq!(get_maven_command(project_root), "mvn");
+        }
+    }
+
+    #[test]
+    fn get_maven_command_windows_extensions() {
+        let dir = tempdir().unwrap();
+        let _project_root = dir.path();
+
+        #[cfg(windows)]
+        {
+            // Test with mvnw.cmd present
+            let mvnw_cmd_path = _project_root.join("mvnw.cmd");
+            fs::File::create(&mvnw_cmd_path).unwrap();
+            assert_eq!(get_maven_command(_project_root), "mvnw.cmd");
+            std::fs::remove_file(&mvnw_cmd_path).unwrap();
+
+            // Test with mvnw.bat present
+            let mvnw_bat_path = _project_root.join("mvnw.bat");
+            fs::File::create(&mvnw_bat_path).unwrap();
+            assert_eq!(get_maven_command(_project_root), "mvnw.bat");
+            std::fs::remove_file(&mvnw_bat_path).unwrap();
+
+            // Test fallback to mvn.cmd
+            assert_eq!(get_maven_command(_project_root), "mvn.cmd");
+        }
     }
 
     #[test]
