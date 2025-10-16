@@ -30,6 +30,8 @@ jobs:
   release-win:
     if: github.event_name == 'release'
     runs-on: windows-latest
+    permissions:
+      contents: read
     steps:
     - uses: actions/checkout@v4
     - name: Build
@@ -40,17 +42,17 @@ jobs:
   release:
     if: github.event_name == 'release'
     runs-on: windows-latest
+    permissions:
+      contents: write
     
     steps:
     - uses: actions/checkout@v4
     - name: Build release binary
       run: cargo build --release --verbose
-    - name: Upload Windows x86_64 binary
-      uses: actions/upload-release-asset@v1
+    - name: Upload Windows x86_64 binary to release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: ./target/release/lazymvn.exe
+        tag_name: ${{ github.event.release.tag_name }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ github.event.release.upload_url }}
-        asset_path: ./target/release/lazymvn.exe
-        asset_name: lazymvn-windows-x86_64.exe
-        asset_content_type: application/octet-stream
