@@ -1,6 +1,6 @@
 [package]
 name = "lazymvn"
-version = "0.1.0"
+version = "0.1.9"
 edition = "2024"
 authors = ["Phreno"]
 description = "A cross-platform terminal UI for Maven projects"
