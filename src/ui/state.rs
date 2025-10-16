@@ -3,7 +3,11 @@ use crate::ui::keybindings::{CurrentView, Focus, SearchMode};
 use crate::ui::search::{SearchMatch, SearchState, collect_search_matches};
 use ratatui::widgets::ListState;
 use regex::Regex;
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    time::{Duration, Instant},
+};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 /// Output data for a specific module
@@ -93,6 +97,9 @@ pub struct TuiState {
     pending_center: Option<SearchMatch>,
     pub search_mod: Option<SearchMode>,
     pub config: crate::config::Config,
+    // Debouncing for navigation keys
+    last_nav_key_time: Option<Instant>,
+    nav_debounce_duration: Duration,
 }
 
 /// Maven build flags that can be toggled
@@ -186,6 +193,8 @@ impl TuiState {
             pending_center: None,
             search_mod: None,
             config,
+            last_nav_key_time: None,
+            nav_debounce_duration: Duration::from_millis(100),
         };
         state.sync_selected_module_output();
         state
@@ -198,8 +207,28 @@ impl TuiState {
         }
     }
 
+    /// Check if enough time has passed since last navigation key
+    /// Returns true if navigation should be allowed
+    fn should_allow_navigation(&mut self) -> bool {
+        let now = Instant::now();
+
+        if let Some(last_time) = self.last_nav_key_time
+            && now.duration_since(last_time) < self.nav_debounce_duration
+        {
+            log::debug!("Navigation debounced (too fast)");
+            return false;
+        }
+
+        self.last_nav_key_time = Some(now);
+        true
+    }
+
     // Navigation methods
     pub fn next_item(&mut self) {
+        if !self.should_allow_navigation() {
+            return;
+        }
+
         match self.current_view {
             CurrentView::Modules => {
                 if self.modules.is_empty() {
@@ -234,6 +263,10 @@ impl TuiState {
     }
 
     pub fn previous_item(&mut self) {
+        if !self.should_allow_navigation() {
+            return;
+        }
+
         match self.current_view {
             CurrentView::Modules => {
                 if self.modules.is_empty() {
@@ -559,6 +592,9 @@ impl TuiState {
     }
 
     pub fn scroll_output_lines(&mut self, delta: isize) {
+        if !self.should_allow_navigation() {
+            return;
+        }
         if self.command_output.is_empty() {
             return;
         }

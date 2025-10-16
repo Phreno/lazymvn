@@ -290,4 +290,37 @@ mod tests {
             "All flags should start disabled"
         );
     }
+
+    #[test]
+    fn test_navigation_debouncing() {
+        use std::{thread, time::Duration};
+        
+        let modules = vec!["module1".to_string(), "module2".to_string(), "module3".to_string()];
+        let project_root = PathBuf::from("/");
+        let mut state = crate::ui::state::TuiState::new(modules, project_root, test_cfg());
+
+        // Initial selection should be module1 (index 0)
+        assert_eq!(state.modules_list_state.selected(), Some(0));
+
+        // Rapid down presses - should only move once due to debouncing
+        for _ in 0..5 {
+            handle_key_event(
+                crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Down),
+                &mut state,
+            );
+        }
+        
+        // Should only have moved to index 1, not 5 (due to debouncing)
+        assert_eq!(state.modules_list_state.selected(), Some(1));
+
+        // Wait for debounce period to pass
+        thread::sleep(Duration::from_millis(110));
+
+        // Now another press should work
+        handle_key_event(
+            crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Down),
+            &mut state,
+        );
+        assert_eq!(state.modules_list_state.selected(), Some(2));
+    }
 }
