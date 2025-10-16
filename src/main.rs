@@ -38,7 +38,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(ref project_path) = cli.project {
         log::info!("Changing to project directory: {}", project_path);
         std::env::set_current_dir(project_path).map_err(|e| {
-            format!("Failed to change to project directory '{}': {}", project_path, e)
+            format!(
+                "Failed to change to project directory '{}': {}",
+                project_path, e
+            )
         })?;
     }
 
@@ -89,13 +92,14 @@ fn run<B: ratatui::backend::Backend>(
         tui::draw(terminal, &mut state)?;
 
         if event::poll(std::time::Duration::from_millis(50))?
-            && let event::Event::Key(key) = event::read()? {
-                if key.code == event::KeyCode::Char('q') {
-                    log::info!("User requested quit");
-                    break;
-                }
-                tui::handle_key_event(key, &mut state);
+            && let event::Event::Key(key) = event::read()?
+        {
+            if key.code == event::KeyCode::Char('q') {
+                log::info!("User requested quit");
+                break;
             }
+            tui::handle_key_event(key, &mut state);
+        }
     }
     Ok(())
 }

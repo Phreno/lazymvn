@@ -290,16 +290,17 @@ impl TuiState {
             return;
         }
         if let Some(selected) = self.profiles_list_state.selected()
-            && let Some(profile) = self.profiles.get(selected) {
-                if let Some(pos) = self.active_profiles.iter().position(|p| p == profile) {
-                    log::info!("Deactivating profile: {}", profile);
-                    self.active_profiles.remove(pos);
-                } else {
-                    log::info!("Activating profile: {}", profile);
-                    self.active_profiles.push(profile.clone());
-                }
-                log::debug!("Active profiles now: {:?}", self.active_profiles);
+            && let Some(profile) = self.profiles.get(selected)
+        {
+            if let Some(pos) = self.active_profiles.iter().position(|p| p == profile) {
+                log::info!("Deactivating profile: {}", profile);
+                self.active_profiles.remove(pos);
+            } else {
+                log::info!("Activating profile: {}", profile);
+                self.active_profiles.push(profile.clone());
             }
+            log::debug!("Active profiles now: {:?}", self.active_profiles);
+        }
     }
 
     pub fn toggle_flag(&mut self) {
@@ -307,15 +308,16 @@ impl TuiState {
             return;
         }
         if let Some(selected) = self.flags_list_state.selected()
-            && let Some(flag) = self.flags.get_mut(selected) {
-                flag.enabled = !flag.enabled;
-                log::info!(
-                    "Toggled flag '{}' ({}): {}",
-                    flag.name,
-                    flag.flag,
-                    flag.enabled
-                );
-            }
+            && let Some(flag) = self.flags.get_mut(selected)
+        {
+            flag.enabled = !flag.enabled;
+            log::info!(
+                "Toggled flag '{}' ({}): {}",
+                flag.name,
+                flag.flag,
+                flag.enabled
+            );
+        }
     }
 
     pub fn selected_module(&self) -> Option<&str> {
@@ -643,10 +645,11 @@ impl TuiState {
             Some(i) => Some(i - 1),
         };
         if let Some(idx) = next_index
-            && let Some(query) = self.search_history.get(idx) {
-                self.search_input = Some(query.clone());
-                self.search_history_index = Some(idx);
-            }
+            && let Some(query) = self.search_history.get(idx)
+        {
+            self.search_input = Some(query.clone());
+            self.search_history_index = Some(idx);
+        }
     }
 
     pub fn recall_next_search(&mut self) {
@@ -699,10 +702,9 @@ impl TuiState {
         let matches = collect_search_matches(&self.command_output, &regex);
         let mut current_index = 0usize;
 
-        if keep_current
-            && let Some(existing) = self.search_state.as_ref() {
-                current_index = existing.current.min(matches.len().saturating_sub(1));
-            }
+        if keep_current && let Some(existing) = self.search_state.as_ref() {
+            current_index = existing.current.min(matches.len().saturating_sub(1));
+        }
 
         self.search_state = Some(SearchState::new(query, matches));
 
@@ -796,9 +798,10 @@ impl TuiState {
 
     fn ensure_current_match_visible(&mut self) {
         if let Some(search) = self.search_state.as_ref()
-            && let Some(current_match) = search.current_match() {
-                self.center_on_match(current_match.clone());
-            }
+            && let Some(current_match) = search.current_match()
+        {
+            self.center_on_match(current_match.clone());
+        }
     }
 
     // Getters for search state

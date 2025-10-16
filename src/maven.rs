@@ -15,7 +15,7 @@ pub fn get_maven_command(project_root: &Path) -> String {
             return "./mvnw".to_string();
         }
     }
-    
+
     // On Windows, check for mvnw.bat, mvnw.cmd, or mvnw
     #[cfg(windows)]
     {
@@ -29,8 +29,17 @@ pub fn get_maven_command(project_root: &Path) -> String {
             return "mvnw".to_string();
         }
     }
-    
-    "mvn".to_string()
+
+    // Fall back to system Maven
+    #[cfg(windows)]
+    {
+        "mvn.cmd".to_string()
+    }
+
+    #[cfg(not(windows))]
+    {
+        "mvn".to_string()
+    }
 }
 
 pub fn execute_maven_command(
@@ -94,9 +103,10 @@ pub fn execute_maven_command(
             let reader = BufReader::new(stdout);
             for line in reader.lines() {
                 if let Ok(line) = line
-                    && let Some(text) = utils::clean_log_line(&line) {
-                        let _ = tx.send(text);
-                    }
+                    && let Some(text) = utils::clean_log_line(&line)
+                {
+                    let _ = tx.send(text);
+                }
             }
         }));
     }
@@ -107,9 +117,10 @@ pub fn execute_maven_command(
             let reader = BufReader::new(stderr);
             for line in reader.lines() {
                 if let Ok(line) = line
-                    && let Some(text) = utils::clean_log_line(&line) {
-                        let _ = tx.send(format!("[ERR] {text}"));
-                    }
+                    && let Some(text) = utils::clean_log_line(&line)
+                {
+                    let _ = tx.send(format!("[ERR] {text}"));
+                }
             }
         }));
     }
@@ -237,7 +248,7 @@ mod tests {
             assert_eq!(get_maven_command(project_root), "./mvnw");
             std::fs::remove_file(&mvnw_path).unwrap();
         }
-        
+
         #[cfg(windows)]
         {
             let mvnw_path = project_root.join("mvnw.bat");
@@ -246,8 +257,16 @@ mod tests {
             std::fs::remove_file(&mvnw_path).unwrap();
         }
 
-        // Test without mvnw present
-        assert_eq!(get_maven_command(project_root), "mvn");
+        // Test without mvnw present - should use system Maven with correct extension
+        #[cfg(unix)]
+        {
+            assert_eq!(get_maven_command(project_root), "mvn");
+        }
+
+        #[cfg(windows)]
+        {
+            assert_eq!(get_maven_command(project_root), "mvn.cmd");
+        }
     }
 
     #[test]
