@@ -93,11 +93,10 @@ pub fn execute_maven_command(
         handles.push(thread::spawn(move || {
             let reader = BufReader::new(stdout);
             for line in reader.lines() {
-                if let Ok(line) = line {
-                    if let Some(text) = utils::clean_log_line(&line) {
+                if let Ok(line) = line
+                    && let Some(text) = utils::clean_log_line(&line) {
                         let _ = tx.send(text);
                     }
-                }
             }
         }));
     }
@@ -107,11 +106,10 @@ pub fn execute_maven_command(
         handles.push(thread::spawn(move || {
             let reader = BufReader::new(stderr);
             for line in reader.lines() {
-                if let Ok(line) = line {
-                    if let Some(text) = utils::clean_log_line(&line) {
+                if let Ok(line) = line
+                    && let Some(text) = utils::clean_log_line(&line) {
                         let _ = tx.send(format!("[ERR] {text}"));
                     }
-                }
             }
         }));
     }
