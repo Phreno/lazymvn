@@ -45,6 +45,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         })?;
     }
 
+    // Check Maven availability early
+    let current_dir = std::env::current_dir()?;
+    match maven::check_maven_availability(&current_dir) {
+        Ok(version) => {
+            log::info!("Maven available: {}", version);
+        }
+        Err(error) => {
+            log::error!("Maven check failed: {}", error);
+            eprintln!("❌ {}", error);
+            eprintln!("\nPlease ensure Maven is installed and accessible from your PATH.");
+            eprintln!("You can verify this by running: mvn --version");
+            return Err(error.into());
+        }
+    }
+
     // setup terminal
     let mut stdout = io::stdout();
     crossterm::terminal::enable_raw_mode()?;
