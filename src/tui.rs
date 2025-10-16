@@ -204,6 +204,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)] // Shell script execution not supported on Windows
     fn test_build_command_runs_clean_install() {
         let project_dir = tempdir().unwrap();
         let project_root = project_dir.path();
