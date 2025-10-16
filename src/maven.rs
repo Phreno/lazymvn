@@ -8,11 +8,29 @@ use std::{
 };
 
 pub fn get_maven_command(project_root: &Path) -> String {
-    if project_root.join("mvnw").exists() {
-        "./mvnw".to_string()
-    } else {
-        "mvn".to_string()
+    // On Unix, check for mvnw
+    #[cfg(unix)]
+    {
+        if project_root.join("mvnw").exists() {
+            return "./mvnw".to_string();
+        }
     }
+    
+    // On Windows, check for mvnw.bat, mvnw.cmd, or mvnw
+    #[cfg(windows)]
+    {
+        if project_root.join("mvnw.bat").exists() {
+            return "mvnw.bat".to_string();
+        }
+        if project_root.join("mvnw.cmd").exists() {
+            return "mvnw.cmd".to_string();
+        }
+        if project_root.join("mvnw").exists() {
+            return "mvnw".to_string();
+        }
+    }
+    
+    "mvn".to_string()
 }
 
 pub fn execute_maven_command(
@@ -189,8 +207,18 @@ mod tests {
             perms.set_mode(0o755);
             fs::set_permissions(path, perms).unwrap();
         }
-        // On Windows, files are executable by default if they have .exe extension
-        // For tests, we don't need to set permissions on Windows
+        // On Windows, batch files (.bat, .cmd) are executable by default
+        // For tests, we create both the script and a .bat version
+        #[cfg(windows)]
+        {
+            // Create a .bat file for Windows
+            let bat_path = path.with_extension("bat");
+            // Convert basic shell echo to batch echo
+            let bat_content = content
+                .replace("#!/bin/sh\n", "")
+                .replace("echo $@", "echo %*");
+            fs::write(&bat_path, bat_content).unwrap();
+        }
     }
 
     fn test_lock() -> &'static Mutex<()> {
@@ -204,12 +232,23 @@ mod tests {
         let project_root = dir.path();
 
         // Test with mvnw present
-        let mvnw_path = project_root.join("mvnw");
-        fs::File::create(&mvnw_path).unwrap();
-        assert_eq!(get_maven_command(project_root), "./mvnw");
+        #[cfg(unix)]
+        {
+            let mvnw_path = project_root.join("mvnw");
+            fs::File::create(&mvnw_path).unwrap();
+            assert_eq!(get_maven_command(project_root), "./mvnw");
+            std::fs::remove_file(&mvnw_path).unwrap();
+        }
+        
+        #[cfg(windows)]
+        {
+            let mvnw_path = project_root.join("mvnw.bat");
+            fs::File::create(&mvnw_path).unwrap();
+            assert_eq!(get_maven_command(project_root), "mvnw.bat");
+            std::fs::remove_file(&mvnw_path).unwrap();
+        }
 
         // Test without mvnw present
-        std::fs::remove_file(&mvnw_path).unwrap();
         assert_eq!(get_maven_command(project_root), "mvn");
     }
 
