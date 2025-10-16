@@ -7,6 +7,14 @@ use std::{
     thread,
 };
 
+/// Updates from async command execution
+#[derive(Debug, Clone)]
+pub enum CommandUpdate {
+    OutputLine(String),
+    Completed,
+    Error(String),
+}
+
 pub fn get_maven_command(project_root: &Path) -> String {
     // On Unix, check for mvnw
     #[cfg(unix)]
@@ -139,6 +147,119 @@ pub fn execute_maven_command(
     }
 
     Ok(output)
+}
+
+/// Async version that streams output line by line
+/// Returns a receiver that will receive output lines as they arrive
+pub fn execute_maven_command_async(
+    project_root: &Path,
+    module: Option<&str>,
+    args: &[&str],
+    profiles: &[String],
+    settings_path: Option<&str>,
+    flags: &[String],
+) -> Result<mpsc::Receiver<CommandUpdate>, std::io::Error> {
+    let maven_command = get_maven_command(project_root);
+    log::debug!(
+        "execute_maven_command_async: Using command: {}",
+        maven_command
+    );
+    log::debug!("  project_root: {:?}", project_root);
+    log::debug!("  module: {:?}", module);
+    log::debug!("  args: {:?}", args);
+
+    let mut command = Command::new(maven_command);
+    if let Some(settings_path) = settings_path {
+        command.arg("--settings").arg(settings_path);
+    }
+    if !profiles.is_empty() {
+        let profile_str = profiles.join(",");
+        command.arg("-P").arg(&profile_str);
+    }
+    if let Some(module) = module
+        && module != "."
+    {
+        command.arg("-pl").arg(module);
+    }
+    for flag in flags {
+        command.arg(flag);
+    }
+
+    let project_root = project_root.to_path_buf();
+    let args: Vec<String> = args.iter().map(|s| s.to_string()).collect();
+
+    let (tx, rx) = mpsc::channel();
+
+    // Spawn command execution in background thread
+    thread::spawn(move || {
+        let result = (|| -> Result<(), std::io::Error> {
+            log::info!("Spawning Maven process asynchronously...");
+            let mut child = command
+                .args(&args)
+                .current_dir(&project_root)
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()?;
+
+            log::debug!("Maven process spawned with PID: {:?}", child.id());
+
+            let stdout_tx = tx.clone();
+            let stderr_tx = tx.clone();
+            let mut handles = Vec::new();
+
+            if let Some(stdout) = child.stdout.take() {
+                handles.push(thread::spawn(move || {
+                    let reader = BufReader::new(stdout);
+                    for line in reader.lines() {
+                        if let Ok(line) = line
+                            && let Some(text) = utils::clean_log_line(&line)
+                        {
+                            let _ = stdout_tx.send(CommandUpdate::OutputLine(text));
+                        }
+                    }
+                }));
+            }
+
+            if let Some(stderr) = child.stderr.take() {
+                handles.push(thread::spawn(move || {
+                    let reader = BufReader::new(stderr);
+                    for line in reader.lines() {
+                        if let Ok(line) = line
+                            && let Some(text) = utils::clean_log_line(&line)
+                        {
+                            let _ =
+                                stderr_tx.send(CommandUpdate::OutputLine(format!("[ERR] {text}")));
+                        }
+                    }
+                }));
+            }
+
+            for handle in handles {
+                let _ = handle.join();
+            }
+
+            let exit_status = child.wait()?;
+            log::info!("Maven process completed with status: {:?}", exit_status);
+
+            if exit_status.success() {
+                let _ = tx.send(CommandUpdate::Completed);
+            } else {
+                let _ = tx.send(CommandUpdate::Error(format!(
+                    "Command failed with exit code: {:?}",
+                    exit_status.code()
+                )));
+            }
+
+            Ok(())
+        })();
+
+        if let Err(e) = result {
+            log::error!("Command execution error: {}", e);
+            let _ = tx.send(CommandUpdate::Error(format!("Execution error: {e}")));
+        }
+    });
+
+    Ok(rx)
 }
 
 pub fn get_profiles(project_root: &Path) -> Result<Vec<String>, std::io::Error> {

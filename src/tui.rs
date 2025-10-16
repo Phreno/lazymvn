@@ -76,6 +76,8 @@ pub fn draw<B: Backend>(
             state.search_mod.is_some(),
             state.selected_module(),
             state.current_output_context(),
+            state.is_command_running,
+            state.command_elapsed_seconds(),
         );
 
         // Render footer
@@ -294,8 +296,12 @@ mod tests {
     #[test]
     fn test_navigation_debouncing() {
         use std::{thread, time::Duration};
-        
-        let modules = vec!["module1".to_string(), "module2".to_string(), "module3".to_string()];
+
+        let modules = vec![
+            "module1".to_string(),
+            "module2".to_string(),
+            "module3".to_string(),
+        ];
         let project_root = PathBuf::from("/");
         let mut state = crate::ui::state::TuiState::new(modules, project_root, test_cfg());
 
@@ -309,7 +315,7 @@ mod tests {
                 &mut state,
             );
         }
-        
+
         // Should only have moved to index 1, not 5 (due to debouncing)
         assert_eq!(state.modules_list_state.selected(), Some(1));
 

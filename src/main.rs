@@ -89,6 +89,9 @@ fn run<B: ratatui::backend::Backend>(
     }
 
     loop {
+        // Poll for command updates first
+        state.poll_command_updates();
+
         tui::draw(terminal, &mut state)?;
 
         if event::poll(std::time::Duration::from_millis(50))?

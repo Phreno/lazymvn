@@ -160,23 +160,38 @@ pub fn render_output_pane(
     is_search_active: bool,
     module_name: Option<&str>,
     output_context: Option<(String, Vec<String>, Vec<String>)>,
+    is_command_running: bool,
+    elapsed_seconds: Option<u64>,
 ) {
-    // Build title with context
-    let title = if let (Some(module), Some((cmd, profiles, flags))) = (module_name, output_context)
-    {
-        let mut parts = vec![module.to_string(), cmd];
-        if !profiles.is_empty() {
-            parts.push(profiles.join(", "));
-        }
-        if !flags.is_empty() {
-            parts.push(flags.join(", "));
-        }
-        format!("Output: {}", parts.join(" • "))
-    } else if let Some(module) = module_name {
-        format!("Output: {}", module)
-    } else {
-        "Output".to_string()
-    };
+    // Build title with context and running indicator
+    let mut title =
+        if let (Some(module), Some((cmd, profiles, flags))) = (module_name, output_context) {
+            let mut parts = vec![module.to_string(), cmd];
+            if !profiles.is_empty() {
+                parts.push(profiles.join(", "));
+            }
+            if !flags.is_empty() {
+                parts.push(flags.join(", "));
+            }
+            format!("Output: {}", parts.join(" • "))
+        } else if let Some(module) = module_name {
+            format!("Output: {}", module)
+        } else {
+            "Output".to_string()
+        };
+
+    // Add running indicator with spinner
+    if is_command_running {
+        let spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+        let frame_idx = elapsed_seconds.unwrap_or(0) as usize % spinner_frames.len();
+        let spinner = spinner_frames[frame_idx];
+        title = format!(
+            "{} {} Running ({}s)",
+            title,
+            spinner,
+            elapsed_seconds.unwrap_or(0)
+        );
+    }
 
     let output_block = Block::default()
         .title(title)
