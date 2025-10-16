@@ -9,16 +9,17 @@ pub fn clean_log_line(raw: &str) -> Option<String> {
 
     while let Some(ch) = chars.next() {
         if ch == '\u{1b}'
-            && let Some('[') = chars.peek() {
-                chars.next();
-                // Consume until we reach end of ANSI sequence
-                for next in chars.by_ref() {
-                    if ('@'..='~').contains(&next) {
-                        break;
-                    }
+            && let Some('[') = chars.peek()
+        {
+            chars.next();
+            // Consume until we reach end of ANSI sequence
+            for next in chars.by_ref() {
+                if ('@'..='~').contains(&next) {
+                    break;
                 }
-                continue;
             }
+            continue;
+        }
 
         if ch != '\r' {
             result.push(ch);

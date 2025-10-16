@@ -15,7 +15,7 @@ pub fn get_maven_command(project_root: &Path) -> String {
             return "./mvnw".to_string();
         }
     }
-    
+
     // On Windows, check for mvnw.bat, mvnw.cmd, or mvnw
     #[cfg(windows)]
     {
@@ -29,7 +29,7 @@ pub fn get_maven_command(project_root: &Path) -> String {
             return "mvnw".to_string();
         }
     }
-    
+
     "mvn".to_string()
 }
 
@@ -94,9 +94,10 @@ pub fn execute_maven_command(
             let reader = BufReader::new(stdout);
             for line in reader.lines() {
                 if let Ok(line) = line
-                    && let Some(text) = utils::clean_log_line(&line) {
-                        let _ = tx.send(text);
-                    }
+                    && let Some(text) = utils::clean_log_line(&line)
+                {
+                    let _ = tx.send(text);
+                }
             }
         }));
     }
@@ -107,9 +108,10 @@ pub fn execute_maven_command(
             let reader = BufReader::new(stderr);
             for line in reader.lines() {
                 if let Ok(line) = line
-                    && let Some(text) = utils::clean_log_line(&line) {
-                        let _ = tx.send(format!("[ERR] {text}"));
-                    }
+                    && let Some(text) = utils::clean_log_line(&line)
+                {
+                    let _ = tx.send(format!("[ERR] {text}"));
+                }
             }
         }));
     }
@@ -146,45 +148,47 @@ pub fn get_profiles(project_root: &Path) -> Result<Vec<String>, std::io::Error> 
     );
     // Try to load config and use settings if available
     let config = crate::config::load_config(project_root);
+    // Run without -N flag to include profiles from all modules
     let output = execute_maven_command(
         project_root,
         None,
-        &["help:all-profiles", "-N"],
+        &["help:all-profiles"],
         &[],
         config.maven_settings.as_deref(),
         &[],
     )?;
-    let profiles: Vec<String> = output
-        .iter()
-        .filter_map(|line| {
-            if line.contains("Profile Id:") {
-                let parts: Vec<&str> = line.split("Profile Id:").collect();
-                if parts.len() > 1 {
-                    // Extract just the profile name, stop at first space or parenthesis
-                    let profile_part = parts[1].trim();
-                    let profile_name = profile_part
-                        .split_whitespace()
-                        .next()
-                        .unwrap_or("")
-                        .split('(')
-                        .next()
-                        .unwrap_or("")
-                        .trim();
-                    if !profile_name.is_empty() {
-                        log::debug!("Found profile: {}", profile_name);
-                        Some(profile_name.to_string())
-                    } else {
-                        None
-                    }
-                } else {
-                    None
+
+    // Use a HashSet to deduplicate profiles as they may appear multiple times
+    // (once per module that inherits or defines them)
+    let mut profile_set = std::collections::HashSet::new();
+
+    for line in output.iter() {
+        if line.contains("Profile Id:") {
+            let parts: Vec<&str> = line.split("Profile Id:").collect();
+            if parts.len() > 1 {
+                // Extract just the profile name, stop at first space or parenthesis
+                let profile_part = parts[1].trim();
+                let profile_name = profile_part
+                    .split_whitespace()
+                    .next()
+                    .unwrap_or("")
+                    .split('(')
+                    .next()
+                    .unwrap_or("")
+                    .trim();
+                if !profile_name.is_empty() {
+                    log::debug!("Found profile: {}", profile_name);
+                    profile_set.insert(profile_name.to_string());
                 }
-            } else {
-                None
             }
-        })
-        .collect();
-    log::info!("Discovered {} Maven profiles", profiles.len());
+        }
+    }
+
+    // Convert to sorted Vec for consistent ordering
+    let mut profiles: Vec<String> = profile_set.into_iter().collect();
+    profiles.sort();
+
+    log::info!("Discovered {} unique Maven profiles", profiles.len());
     Ok(profiles)
 }
 
@@ -237,7 +241,7 @@ mod tests {
             assert_eq!(get_maven_command(project_root), "./mvnw");
             std::fs::remove_file(&mvnw_path).unwrap();
         }
-        
+
         #[cfg(windows)]
         {
             let mvnw_path = project_root.join("mvnw.bat");
@@ -336,6 +340,26 @@ mod tests {
 
         let profiles = get_profiles(project_root).unwrap();
         assert_eq!(profiles, vec!["profile-1", "profile-2"]);
+    }
+
+    #[test]
+    #[cfg(unix)] // Shell script execution not supported on Windows
+    fn test_get_profiles_deduplicates_and_sorts() {
+        let _guard = test_lock().lock().unwrap();
+        let dir = tempdir().unwrap();
+        let project_root = dir.path();
+
+        // Create a mock mvnw script that simulates Maven's help:all-profiles output
+        // with duplicates (as would happen in multi-module projects without -N)
+        let mvnw_path = project_root.join("mvnw");
+        write_script(
+            &mvnw_path,
+            "#!/bin/sh\necho '  Profile Id: profile-2 (Active: false, Source: pom)'\necho '  Profile Id: profile-1 (Active: false, Source: pom)'\necho '  Profile Id: profile-2 (Active: false, Source: pom)'\necho '  Profile Id: child-profile (Active: false, Source: pom)'\n",
+        );
+
+        let profiles = get_profiles(project_root).unwrap();
+        // Should be deduplicated and sorted
+        assert_eq!(profiles, vec!["child-profile", "profile-1", "profile-2"]);
     }
 
     #[test]
