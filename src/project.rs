@@ -304,6 +304,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)] // HOME environment variable handling differs on Windows
     fn get_project_modules_integration_test() {
         let _guard = home_lock().lock().unwrap();
         // 1. Setup temp project and home directory
@@ -355,6 +356,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)] // HOME environment variable handling differs on Windows
     fn get_project_modules_refreshes_cache_when_pom_changes() {
         let _guard = home_lock().lock().unwrap();
         let project_dir = tempdir().unwrap();

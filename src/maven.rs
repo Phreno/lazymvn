@@ -253,6 +253,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)] // Shell script execution not supported on Windows
     fn execute_maven_command_captures_output() {
         let _guard = test_lock().lock().unwrap();
         let dir = tempdir().unwrap();
@@ -272,6 +273,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)] // Shell script execution not supported on Windows
     fn execute_maven_command_captures_stderr() {
         let _guard = test_lock().lock().unwrap();
         let dir = tempdir().unwrap();
@@ -300,6 +302,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)] // Shell script execution not supported on Windows
     fn execute_maven_command_with_profiles() {
         let _guard = test_lock().lock().unwrap();
         let dir = tempdir().unwrap();
@@ -320,6 +323,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)] // Shell script execution not supported on Windows
     fn test_get_profiles() {
         let _guard = test_lock().lock().unwrap();
         let dir = tempdir().unwrap();
@@ -337,6 +341,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)] // Shell script execution not supported on Windows
     fn execute_maven_command_scopes_to_module() {
         let _guard = test_lock().lock().unwrap();
         let dir = tempdir().unwrap();
@@ -355,6 +360,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)] // Shell script execution not supported on Windows
     fn execute_maven_command_without_pl_for_root_module() {
         let _guard = test_lock().lock().unwrap();
         let dir = tempdir().unwrap();
