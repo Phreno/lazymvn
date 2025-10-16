@@ -39,14 +39,11 @@ impl Theme {
         .add_modifier(Modifier::UNDERLINED);
 
     /// Style for footer pointer indicators
-
     /// Style for footer box borders
     pub const FOOTER_BOX_BORDER_STYLE: Style = Style::new().fg(Color::Blue);
 
     /// Style for focused footer box borders
-
     /// Style for disabled footer text
-
     /// Style for search match highlights
     pub const SEARCH_MATCH_STYLE: Style = Style::new().bg(Color::Yellow).fg(Color::Black);
 

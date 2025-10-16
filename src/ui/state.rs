@@ -289,8 +289,8 @@ impl TuiState {
         if self.current_view != CurrentView::Profiles {
             return;
         }
-        if let Some(selected) = self.profiles_list_state.selected() {
-            if let Some(profile) = self.profiles.get(selected) {
+        if let Some(selected) = self.profiles_list_state.selected()
+            && let Some(profile) = self.profiles.get(selected) {
                 if let Some(pos) = self.active_profiles.iter().position(|p| p == profile) {
                     log::info!("Deactivating profile: {}", profile);
                     self.active_profiles.remove(pos);
@@ -300,15 +300,14 @@ impl TuiState {
                 }
                 log::debug!("Active profiles now: {:?}", self.active_profiles);
             }
-        }
     }
 
     pub fn toggle_flag(&mut self) {
         if self.current_view != CurrentView::Flags {
             return;
         }
-        if let Some(selected) = self.flags_list_state.selected() {
-            if let Some(flag) = self.flags.get_mut(selected) {
+        if let Some(selected) = self.flags_list_state.selected()
+            && let Some(flag) = self.flags.get_mut(selected) {
                 flag.enabled = !flag.enabled;
                 log::info!(
                     "Toggled flag '{}' ({}): {}",
@@ -317,7 +316,6 @@ impl TuiState {
                     flag.enabled
                 );
             }
-        }
     }
 
     pub fn selected_module(&self) -> Option<&str> {
@@ -644,12 +642,11 @@ impl TuiState {
             Some(0) => Some(0),
             Some(i) => Some(i - 1),
         };
-        if let Some(idx) = next_index {
-            if let Some(query) = self.search_history.get(idx) {
+        if let Some(idx) = next_index
+            && let Some(query) = self.search_history.get(idx) {
                 self.search_input = Some(query.clone());
                 self.search_history_index = Some(idx);
             }
-        }
     }
 
     pub fn recall_next_search(&mut self) {
@@ -702,11 +699,10 @@ impl TuiState {
         let matches = collect_search_matches(&self.command_output, &regex);
         let mut current_index = 0usize;
 
-        if keep_current {
-            if let Some(existing) = self.search_state.as_ref() {
+        if keep_current
+            && let Some(existing) = self.search_state.as_ref() {
                 current_index = existing.current.min(matches.len().saturating_sub(1));
             }
-        }
 
         self.search_state = Some(SearchState::new(query, matches));
 
@@ -790,11 +786,7 @@ impl TuiState {
         }
         if let Some(target_row) = metrics.row_for_match(&target) {
             let view_height = self.output_view_height as usize;
-            let desired_offset = if target_row >= view_height / 2 {
-                target_row - view_height / 2
-            } else {
-                0
-            };
+            let desired_offset = target_row.saturating_sub(view_height / 2);
             let max_offset = total_rows.saturating_sub(view_height);
             self.output_offset = desired_offset.min(max_offset);
             self.store_current_module_output();
@@ -803,11 +795,10 @@ impl TuiState {
     }
 
     fn ensure_current_match_visible(&mut self) {
-        if let Some(search) = self.search_state.as_ref() {
-            if let Some(current_match) = search.current_match() {
+        if let Some(search) = self.search_state.as_ref()
+            && let Some(current_match) = search.current_match() {
                 self.center_on_match(current_match.clone());
             }
-        }
     }
 
     // Getters for search state
@@ -835,7 +826,7 @@ fn visual_rows(line: &str, width: usize) -> usize {
         return 1;
     }
     let display_width = UnicodeWidthStr::width(line);
-    let rows = (display_width + width - 1) / width;
+    let rows = display_width.div_ceil(width);
     rows.max(1)
 }
 

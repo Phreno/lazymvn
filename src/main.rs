@@ -88,15 +88,14 @@ fn run<B: ratatui::backend::Backend>(
     loop {
         tui::draw(terminal, &mut state)?;
 
-        if event::poll(std::time::Duration::from_millis(50))? {
-            if let event::Event::Key(key) = event::read()? {
+        if event::poll(std::time::Duration::from_millis(50))?
+            && let event::Event::Key(key) = event::read()? {
                 if key.code == event::KeyCode::Char('q') {
                     log::info!("User requested quit");
                     break;
                 }
                 tui::handle_key_event(key, &mut state);
             }
-        }
     }
     Ok(())
 }

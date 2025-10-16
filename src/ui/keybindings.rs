@@ -339,16 +339,17 @@ pub(crate) fn blank_line() -> Line<'static> {
 }
 
 pub(crate) fn build_navigation_line() -> Line<'static> {
-    let mut spans: Vec<Span<'static>> = Vec::new();
-    spans.push(Span::styled("Navigation ", Theme::FOOTER_SECTION_STYLE));
-    spans.push(key_token("←"));
-    spans.push(Span::raw("  "));
-    spans.push(key_token("→"));
-    spans.push(Span::raw(" Focus  • "));
-    spans.push(key_token("↑"));
-    spans.push(Span::raw("  "));
-    spans.push(key_token("↓"));
-    spans.push(Span::raw(" Select"));
+    let spans: Vec<Span<'static>> = vec![
+        Span::styled("Navigation ", Theme::FOOTER_SECTION_STYLE),
+        key_token("←"),
+        Span::raw("  "),
+        key_token("→"),
+        Span::raw(" Focus  • "),
+        key_token("↑"),
+        Span::raw("  "),
+        key_token("↓"),
+        Span::raw(" Select"),
+    ];
     Line::from(spans)
 }
 
