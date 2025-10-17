@@ -7,7 +7,7 @@
 use crate::ui::{
     keybindings,
     panes::{
-        create_layout, render_flags_pane, render_footer, render_modules_pane, render_output_pane,
+        create_adaptive_layout, render_flags_pane, render_footer, render_modules_pane, render_output_pane,
         render_profiles_pane, render_projects_pane,
     },
 };
@@ -25,7 +25,7 @@ pub fn draw<B: Backend>(
 ) -> Result<(), std::io::Error> {
     terminal.draw(|f| {
         let (projects_area, modules_area, profiles_area, flags_area, output_area, footer_area) =
-            create_layout(f.area());
+            create_adaptive_layout(f.area(), Some(state.focus));
 
         // Get project root name for display
         let project_name = state
@@ -136,7 +136,7 @@ pub fn handle_mouse_event(mouse: crossterm::event::MouseEvent, state: &mut crate
     };
     
     let (projects_area, modules_area, profiles_area, flags_area, output_area, _footer_area) =
-        create_layout(total_area);
+        create_adaptive_layout(total_area, Some(state.focus));
     
     // Check which pane was clicked and set focus accordingly
     let click_pos = (mouse.column, mouse.row);
