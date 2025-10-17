@@ -38,7 +38,15 @@ pub fn get_maven_command(project_root: &Path) -> String {
         }
     }
 
-    "mvn".to_string()
+    // On Windows, use mvn.cmd; on Unix, use mvn
+    #[cfg(windows)]
+    {
+        "mvn.cmd".to_string()
+    }
+    #[cfg(not(windows))]
+    {
+        "mvn".to_string()
+    }
 }
 
 pub fn check_maven_availability(project_root: &Path) -> Result<String, std::io::Error> {
@@ -397,7 +405,14 @@ mod tests {
         }
 
         // Test without mvnw present
-        assert_eq!(get_maven_command(project_root), "mvn");
+        #[cfg(windows)]
+        {
+            assert_eq!(get_maven_command(project_root), "mvn.cmd");
+        }
+        #[cfg(not(windows))]
+        {
+            assert_eq!(get_maven_command(project_root), "mvn");
+        }
     }
 
     #[test]
