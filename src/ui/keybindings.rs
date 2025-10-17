@@ -1,9 +1,6 @@
 use crate::ui::theme::Theme;
 use crossterm::event::{KeyCode, KeyEvent};
-use ratatui::{
-    style::Modifier,
-    text::{Line, Span},
-};
+use ratatui::text::{Line, Span};
 
 /// Represents the current view in the TUI
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -98,11 +95,6 @@ const MODULE_ACTIONS: [ModuleAction; 7] = [
     },
 ];
 
-#[derive(Clone, Copy)]
-enum ButtonState {
-    Normal,
-    Active,
-}
 
 /// Handle key events and update TUI state accordingly
 pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
@@ -314,20 +306,15 @@ fn key_token(text: &str) -> Span<'static> {
     Span::styled(text.to_string(), Theme::KEY_HINT_STYLE)
 }
 
+
 fn append_bracketed_word(
     spans: &mut Vec<Span<'static>>,
     prefix: &str,
     key: &str,
     suffix: &str,
-    state: ButtonState,
 ) {
-    let (key_style, text_style) = match state {
-        ButtonState::Active => (
-            Theme::KEY_HINT_STYLE.add_modifier(Modifier::UNDERLINED),
-            Theme::FOOTER_ACTIVE_TEXT_STYLE,
-        ),
-        ButtonState::Normal => (Theme::KEY_HINT_STYLE, Theme::DEFAULT_STYLE),
-    };
+    let key_style = Theme::KEY_HINT_STYLE;
+    let text_style = Theme::DEFAULT_STYLE;
 
     if !prefix.is_empty() {
         spans.push(Span::styled(prefix.to_string(), text_style));
@@ -407,7 +394,7 @@ pub(crate) fn simplified_footer_title(
     Span::styled(text, style)
 }
 
-pub(crate) fn simplified_footer_body(view: CurrentView) -> Line<'static> {
+pub(crate) fn simplified_footer_body(_view: CurrentView) -> Line<'static> {
     let mut spans: Vec<Span<'static>> = Vec::new();
     spans.push(Span::raw(" "));
 
@@ -421,7 +408,6 @@ pub(crate) fn simplified_footer_body(view: CurrentView) -> Line<'static> {
             action.prefix,
             action.key_display,
             action.suffix,
-            ButtonState::Normal,
         );
     }
 
