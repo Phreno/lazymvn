@@ -238,6 +238,9 @@ impl TuiState {
         }
 
         match self.current_view {
+            CurrentView::Projects => {
+                // Projects view is static, no navigation needed
+            }
             CurrentView::Modules => {
                 if self.modules.is_empty() {
                     return;
@@ -276,6 +279,9 @@ impl TuiState {
         }
 
         match self.current_view {
+            CurrentView::Projects => {
+                // Projects view is static, no navigation needed
+            }
             CurrentView::Modules => {
                 if self.modules.is_empty() {
                     return;
@@ -385,6 +391,11 @@ impl TuiState {
                     .map(|cmd| (cmd, output.profiles.clone(), output.flags.clone()))
             })
         })
+    }
+
+    pub fn switch_to_projects(&mut self) {
+        self.current_view = CurrentView::Projects;
+        self.focus_modules();
     }
 
     pub fn switch_to_modules(&mut self) {

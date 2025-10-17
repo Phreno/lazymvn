@@ -8,7 +8,7 @@ use crate::ui::{
     keybindings,
     panes::{
         create_layout, render_flags_pane, render_footer, render_modules_pane, render_output_pane,
-        render_profiles_pane,
+        render_profiles_pane, render_projects_pane,
     },
 };
 use crossterm::event::KeyEvent;
@@ -24,51 +24,58 @@ pub fn draw<B: Backend>(
     state: &mut crate::ui::state::TuiState,
 ) -> Result<(), std::io::Error> {
     terminal.draw(|f| {
-        let (left_area, right_area, footer_area) = create_layout(f.area());
+        let (projects_area, modules_area, profiles_area, flags_area, output_area, footer_area) = create_layout(f.area());
 
-        // Render left pane based on current view
-        match state.current_view {
-            CurrentView::Modules => {
-                render_modules_pane(
-                    f,
-                    left_area,
-                    &state.modules,
-                    &mut state.modules_list_state,
-                    state.focus == Focus::Modules,
-                );
-            }
-            CurrentView::Profiles => {
-                render_profiles_pane(
-                    f,
-                    left_area,
-                    &state.profiles,
-                    &state.active_profiles,
-                    &mut state.profiles_list_state,
-                    state.focus == Focus::Modules,
-                );
-            }
-            CurrentView::Flags => {
-                render_flags_pane(
-                    f,
-                    left_area,
-                    &state.flags,
-                    &mut state.flags_list_state,
-                    state.focus == Focus::Modules,
-                );
-            }
-        }
+        // Get project root name for display
+        let project_name = state.project_root
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("unknown");
+
+        // Render all left panes
+        render_projects_pane(
+            f,
+            projects_area,
+            project_name,
+            state.current_view == CurrentView::Projects && state.focus == Focus::Modules,
+        );
+
+        render_modules_pane(
+            f,
+            modules_area,
+            &state.modules,
+            &mut state.modules_list_state,
+            state.current_view == CurrentView::Modules && state.focus == Focus::Modules,
+        );
+
+        render_profiles_pane(
+            f,
+            profiles_area,
+            &state.profiles,
+            &state.active_profiles,
+            &mut state.profiles_list_state,
+            state.current_view == CurrentView::Profiles && state.focus == Focus::Modules,
+        );
+
+        render_flags_pane(
+            f,
+            flags_area,
+            &state.flags,
+            &mut state.flags_list_state,
+            state.current_view == CurrentView::Flags && state.focus == Focus::Modules,
+        );
 
         // Update output metrics for proper scrolling calculations
         let inner_area = ratatui::widgets::Block::default()
             .borders(ratatui::widgets::Borders::ALL)
-            .inner(right_area);
+            .inner(output_area);
         state.update_output_metrics(inner_area.width);
         state.set_output_view_dimensions(inner_area.height, inner_area.width);
 
         // Render output pane
         render_output_pane(
             f,
-            right_area,
+            output_area,
             &state.command_output,
             state.output_offset,
             state.focus == Focus::Output,
@@ -142,26 +149,33 @@ mod tests {
         // Initial view is Modules
         assert_eq!(state.current_view, CurrentView::Modules);
 
-        // Press 'p' to switch to Profiles
+        // Press '3' to switch to Profiles
         handle_key_event(
-            crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char('p')),
+            crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char('3')),
             &mut state,
         );
         assert_eq!(state.current_view, CurrentView::Profiles);
 
-        // Press 'f' to switch to Flags
+        // Press '4' to switch to Flags
         handle_key_event(
-            crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char('f')),
+            crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char('4')),
             &mut state,
         );
         assert_eq!(state.current_view, CurrentView::Flags);
 
-        // Press 'm' to return to Modules
+        // Press '2' to return to Modules
         handle_key_event(
-            crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char('m')),
+            crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char('2')),
             &mut state,
         );
         assert_eq!(state.current_view, CurrentView::Modules);
+
+        // Press '1' to switch to Projects
+        handle_key_event(
+            crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char('1')),
+            &mut state,
+        );
+        assert_eq!(state.current_view, CurrentView::Projects);
     }
 
     #[test]
@@ -251,9 +265,9 @@ mod tests {
         let project_root = PathBuf::from("/");
         let mut state = crate::ui::state::TuiState::new(modules, project_root, test_cfg());
 
-        // Switch to flags view
+        // Switch to flags view with '4'
         handle_key_event(
-            crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char('f')),
+            crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char('4')),
             &mut state,
         );
         assert_eq!(state.current_view, CurrentView::Flags);

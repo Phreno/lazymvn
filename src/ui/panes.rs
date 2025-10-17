@@ -8,6 +8,27 @@ use ratatui::{
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
 };
 
+/// Render the projects pane (placeholder showing project root name)
+pub fn render_projects_pane(
+    f: &mut Frame,
+    area: Rect,
+    project_root: &str,
+    is_focused: bool,
+) {
+    let block = Block::default()
+        .title("[1] Projects")
+        .borders(Borders::ALL)
+        .border_style(if is_focused {
+            Theme::FOCUS_STYLE
+        } else {
+            Theme::DEFAULT_STYLE
+        });
+
+    let text = Line::from(project_root);
+    let paragraph = Paragraph::new(text).block(block);
+    f.render_widget(paragraph, area);
+}
+
 /// Render the modules pane
 pub fn render_modules_pane(
     f: &mut Frame,
@@ -17,7 +38,7 @@ pub fn render_modules_pane(
     is_focused: bool,
 ) {
     let block = Block::default()
-        .title("Modules")
+        .title("[2] Modules")
         .borders(Borders::ALL)
         .border_style(if is_focused {
             Theme::FOCUS_STYLE
@@ -56,9 +77,9 @@ pub fn render_profiles_pane(
     is_focused: bool,
 ) {
     let title = if active_profiles.is_empty() {
-        "Profiles".to_string()
+        "[3] Profiles".to_string()
     } else {
-        format!("Profiles ({})", active_profiles.len())
+        format!("[3] Profiles ({})", active_profiles.len())
     };
 
     let block = Block::default()
@@ -109,9 +130,9 @@ pub fn render_flags_pane(
 ) {
     let enabled_count = flags.iter().filter(|f| f.enabled).count();
     let title = if enabled_count == 0 {
-        "Build Flags".to_string()
+        "[4] Build Flags".to_string()
     } else {
-        format!("Build Flags ({})", enabled_count)
+        format!("[4] Build Flags ({})", enabled_count)
     };
 
     let block = Block::default()
@@ -310,7 +331,7 @@ pub fn render_footer(
 }
 
 /// Create the main layout for the TUI
-pub fn create_layout(area: Rect) -> (Rect, Rect, Rect) {
+pub fn create_layout(area: Rect) -> (Rect, Rect, Rect, Rect, Rect, Rect) {
     let footer_height = 9; // accommodates multi-line footer including optional search status
     let vertical = Layout::default()
         .direction(Direction::Vertical)
@@ -319,8 +340,19 @@ pub fn create_layout(area: Rect) -> (Rect, Rect, Rect) {
 
     let content_chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
+        .constraints([Constraint::Percentage(40), Constraint::Percentage(60)].as_ref())
         .split(vertical[0]);
 
-    (content_chunks[0], content_chunks[1], vertical[1])
+    // Split left side into 4 vertical blocks for Projects, Modules, Profiles, Flags
+    let left_blocks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3), // Projects (placeholder, small)
+            Constraint::Percentage(40), // Modules
+            Constraint::Percentage(30), // Profiles
+            Constraint::Percentage(30), // Flags
+        ].as_ref())
+        .split(content_chunks[0]);
+
+    (left_blocks[0], left_blocks[1], left_blocks[2], left_blocks[3], content_chunks[1], vertical[1])
 }
