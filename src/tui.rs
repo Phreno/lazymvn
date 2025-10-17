@@ -15,7 +15,7 @@ use crossterm::event::KeyEvent;
 use ratatui::{Terminal, backend::Backend};
 
 /// Re-export commonly used types for backward compatibility
-pub use crate::ui::keybindings::{CurrentView, Focus};
+pub use crate::ui::keybindings::Focus;
 pub use crate::ui::state::TuiState;
 
 /// Main drawing function that renders the complete TUI
@@ -37,7 +37,7 @@ pub fn draw<B: Backend>(
             f,
             projects_area,
             project_name,
-            state.current_view == CurrentView::Projects && state.focus == Focus::Modules,
+            state.focus == Focus::Projects,
         );
 
         render_modules_pane(
@@ -45,7 +45,7 @@ pub fn draw<B: Backend>(
             modules_area,
             &state.modules,
             &mut state.modules_list_state,
-            state.current_view == CurrentView::Modules && state.focus == Focus::Modules,
+            state.focus == Focus::Modules,
         );
 
         render_profiles_pane(
@@ -54,7 +54,7 @@ pub fn draw<B: Backend>(
             &state.profiles,
             &state.active_profiles,
             &mut state.profiles_list_state,
-            state.current_view == CurrentView::Profiles && state.focus == Focus::Modules,
+            state.focus == Focus::Profiles,
         );
 
         render_flags_pane(
@@ -62,7 +62,7 @@ pub fn draw<B: Backend>(
             flags_area,
             &state.flags,
             &mut state.flags_list_state,
-            state.current_view == CurrentView::Flags && state.focus == Focus::Modules,
+            state.focus == Focus::Flags,
         );
 
         // Update output metrics for proper scrolling calculations

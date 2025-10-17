@@ -17,8 +17,35 @@ pub enum CurrentView {
 /// Represents which pane currently has focus
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum Focus {
+    Projects,
     Modules,
+    Profiles,
+    Flags,
     Output,
+}
+
+impl Focus {
+    /// Get the next focus in the cycle (right arrow)
+    pub fn next(self) -> Self {
+        match self {
+            Focus::Projects => Focus::Modules,
+            Focus::Modules => Focus::Profiles,
+            Focus::Profiles => Focus::Flags,
+            Focus::Flags => Focus::Output,
+            Focus::Output => Focus::Projects,
+        }
+    }
+
+    /// Get the previous focus in the cycle (left arrow)
+    pub fn previous(self) -> Self {
+        match self {
+            Focus::Projects => Focus::Output,
+            Focus::Modules => Focus::Projects,
+            Focus::Profiles => Focus::Modules,
+            Focus::Flags => Focus::Profiles,
+            Focus::Output => Focus::Flags,
+        }
+    }
 }
 
 /// Search mode for input vs cycling through matches
@@ -31,19 +58,6 @@ struct ModuleAction {
     key_display: &'static str,
     prefix: &'static str,
     suffix: &'static str,
-}
-
-struct OptionsItem {
-    key_display: &'static str,
-    prefix: &'static str,
-    suffix: &'static str,
-    action: OptionsAction,
-}
-
-#[derive(Clone, Copy)]
-enum OptionsAction {
-    Profiles,
-    Flags,
 }
 
 const MODULE_ACTIONS: [ModuleAction; 7] = [
@@ -81,21 +95,6 @@ const MODULE_ACTIONS: [ModuleAction; 7] = [
         key_display: "d",
         prefix: "",
         suffix: "eps",
-    },
-];
-
-const OPTIONS_MENU_ITEMS: [OptionsItem; 2] = [
-    OptionsItem {
-        key_display: "p",
-        prefix: "",
-        suffix: "rofiles",
-        action: OptionsAction::Profiles,
-    },
-    OptionsItem {
-        key_display: "f",
-        prefix: "",
-        suffix: "lags",
-        action: OptionsAction::Flags,
     },
 ];
 
@@ -196,33 +195,37 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
     // Direct command execution - no menu navigation needed
     match key.code {
         KeyCode::Left => {
-            log::debug!("Focus left -> modules");
-            state.focus_modules();
+            log::debug!("Cycle focus left");
+            state.cycle_focus_left();
         }
         KeyCode::Right => {
-            log::debug!("Focus right -> output");
-            state.focus_output();
+            log::debug!("Cycle focus right");
+            state.cycle_focus_right();
         }
         KeyCode::Down => match state.focus {
-            Focus::Modules => {
-                log::debug!("Navigate down in modules list");
-                state.next_item();
-            }
             Focus::Output => {
                 log::debug!("Scroll output down");
                 state.scroll_output_lines(1);
             }
+            _ => {
+                log::debug!("Navigate down in list");
+                state.next_item();
+            }
         },
         KeyCode::Up => match state.focus {
-            Focus::Modules => {
-                log::debug!("Navigate up in modules list");
-                state.previous_item();
-            }
             Focus::Output => {
                 log::debug!("Scroll output up");
                 state.scroll_output_lines(-1);
             }
+            _ => {
+                log::debug!("Navigate up in list");
+                state.previous_item();
+            }
         },
+        KeyCode::Char('0') => {
+            log::info!("Focus output pane");
+            state.focus_output();
+        }
         KeyCode::Char('1') => {
             log::info!("Switch to projects view");
             state.switch_to_projects();
@@ -346,6 +349,8 @@ pub(crate) fn blank_line() -> Line<'static> {
 pub(crate) fn build_navigation_line() -> Line<'static> {
     let spans: Vec<Span<'static>> = vec![
         Span::styled("Views ", Theme::FOOTER_SECTION_STYLE),
+        key_token("0"),
+        Span::raw(" Output • "),
         key_token("1"),
         Span::raw(" Projects • "),
         key_token("2"),
@@ -417,29 +422,6 @@ pub(crate) fn simplified_footer_body(view: CurrentView) -> Line<'static> {
             action.key_display,
             action.suffix,
             ButtonState::Normal,
-        );
-    }
-
-    spans.push(Span::raw(" "));
-
-    // Options commands
-    for (idx, item) in OPTIONS_MENU_ITEMS.iter().enumerate() {
-        if idx > 0 {
-            spans.push(Span::raw(" "));
-        }
-
-        let state = match item.action {
-            OptionsAction::Profiles if matches!(view, CurrentView::Profiles) => ButtonState::Active,
-            OptionsAction::Flags if matches!(view, CurrentView::Flags) => ButtonState::Active,
-            _ => ButtonState::Normal,
-        };
-
-        append_bracketed_word(
-            &mut spans,
-            item.prefix,
-            item.key_display,
-            item.suffix,
-            state,
         );
     }
 

@@ -243,11 +243,11 @@ impl TuiState {
             return;
         }
 
-        match self.current_view {
-            CurrentView::Projects => {
+        match self.focus {
+            Focus::Projects => {
                 // Projects view is static, no navigation needed
             }
-            CurrentView::Modules => {
+            Focus::Modules => {
                 if self.modules.is_empty() {
                     return;
                 }
@@ -258,7 +258,7 @@ impl TuiState {
                 self.modules_list_state.select(Some(i));
                 self.sync_selected_module_output();
             }
-            CurrentView::Profiles => {
+            Focus::Profiles => {
                 if !self.profiles.is_empty() {
                     let i = match self.profiles_list_state.selected() {
                         Some(i) => (i + 1) % self.profiles.len(),
@@ -267,7 +267,7 @@ impl TuiState {
                     self.profiles_list_state.select(Some(i));
                 }
             }
-            CurrentView::Flags => {
+            Focus::Flags => {
                 if !self.flags.is_empty() {
                     let i = match self.flags_list_state.selected() {
                         Some(i) => (i + 1) % self.flags.len(),
@@ -275,6 +275,9 @@ impl TuiState {
                     };
                     self.flags_list_state.select(Some(i));
                 }
+            }
+            Focus::Output => {
+                // No item navigation in output
             }
         }
     }
@@ -284,11 +287,11 @@ impl TuiState {
             return;
         }
 
-        match self.current_view {
-            CurrentView::Projects => {
+        match self.focus {
+            Focus::Projects => {
                 // Projects view is static, no navigation needed
             }
-            CurrentView::Modules => {
+            Focus::Modules => {
                 if self.modules.is_empty() {
                     return;
                 }
@@ -305,7 +308,7 @@ impl TuiState {
                 self.modules_list_state.select(Some(i));
                 self.sync_selected_module_output();
             }
-            CurrentView::Profiles => {
+            Focus::Profiles => {
                 if !self.profiles.is_empty() {
                     let i = match self.profiles_list_state.selected() {
                         Some(i) => {
@@ -320,7 +323,7 @@ impl TuiState {
                     self.profiles_list_state.select(Some(i));
                 }
             }
-            CurrentView::Flags => {
+            Focus::Flags => {
                 if !self.flags.is_empty() {
                     let i = match self.flags_list_state.selected() {
                         Some(i) => {
@@ -335,11 +338,14 @@ impl TuiState {
                     self.flags_list_state.select(Some(i));
                 }
             }
+            Focus::Output => {
+                // No item navigation in output
+            }
         }
     }
 
     pub fn toggle_profile(&mut self) {
-        if self.current_view != CurrentView::Profiles {
+        if self.focus != Focus::Profiles {
             return;
         }
         if let Some(selected) = self.profiles_list_state.selected()
@@ -357,7 +363,7 @@ impl TuiState {
     }
 
     pub fn toggle_flag(&mut self) {
-        if self.current_view != CurrentView::Flags {
+        if self.focus != Focus::Flags {
             return;
         }
         if let Some(selected) = self.flags_list_state.selected()
@@ -401,12 +407,12 @@ impl TuiState {
 
     pub fn switch_to_projects(&mut self) {
         self.current_view = CurrentView::Projects;
-        self.focus_modules();
+        self.focus = Focus::Projects;
     }
 
     pub fn switch_to_modules(&mut self) {
         self.current_view = CurrentView::Modules;
-        self.focus_modules();
+        self.focus = Focus::Modules;
         self.sync_selected_module_output();
     }
 
@@ -415,7 +421,7 @@ impl TuiState {
         if self.profiles_list_state.selected().is_none() && !self.profiles.is_empty() {
             self.profiles_list_state.select(Some(0));
         }
-        self.focus_modules();
+        self.focus = Focus::Profiles;
     }
 
     pub fn switch_to_flags(&mut self) {
@@ -423,17 +429,29 @@ impl TuiState {
         if self.flags_list_state.selected().is_none() && !self.flags.is_empty() {
             self.flags_list_state.select(Some(0));
         }
-        self.focus_modules();
+        self.focus = Focus::Flags;
     }
 
     // Focus management
-    pub fn focus_modules(&mut self) {
-        self.focus = Focus::Modules;
-    }
-
     pub fn focus_output(&mut self) {
         self.focus = Focus::Output;
         self.ensure_current_match_visible();
+    }
+
+    /// Cycle focus to the next pane (right arrow)
+    pub fn cycle_focus_right(&mut self) {
+        self.focus = self.focus.next();
+        if self.focus == Focus::Output {
+            self.ensure_current_match_visible();
+        }
+    }
+
+    /// Cycle focus to the previous pane (left arrow)
+    pub fn cycle_focus_left(&mut self) {
+        self.focus = self.focus.previous();
+        if self.focus == Focus::Output {
+            self.ensure_current_match_visible();
+        }
     }
 
     pub fn has_search_results(&self) -> bool {
