@@ -121,6 +121,7 @@ cargo build
 | `t` | Test | `test` |
 | `i` | Install | `install` |
 | `d` | Dependencies | `dependency:tree` |
+| `x` | Kill running process | - |
 
 ### Selection & Search
 | Key | Action |

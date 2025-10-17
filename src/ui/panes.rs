@@ -9,12 +9,7 @@ use ratatui::{
 };
 
 /// Render the projects pane (placeholder showing project root name)
-pub fn render_projects_pane(
-    f: &mut Frame,
-    area: Rect,
-    project_root: &str,
-    is_focused: bool,
-) {
+pub fn render_projects_pane(f: &mut Frame, area: Rect, project_root: &str, is_focused: bool) {
     let block = Block::default()
         .title("[1] Projects")
         .borders(Borders::ALL)
@@ -352,13 +347,23 @@ pub fn create_layout(area: Rect) -> (Rect, Rect, Rect, Rect, Rect, Rect) {
     // Split left side into 4 vertical blocks for Projects, Modules, Profiles, Flags
     let left_blocks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(3), // Projects (placeholder, small)
-            Constraint::Percentage(40), // Modules
-            Constraint::Percentage(30), // Profiles
-            Constraint::Percentage(30), // Flags
-        ].as_ref())
+        .constraints(
+            [
+                Constraint::Length(3),      // Projects (placeholder, small)
+                Constraint::Percentage(40), // Modules
+                Constraint::Percentage(30), // Profiles
+                Constraint::Percentage(30), // Flags
+            ]
+            .as_ref(),
+        )
         .split(content_chunks[0]);
 
-    (left_blocks[0], left_blocks[1], left_blocks[2], left_blocks[3], content_chunks[1], vertical[1])
+    (
+        left_blocks[0],
+        left_blocks[1],
+        left_blocks[2],
+        left_blocks[3],
+        content_chunks[1],
+        vertical[1],
+    )
 }

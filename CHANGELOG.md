@@ -29,6 +29,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Kill running Maven process with `x` key (#24)
+- Process ID tracking for running commands
+- Cross-platform process termination (SIGTERM on Unix, taskkill on Windows)
+
+### Fixed
+- Windows support: Maven command now uses `mvn.cmd` instead of `mvn`
+
+### Added
 - Support for single-module Maven projects (projects without `<modules>` section)
 - Display "(root project)" for single-module projects in UI
 - Automatic detection and normalization of empty module lists

@@ -57,7 +57,7 @@ struct ModuleAction {
     suffix: &'static str,
 }
 
-const MODULE_ACTIONS: [ModuleAction; 7] = [
+const MODULE_ACTIONS: [ModuleAction; 8] = [
     ModuleAction {
         key_display: "b",
         prefix: "",
@@ -93,8 +93,12 @@ const MODULE_ACTIONS: [ModuleAction; 7] = [
         prefix: "",
         suffix: "eps",
     },
+    ModuleAction {
+        key_display: "x",
+        prefix: "",
+        suffix: "kill",
+    },
 ];
-
 
 /// Handle key events and update TUI state accordingly
 pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
@@ -254,6 +258,10 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
             log::info!("Execute: dependency:tree");
             state.run_selected_module_command(&["dependency:tree"]);
         }
+        KeyCode::Char('x') => {
+            log::info!("Kill running process");
+            state.kill_running_process();
+        }
         KeyCode::Char('3') => {
             log::info!("Switch to profiles view");
             state.switch_to_profiles();
@@ -306,13 +314,7 @@ fn key_token(text: &str) -> Span<'static> {
     Span::styled(text.to_string(), Theme::KEY_HINT_STYLE)
 }
 
-
-fn append_bracketed_word(
-    spans: &mut Vec<Span<'static>>,
-    prefix: &str,
-    key: &str,
-    suffix: &str,
-) {
+fn append_bracketed_word(spans: &mut Vec<Span<'static>>, prefix: &str, key: &str, suffix: &str) {
     let key_style = Theme::KEY_HINT_STYLE;
     let text_style = Theme::DEFAULT_STYLE;
 
@@ -403,12 +405,7 @@ pub(crate) fn simplified_footer_body(_view: CurrentView) -> Line<'static> {
         if idx > 0 {
             spans.push(Span::raw(" "));
         }
-        append_bracketed_word(
-            &mut spans,
-            action.prefix,
-            action.key_display,
-            action.suffix,
-        );
+        append_bracketed_word(&mut spans, action.prefix, action.key_display, action.suffix);
     }
 
     Line::from(spans)
