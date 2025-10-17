@@ -204,6 +204,12 @@ impl TuiState {
             is_command_running: false,
             command_start_time: None,
         };
+        
+        // Pre-select first flag to ensure alignment
+        if !state.flags.is_empty() {
+            state.flags_list_state.select(Some(0));
+        }
+        
         state.sync_selected_module_output();
         state
     }
