@@ -5,6 +5,12 @@ Inspired by *LazyGit*, it provides a clean, keyboard-driven interface to build, 
 
 ## Features
 
+### LazyGit-Style Interface
+- **Dedicated numbered view blocks**: Projects [1], Modules [2], Profiles [3], Flags [4]
+- **Quick navigation**: Switch between views instantly with number keys
+- **Simultaneous display**: All views visible at once for better context
+- **Clean separation**: Output pane on the right, selection blocks on the left
+
 ### Project Support
 - **Single-module projects**: Automatically detected, displayed as "(root project)"
 - **Multi-module projects**: Lists all modules from the `<modules>` section
@@ -57,9 +63,10 @@ Inspired by *LazyGit*, it provides a clean, keyboard-driven interface to build, 
 ### Views
 | Key | Action |
 |-----|--------|
-| `m` | Switch to Modules view |
-| `p` | Switch to Profiles view (toggle profiles on/off) |
-| `f` | Switch to Flags view (toggle build flags) |
+| `1` | Switch to Projects view |
+| `2` | Switch to Modules view |
+| `3` | Switch to Profiles view (toggle profiles on/off) |
+| `4` | Switch to Flags view (toggle build flags) |
 
 ### Maven Commands
 | Key | Action | Maven Command |
