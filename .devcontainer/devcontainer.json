@@ -64,11 +64,17 @@
   },
 
   "postCreateCommand": ".devcontainer/setup.sh",
-  
+
   "forwardPorts": [8080, 3000],
-  
+
+  "containerEnv": {
+    "CARGO_HOME": "/home/vscode/.cargo",
+    "RUSTUP_HOME": "/home/vscode/.rustup"
+  },
+
   "mounts": [
-    "source=lazymvn_cargo_cache,target=/usr/local/cargo/registry,type=volume"
+    "source=lazymvn_cargo_cache,target=/home/vscode/.cargo/registry,type=volume",
+    "source=lazymvn_rustup_cache,target=/home/vscode/.rustup,type=volume"
   ],
 
   "remoteUser": "vscode"

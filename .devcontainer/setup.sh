@@ -17,7 +17,20 @@ sudo apt-get install -y \
 
 # Setup Rust environment
 echo "🦀 Configuring Rust environment..."
-source $HOME/.cargo/env
+# Ensure CARGO_HOME and RUSTUP_HOME exist and are owned by the vscode user
+export CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
+export RUSTUP_HOME="${RUSTUP_HOME:-$HOME/.rustup}"
+
+mkdir -p "$CARGO_HOME" "$RUSTUP_HOME"
+chown -R $(id -u):$(id -g) "$CARGO_HOME" "$RUSTUP_HOME" || true
+
+# Source cargo env if present
+if [ -f "$CARGO_HOME/env" ]; then
+    # some installs place env under $CARGO_HOME/env
+    source "$CARGO_HOME/env"
+elif [ -f "$HOME/.cargo/env" ]; then
+    source "$HOME/.cargo/env"
+fi
 
 # Install useful Rust tools
 cargo install --locked \
@@ -46,8 +59,11 @@ echo "Maven version: $(mvn --version | head -n 1)"
 # Pre-build dependencies for faster startup
 echo "📦 Pre-building project dependencies..."
 if [ -f "Cargo.toml" ]; then
-    cargo fetch
-    cargo check
+    # Ensure cargo can write to its cache before fetching
+    mkdir -p "$CARGO_HOME/registry"
+    chown -R $(id -u):$(id -g) "$CARGO_HOME" || true
+    cargo fetch || true
+    cargo check || true
 fi
 
 # Setup git flow if not already initialized
