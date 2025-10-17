@@ -84,6 +84,24 @@ Pour modifier l'environnement :
 
 ## Dépannage
 
+### Erreur de Création du Container
+Si vous voyez une erreur comme :
+```
+Error: create /var/lib/docker/codespacemount/workspace/lazymvn/.devcontainer/cargo-cache: includes invalid characters for a local volume name
+```
+
+Cela signifie que les noms de volumes Docker doivent suivre des conventions strictes. Notre configuration utilise `lazymvn_cargo_cache` comme volume nommé au lieu d'un volume basé sur un chemin pour éviter ce problème.
+
+### Container de Récupération
+Si le container principal échoue au démarrage, GitHub Codespaces créera automatiquement un container de récupération avec Alpine Linux. Vous pouvez :
+1. Corriger la configuration devcontainer.json
+2. Commiter et pousser les changements
+3. Reconstruire le container depuis la Palette de Commandes : "Codespaces: Rebuild Container"
+
+### Cache des Volumes
+Le cache du registre Cargo est stocké dans un volume Docker nommé `lazymvn_cargo_cache` qui persiste entre les reconstructions de container, rendant les builds suivants beaucoup plus rapides.
+
+### Autres Problèmes
 Si l'installation échoue :
 1. Vérifiez les logs dans le terminal VS Code
 2. Relancez `.devcontainer/setup.sh` manuellement

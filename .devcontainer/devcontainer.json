@@ -68,7 +68,7 @@
   "forwardPorts": [8080, 3000],
   
   "mounts": [
-    "source=${localWorkspaceFolder}/.devcontainer/cargo-cache,target=/usr/local/cargo/registry,type=volume"
+    "source=lazymvn_cargo_cache,target=/usr/local/cargo/registry,type=volume"
   ],
 
   "remoteUser": "vscode"
