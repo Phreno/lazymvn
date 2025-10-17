@@ -8,6 +8,7 @@ use ratatui::{
 /// Represents the current view in the TUI
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum CurrentView {
+    Projects,
     Modules,
     Profiles,
     Flags,
@@ -222,7 +223,11 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
                 state.scroll_output_lines(-1);
             }
         },
-        KeyCode::Char('m') => {
+        KeyCode::Char('1') => {
+            log::info!("Switch to projects view");
+            state.switch_to_projects();
+        }
+        KeyCode::Char('2') => {
             log::info!("Switch to modules view");
             state.switch_to_modules();
         }
@@ -254,11 +259,11 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
             log::info!("Execute: dependency:tree");
             state.run_selected_module_command(&["dependency:tree"]);
         }
-        KeyCode::Char('p') => {
+        KeyCode::Char('3') => {
             log::info!("Switch to profiles view");
             state.switch_to_profiles();
         }
-        KeyCode::Char('f') => {
+        KeyCode::Char('4') => {
             log::info!("Switch to flags view");
             state.switch_to_flags();
         }
@@ -340,15 +345,24 @@ pub(crate) fn blank_line() -> Line<'static> {
 
 pub(crate) fn build_navigation_line() -> Line<'static> {
     let spans: Vec<Span<'static>> = vec![
-        Span::styled("Navigation ", Theme::FOOTER_SECTION_STYLE),
+        Span::styled("Views ", Theme::FOOTER_SECTION_STYLE),
+        key_token("1"),
+        Span::raw(" Projects • "),
+        key_token("2"),
+        Span::raw(" Modules • "),
+        key_token("3"),
+        Span::raw(" Profiles • "),
+        key_token("4"),
+        Span::raw(" Flags  •  "),
+        Span::styled("Focus ", Theme::FOOTER_SECTION_STYLE),
         key_token("←"),
         Span::raw("  "),
         key_token("→"),
-        Span::raw(" Focus  • "),
+        Span::raw("  •  "),
+        Span::styled("Navigate ", Theme::FOOTER_SECTION_STYLE),
         key_token("↑"),
         Span::raw("  "),
         key_token("↓"),
-        Span::raw(" Select"),
     ];
     Line::from(spans)
 }
@@ -381,7 +395,7 @@ pub(crate) fn simplified_footer_title(
     };
 
     let style = match view {
-        CurrentView::Modules => Theme::FOOTER_SECTION_STYLE,
+        CurrentView::Projects | CurrentView::Modules => Theme::FOOTER_SECTION_STYLE,
         CurrentView::Profiles | CurrentView::Flags => Theme::FOOTER_SECTION_FOCUSED_STYLE,
     };
 
