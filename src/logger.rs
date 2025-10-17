@@ -21,12 +21,7 @@ impl log::Log for Logger {
     fn log(&self, record: &Record) {
         if self.enabled(record.metadata()) {
             let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
-            let log_line = format!(
-                "[{}] {} - {}",
-                timestamp,
-                record.level(),
-                record.args()
-            );
+            let log_line = format!("[{}] {} - {}", timestamp, record.level(), record.args());
 
             // Log to main debug file
             let mut file_guard = self.file.lock().unwrap();
