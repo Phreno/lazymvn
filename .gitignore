@@ -1,2 +1,12 @@
 /target
 lazymvn-*.log
+
+# Development environment
+.devcontainer/cargo-cache/
+.vscode/settings.json
+.idea/
+*.iml
+
+# OS generated files
+.DS_Store
+Thumbs.db

@@ -33,12 +33,6 @@ impl Theme {
         .add_modifier(Modifier::BOLD)
         .add_modifier(Modifier::UNDERLINED);
 
-    /// Style for active footer text
-    pub const FOOTER_ACTIVE_TEXT_STYLE: Style = Style::new()
-        .fg(Color::White)
-        .add_modifier(Modifier::UNDERLINED);
-
-    /// Style for footer pointer indicators
     /// Style for footer box borders
     pub const FOOTER_BOX_BORDER_STYLE: Style = Style::new().fg(Color::Blue);
 
