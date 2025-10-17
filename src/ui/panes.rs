@@ -193,9 +193,9 @@ pub fn render_output_pane(
             if !flags.is_empty() {
                 parts.push(flags.join(", "));
             }
-            format!("Output: {}", parts.join(" • "))
+            format!("[0] Output: {}", parts.join(" • "))
         } else if let Some(module) = module_name {
-            format!("Output: {}", module)
+            format!("[0] Output: {}", module)
         } else {
             "Output".to_string()
         };
