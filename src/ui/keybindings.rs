@@ -307,9 +307,9 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
             state.scroll_output_to_end();
         }
         KeyCode::Enter | KeyCode::Char(' ') => {
-            if state.current_view == CurrentView::Profiles {
+            if state.focus == Focus::Profiles {
                 state.toggle_profile();
-            } else if state.current_view == CurrentView::Flags {
+            } else if state.focus == Focus::Flags {
                 state.toggle_flag();
             }
         }
