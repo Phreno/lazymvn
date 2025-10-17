@@ -109,6 +109,105 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
     keybindings::handle_key_event(key, state);
 }
 
+/// Handle mouse events for pane navigation
+pub fn handle_mouse_event(mouse: crossterm::event::MouseEvent, state: &mut crate::ui::state::TuiState) {
+    use crossterm::event::{MouseEventKind, MouseButton};
+    
+    // Only handle left button clicks
+    if mouse.kind != MouseEventKind::Down(MouseButton::Left) {
+        return;
+    }
+    
+    log::debug!("Mouse click at ({}, {})", mouse.column, mouse.row);
+    
+    // Get the current layout areas to determine which pane was clicked
+    // We need to calculate this based on terminal size
+    let terminal_size = match crossterm::terminal::size() {
+        Ok((cols, rows)) => (cols, rows),
+        Err(_) => return,
+    };
+    
+    // Calculate layout areas using same logic as draw function
+    let total_area = ratatui::layout::Rect {
+        x: 0,
+        y: 0,
+        width: terminal_size.0,
+        height: terminal_size.1,
+    };
+    
+    let (projects_area, modules_area, profiles_area, flags_area, output_area, _footer_area) =
+        create_layout(total_area);
+    
+    // Check which pane was clicked and set focus accordingly
+    let click_pos = (mouse.column, mouse.row);
+    
+    if is_inside_area(click_pos, projects_area) {
+        log::info!("Mouse clicked on Projects pane");
+        state.switch_to_projects();
+        handle_pane_item_click(mouse, projects_area, state, Focus::Projects);
+    } else if is_inside_area(click_pos, modules_area) {
+        log::info!("Mouse clicked on Modules pane");
+        state.switch_to_modules();
+        handle_pane_item_click(mouse, modules_area, state, Focus::Modules);
+    } else if is_inside_area(click_pos, profiles_area) {
+        log::info!("Mouse clicked on Profiles pane");
+        state.switch_to_profiles();
+        handle_pane_item_click(mouse, profiles_area, state, Focus::Profiles);
+    } else if is_inside_area(click_pos, flags_area) {
+        log::info!("Mouse clicked on Flags pane");
+        state.switch_to_flags();
+        handle_pane_item_click(mouse, flags_area, state, Focus::Flags);
+    } else if is_inside_area(click_pos, output_area) {
+        log::info!("Mouse clicked on Output pane");
+        state.focus_output();
+    }
+}
+
+/// Handle clicking on an item within a pane to select it
+fn handle_pane_item_click(
+    mouse: crossterm::event::MouseEvent,
+    area: ratatui::layout::Rect,
+    state: &mut crate::ui::state::TuiState,
+    focus: Focus,
+) {
+    // Calculate which item was clicked based on row position within pane
+    // Account for border (1 line top) and title
+    if mouse.row <= area.y + 1 {
+        return; // Clicked on border/title
+    }
+    
+    let item_index = (mouse.row - area.y - 2) as usize; // -2 for border and title
+    
+    match focus {
+        Focus::Modules => {
+            if item_index < state.modules.len() {
+                state.modules_list_state.select(Some(item_index));
+                state.sync_selected_module_output();
+                log::debug!("Selected module at index {}", item_index);
+            }
+        }
+        Focus::Profiles => {
+            if item_index < state.profiles.len() {
+                state.profiles_list_state.select(Some(item_index));
+                log::debug!("Selected profile at index {}", item_index);
+            }
+        }
+        Focus::Flags => {
+            if item_index < state.flags.len() {
+                state.flags_list_state.select(Some(item_index));
+                log::debug!("Selected flag at index {}", item_index);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Check if a position (column, row) is inside a Rect area
+fn is_inside_area(pos: (u16, u16), area: ratatui::layout::Rect) -> bool {
+    let (col, row) = pos;
+    col >= area.x && col < area.x + area.width && row >= area.y && row < area.y + area.height
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -345,5 +444,82 @@ mod tests {
             &mut state,
         );
         assert_eq!(state.modules_list_state.selected(), Some(2));
+    }
+
+    #[test]
+    fn test_mouse_pane_focus() {
+        let modules = vec!["module1".to_string()];
+        let project_root = PathBuf::from("/");
+        let mut state = crate::ui::state::TuiState::new(modules, project_root, test_cfg());
+
+        // Initial focus is on Modules
+        assert_eq!(state.focus, Focus::Modules);
+
+        // Simulate mouse click on output pane (right side)
+        // Based on 30/70 split, output pane starts at column ~24 for 80 cols terminal
+        let mouse_event = crossterm::event::MouseEvent {
+            kind: crossterm::event::MouseEventKind::Down(crossterm::event::MouseButton::Left),
+            column: 50, // Right side of screen - output pane
+            row: 5,
+            modifiers: crossterm::event::KeyModifiers::empty(),
+        };
+
+        handle_mouse_event(mouse_event, &mut state);
+        
+        // Focus should now be on Output
+        assert_eq!(state.focus, Focus::Output);
+    }
+
+    #[test]
+    fn test_is_inside_area() {
+        use ratatui::layout::Rect;
+        
+        let area = Rect {
+            x: 10,
+            y: 5,
+            width: 20,
+            height: 10,
+        };
+        
+        // Inside
+        assert!(is_inside_area((15, 8), area));
+        assert!(is_inside_area((10, 5), area)); // Top-left corner
+        assert!(is_inside_area((29, 14), area)); // Bottom-right corner (exclusive)
+        
+        // Outside
+        assert!(!is_inside_area((9, 8), area)); // Left of area
+        assert!(!is_inside_area((30, 8), area)); // Right of area
+        assert!(!is_inside_area((15, 4), area)); // Above area
+        assert!(!is_inside_area((15, 15), area)); // Below area
+    }
+
+    #[test]
+    fn test_mouse_click_selects_item() {
+        let modules = vec![
+            "module1".to_string(),
+            "module2".to_string(),
+            "module3".to_string(),
+        ];
+        let project_root = PathBuf::from("/");
+        let mut state = crate::ui::state::TuiState::new(modules, project_root, test_cfg());
+
+        // Initial selection is first module
+        assert_eq!(state.modules_list_state.selected(), Some(0));
+
+        // Simulate mouse click on modules pane, row 5 (which would be ~3rd item)
+        // Assuming modules pane starts at y=3, row 5 would be item at index 0 (5-3-2=0)
+        let mouse_event = crossterm::event::MouseEvent {
+            kind: crossterm::event::MouseEventKind::Down(crossterm::event::MouseButton::Left),
+            column: 5, // Left side - modules pane
+            row: 6, // Within modules pane
+            modifiers: crossterm::event::KeyModifiers::empty(),
+        };
+
+        handle_mouse_event(mouse_event, &mut state);
+        
+        // Should have switched focus to modules
+        assert_eq!(state.focus, Focus::Modules);
+        // Selection should have been updated based on click position
+        assert!(state.modules_list_state.selected().is_some());
     }
 }
