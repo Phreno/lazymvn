@@ -331,24 +331,17 @@ pub fn render_footer(
     }
 }
 
-/// Create the main layout for the TUI
-pub fn create_layout(area: Rect) -> (Rect, Rect, Rect, Rect, Rect, Rect) {
-    create_adaptive_layout(area, None)
-}
-
 /// Create an adaptive layout that responds to terminal size and focused pane
 pub fn create_adaptive_layout(
     area: Rect,
-    focused_pane: Option<crate::ui::keybindings::Focus>,
+    focused_pane: Option<Focus>,
 ) -> (Rect, Rect, Rect, Rect, Rect, Rect) {
-    use crate::ui::keybindings::Focus;
-    
     let footer_height = 9;
-    
+
     // Determine layout mode based on terminal size
     let is_narrow = area.width < 80; // Narrow width threshold
     let is_short = area.height < 30; // Short height threshold
-    
+
     let vertical = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Min(0), Constraint::Length(footer_height)].as_ref())
@@ -372,7 +365,7 @@ fn create_single_column_layout(
     is_short: bool,
 ) -> (Rect, Rect, Rect, Rect, Rect, Rect) {
     use crate::ui::keybindings::Focus;
-    
+
     // In single column, show focused pane expanded, others collapsed
     let constraints = if is_short {
         // Very restrictive - only show focused pane
@@ -453,13 +446,20 @@ fn create_single_column_layout(
             ],
         }
     };
-    
+
     let blocks = Layout::default()
         .direction(Direction::Vertical)
         .constraints(constraints)
         .split(content_area);
-    
-    (blocks[0], blocks[1], blocks[2], blocks[3], blocks[4], footer_area)
+
+    (
+        blocks[0],
+        blocks[1],
+        blocks[2],
+        blocks[3],
+        blocks[4],
+        footer_area,
+    )
 }
 
 /// Create two column layout for normal/wide terminals
@@ -470,7 +470,7 @@ fn create_two_column_layout(
     is_short: bool,
 ) -> (Rect, Rect, Rect, Rect, Rect, Rect) {
     use crate::ui::keybindings::Focus;
-    
+
     let content_chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(30), Constraint::Percentage(70)].as_ref())
@@ -520,7 +520,7 @@ fn create_two_column_layout(
             Constraint::Percentage(30),
         ]
     };
-    
+
     let left_blocks = Layout::default()
         .direction(Direction::Vertical)
         .constraints(left_constraints)
