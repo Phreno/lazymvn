@@ -485,7 +485,7 @@ impl TuiState {
     }
 
     // Module output management
-    fn sync_selected_module_output(&mut self) {
+    pub(crate) fn sync_selected_module_output(&mut self) {
         if let Some(module) = self.selected_module() {
             if let Some(module_output) = self.module_outputs.get(module) {
                 self.command_output = module_output.lines.clone();
