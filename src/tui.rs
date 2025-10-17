@@ -450,6 +450,84 @@ mod tests {
     }
 
     #[test]
+    fn test_profile_selection() {
+        let modules = vec!["module1".to_string()];
+        let project_root = PathBuf::from("/");
+        let mut state = crate::ui::state::TuiState::new(modules, project_root, test_cfg());
+
+        // Add some profiles
+        state.set_profiles(vec!["dev".to_string(), "prod".to_string()]);
+
+        // Switch to profiles view
+        state.switch_to_profiles();
+
+        // Verify focus is on profiles
+        assert_eq!(state.focus, Focus::Profiles);
+        assert_eq!(state.current_view, CurrentView::Profiles);
+
+        // No profiles should be active initially
+        assert_eq!(state.active_profiles.len(), 0);
+
+        // Simulate pressing Enter to toggle profile
+        handle_key_event(
+            crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Enter),
+            &mut state,
+        );
+
+        // First profile should now be active
+        assert_eq!(state.active_profiles.len(), 1);
+        assert_eq!(state.active_profiles[0], "dev");
+
+        // Press Enter again to deactivate
+        handle_key_event(
+            crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Enter),
+            &mut state,
+        );
+
+        // Profile should be deactivated
+        assert_eq!(state.active_profiles.len(), 0);
+    }
+
+    #[test]
+    fn test_flag_selection() {
+        let modules = vec!["module1".to_string()];
+        let project_root = PathBuf::from("/");
+        let mut state = crate::ui::state::TuiState::new(modules, project_root, test_cfg());
+
+        // Switch to flags view
+        state.switch_to_flags();
+
+        // Verify focus is on flags
+        assert_eq!(state.focus, Focus::Flags);
+        assert_eq!(state.current_view, CurrentView::Flags);
+
+        // No flags should be enabled initially
+        let enabled_count = state.flags.iter().filter(|f| f.enabled).count();
+        assert_eq!(enabled_count, 0);
+
+        // Simulate pressing Space to toggle flag
+        handle_key_event(
+            crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char(' ')),
+            &mut state,
+        );
+
+        // First flag should now be enabled
+        let enabled_count = state.flags.iter().filter(|f| f.enabled).count();
+        assert_eq!(enabled_count, 1);
+        assert!(state.flags[0].enabled);
+
+        // Press Space again to disable
+        handle_key_event(
+            crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char(' ')),
+            &mut state,
+        );
+
+        // Flag should be disabled
+        let enabled_count = state.flags.iter().filter(|f| f.enabled).count();
+        assert_eq!(enabled_count, 0);
+    }
+
+    #[test]
     fn test_mouse_pane_focus() {
         let modules = vec!["module1".to_string()];
         let project_root = PathBuf::from("/");
