@@ -333,29 +333,197 @@ pub fn render_footer(
 
 /// Create the main layout for the TUI
 pub fn create_layout(area: Rect) -> (Rect, Rect, Rect, Rect, Rect, Rect) {
-    let footer_height = 9; // accommodates multi-line footer including optional search status
+    create_adaptive_layout(area, None)
+}
+
+/// Create an adaptive layout that responds to terminal size and focused pane
+pub fn create_adaptive_layout(
+    area: Rect,
+    focused_pane: Option<crate::ui::keybindings::Focus>,
+) -> (Rect, Rect, Rect, Rect, Rect, Rect) {
+    use crate::ui::keybindings::Focus;
+    
+    let footer_height = 9;
+    
+    // Determine layout mode based on terminal size
+    let is_narrow = area.width < 80; // Narrow width threshold
+    let is_short = area.height < 30; // Short height threshold
+    
     let vertical = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Min(0), Constraint::Length(footer_height)].as_ref())
         .split(area);
 
+    // Adaptive width layout
+    if is_narrow {
+        // Single column mode - stack everything vertically
+        create_single_column_layout(vertical[0], vertical[1], focused_pane, is_short)
+    } else {
+        // Two column mode - left panes and output
+        create_two_column_layout(vertical[0], vertical[1], focused_pane, is_short)
+    }
+}
+
+/// Create single column layout for narrow terminals
+fn create_single_column_layout(
+    content_area: Rect,
+    footer_area: Rect,
+    focused_pane: Option<crate::ui::keybindings::Focus>,
+    is_short: bool,
+) -> (Rect, Rect, Rect, Rect, Rect, Rect) {
+    use crate::ui::keybindings::Focus;
+    
+    // In single column, show focused pane expanded, others collapsed
+    let constraints = if is_short {
+        // Very restrictive - only show focused pane
+        match focused_pane {
+            Some(Focus::Projects) => vec![
+                Constraint::Min(5),
+                Constraint::Length(1),
+                Constraint::Length(1),
+                Constraint::Length(1),
+                Constraint::Length(1),
+            ],
+            Some(Focus::Modules) => vec![
+                Constraint::Length(1),
+                Constraint::Min(5),
+                Constraint::Length(1),
+                Constraint::Length(1),
+                Constraint::Length(1),
+            ],
+            Some(Focus::Profiles) => vec![
+                Constraint::Length(1),
+                Constraint::Length(1),
+                Constraint::Min(5),
+                Constraint::Length(1),
+                Constraint::Length(1),
+            ],
+            Some(Focus::Flags) => vec![
+                Constraint::Length(1),
+                Constraint::Length(1),
+                Constraint::Length(1),
+                Constraint::Min(5),
+                Constraint::Length(1),
+            ],
+            Some(Focus::Output) | None => vec![
+                Constraint::Length(1),
+                Constraint::Length(1),
+                Constraint::Length(1),
+                Constraint::Length(1),
+                Constraint::Min(5),
+            ],
+        }
+    } else {
+        // Normal single column - show all with focus expanded
+        match focused_pane {
+            Some(Focus::Projects) => vec![
+                Constraint::Percentage(40),
+                Constraint::Percentage(15),
+                Constraint::Percentage(15),
+                Constraint::Percentage(15),
+                Constraint::Percentage(15),
+            ],
+            Some(Focus::Modules) => vec![
+                Constraint::Percentage(15),
+                Constraint::Percentage(40),
+                Constraint::Percentage(15),
+                Constraint::Percentage(15),
+                Constraint::Percentage(15),
+            ],
+            Some(Focus::Profiles) => vec![
+                Constraint::Percentage(15),
+                Constraint::Percentage(15),
+                Constraint::Percentage(40),
+                Constraint::Percentage(15),
+                Constraint::Percentage(15),
+            ],
+            Some(Focus::Flags) => vec![
+                Constraint::Percentage(15),
+                Constraint::Percentage(15),
+                Constraint::Percentage(15),
+                Constraint::Percentage(40),
+                Constraint::Percentage(15),
+            ],
+            Some(Focus::Output) | None => vec![
+                Constraint::Percentage(15),
+                Constraint::Percentage(15),
+                Constraint::Percentage(15),
+                Constraint::Percentage(15),
+                Constraint::Percentage(40),
+            ],
+        }
+    };
+    
+    let blocks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(constraints)
+        .split(content_area);
+    
+    (blocks[0], blocks[1], blocks[2], blocks[3], blocks[4], footer_area)
+}
+
+/// Create two column layout for normal/wide terminals
+fn create_two_column_layout(
+    content_area: Rect,
+    footer_area: Rect,
+    focused_pane: Option<crate::ui::keybindings::Focus>,
+    is_short: bool,
+) -> (Rect, Rect, Rect, Rect, Rect, Rect) {
+    use crate::ui::keybindings::Focus;
+    
     let content_chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(30), Constraint::Percentage(70)].as_ref())
-        .split(vertical[0]);
+        .split(content_area);
 
-    // Split left side into 4 vertical blocks for Projects, Modules, Profiles, Flags
+    // Adaptive left pane layout based on height and focus
+    let left_constraints = if is_short {
+        // Short height - expand focused pane, collapse others
+        match focused_pane {
+            Some(Focus::Projects) => vec![
+                Constraint::Min(5),
+                Constraint::Length(3),
+                Constraint::Length(3),
+                Constraint::Length(3),
+            ],
+            Some(Focus::Modules) => vec![
+                Constraint::Length(3),
+                Constraint::Min(5),
+                Constraint::Length(3),
+                Constraint::Length(3),
+            ],
+            Some(Focus::Profiles) => vec![
+                Constraint::Length(3),
+                Constraint::Length(3),
+                Constraint::Min(5),
+                Constraint::Length(3),
+            ],
+            Some(Focus::Flags) => vec![
+                Constraint::Length(3),
+                Constraint::Length(3),
+                Constraint::Length(3),
+                Constraint::Min(5),
+            ],
+            Some(Focus::Output) | None => vec![
+                Constraint::Length(3),
+                Constraint::Percentage(40),
+                Constraint::Percentage(30),
+                Constraint::Percentage(30),
+            ],
+        }
+    } else {
+        // Normal height - standard layout
+        vec![
+            Constraint::Length(3),
+            Constraint::Percentage(40),
+            Constraint::Percentage(30),
+            Constraint::Percentage(30),
+        ]
+    };
+    
     let left_blocks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints(
-            [
-                Constraint::Length(3),      // Projects (placeholder, small)
-                Constraint::Percentage(40), // Modules
-                Constraint::Percentage(30), // Profiles
-                Constraint::Percentage(30), // Flags
-            ]
-            .as_ref(),
-        )
+        .constraints(left_constraints)
         .split(content_chunks[0]);
 
     (
@@ -364,6 +532,89 @@ pub fn create_layout(area: Rect) -> (Rect, Rect, Rect, Rect, Rect, Rect) {
         left_blocks[2],
         left_blocks[3],
         content_chunks[1],
-        vertical[1],
+        footer_area,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_adaptive_layout_narrow_terminal() {
+        // Narrow terminal (< 80 cols) should use single column layout
+        let area = Rect {
+            x: 0,
+            y: 0,
+            width: 60,
+            height: 40,
+        };
+
+        let (_, modules_area, _, _, output_area, _) =
+            create_adaptive_layout(area, Some(Focus::Modules));
+
+        // In single column, all panes should have the same x position (stacked vertically)
+        assert_eq!(modules_area.x, output_area.x);
+        // Modules should be below projects
+        assert!(modules_area.y > 0);
+        // Output should be below modules
+        assert!(output_area.y > modules_area.y);
+    }
+
+    #[test]
+    fn test_adaptive_layout_wide_terminal() {
+        // Wide terminal (>= 80 cols) should use two column layout
+        let area = Rect {
+            x: 0,
+            y: 0,
+            width: 100,
+            height: 40,
+        };
+
+        let (_, modules_area, _, _, output_area, _) =
+            create_adaptive_layout(area, Some(Focus::Modules));
+
+        // In two column, output should be to the right of modules
+        assert!(output_area.x > modules_area.x);
+    }
+
+    #[test]
+    fn test_adaptive_layout_short_height_expands_focused() {
+        // Short terminal (< 30 rows) should collapse non-focused panes
+        let area = Rect {
+            x: 0,
+            y: 0,
+            width: 100,
+            height: 20,
+        };
+
+        // Focus on modules
+        let (projects_area, modules_area, profiles_area, _, _, _) =
+            create_adaptive_layout(area, Some(Focus::Modules));
+
+        // Modules (focused) should have more height than others
+        assert!(modules_area.height > projects_area.height);
+        assert!(modules_area.height > profiles_area.height);
+    }
+
+    #[test]
+    fn test_adaptive_layout_normal_height_standard_layout() {
+        // Normal height terminal should use standard layout
+        let area = Rect {
+            x: 0,
+            y: 0,
+            width: 100,
+            height: 40,
+        };
+
+        let (projects_area, modules_area, profiles_area, flags_area, _, _) =
+            create_adaptive_layout(area, Some(Focus::Modules));
+
+        // Projects should be small (length 3)
+        assert_eq!(projects_area.height, 3);
+        // Other panes should have reasonable sizes
+        assert!(modules_area.height > 5);
+        assert!(profiles_area.height > 5);
+        assert!(flags_area.height > 5);
+    }
 }
