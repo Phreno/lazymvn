@@ -7,8 +7,8 @@
 use crate::ui::{
     keybindings,
     panes::{
-        create_adaptive_layout, render_flags_pane, render_footer, render_modules_pane, render_output_pane,
-        render_profiles_pane, render_projects_pane,
+        create_adaptive_layout, render_flags_pane, render_footer, render_modules_pane,
+        render_output_pane, render_profiles_pane, render_projects_pane,
     },
 };
 use crossterm::event::KeyEvent;
@@ -110,23 +110,26 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
 }
 
 /// Handle mouse events for pane navigation
-pub fn handle_mouse_event(mouse: crossterm::event::MouseEvent, state: &mut crate::ui::state::TuiState) {
-    use crossterm::event::{MouseEventKind, MouseButton};
-    
+pub fn handle_mouse_event(
+    mouse: crossterm::event::MouseEvent,
+    state: &mut crate::ui::state::TuiState,
+) {
+    use crossterm::event::{MouseButton, MouseEventKind};
+
     // Only handle left button clicks
     if mouse.kind != MouseEventKind::Down(MouseButton::Left) {
         return;
     }
-    
+
     log::debug!("Mouse click at ({}, {})", mouse.column, mouse.row);
-    
+
     // Get the current layout areas to determine which pane was clicked
     // We need to calculate this based on terminal size
     let terminal_size = match crossterm::terminal::size() {
         Ok((cols, rows)) => (cols, rows),
         Err(_) => return,
     };
-    
+
     // Calculate layout areas using same logic as draw function
     let total_area = ratatui::layout::Rect {
         x: 0,
@@ -134,13 +137,13 @@ pub fn handle_mouse_event(mouse: crossterm::event::MouseEvent, state: &mut crate
         width: terminal_size.0,
         height: terminal_size.1,
     };
-    
+
     let (projects_area, modules_area, profiles_area, flags_area, output_area, _footer_area) =
         create_adaptive_layout(total_area, Some(state.focus));
-    
+
     // Check which pane was clicked and set focus accordingly
     let click_pos = (mouse.column, mouse.row);
-    
+
     if is_inside_area(click_pos, projects_area) {
         log::info!("Mouse clicked on Projects pane");
         state.switch_to_projects();
@@ -175,9 +178,9 @@ fn handle_pane_item_click(
     if mouse.row <= area.y + 1 {
         return; // Clicked on border/title
     }
-    
+
     let item_index = (mouse.row - area.y - 2) as usize; // -2 for border and title
-    
+
     match focus {
         Focus::Modules => {
             if item_index < state.modules.len() {
@@ -399,7 +402,7 @@ mod tests {
         let state = crate::ui::state::TuiState::new(modules, project_root, test_cfg());
 
         // Check flags are initialized
-        assert!(state.flags.len() > 0, "Flags should be initialized");
+        assert!(!state.flags.is_empty(), "Flags should be initialized");
 
         // Check all flags start disabled
         assert_eq!(
@@ -465,7 +468,7 @@ mod tests {
         };
 
         handle_mouse_event(mouse_event, &mut state);
-        
+
         // Focus should now be on Output
         assert_eq!(state.focus, Focus::Output);
     }
@@ -473,19 +476,19 @@ mod tests {
     #[test]
     fn test_is_inside_area() {
         use ratatui::layout::Rect;
-        
+
         let area = Rect {
             x: 10,
             y: 5,
             width: 20,
             height: 10,
         };
-        
+
         // Inside
         assert!(is_inside_area((15, 8), area));
         assert!(is_inside_area((10, 5), area)); // Top-left corner
         assert!(is_inside_area((29, 14), area)); // Bottom-right corner (exclusive)
-        
+
         // Outside
         assert!(!is_inside_area((9, 8), area)); // Left of area
         assert!(!is_inside_area((30, 8), area)); // Right of area
@@ -511,12 +514,12 @@ mod tests {
         let mouse_event = crossterm::event::MouseEvent {
             kind: crossterm::event::MouseEventKind::Down(crossterm::event::MouseButton::Left),
             column: 5, // Left side - modules pane
-            row: 6, // Within modules pane
+            row: 6,    // Within modules pane
             modifiers: crossterm::event::KeyModifiers::empty(),
         };
 
         handle_mouse_event(mouse_event, &mut state);
-        
+
         // Should have switched focus to modules
         assert_eq!(state.focus, Focus::Modules);
         // Selection should have been updated based on click position

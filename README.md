@@ -9,10 +9,15 @@ Inspired by *LazyGit*, it provides a clean, keyboard-driven interface to build, 
 ## Features
 
 ### LazyGit-Style Interface
-- **Dedicated numbered view blocks**: Projects [1], Modules [2], Profiles [3], Flags [4]
-- **Quick navigation**: Switch between views instantly with number keys
+- **Dedicated numbered view blocks**: Projects [0], Modules [2], Profiles [3], Flags [4], Output [0]
+- **Quick navigation**: Switch between views instantly with number keys or arrow keys (←/→)
+- **Mouse support**: Click on any pane to focus it, click on items to select them
 - **Simultaneous display**: All views visible at once for better context
 - **Clean separation**: Output pane on the right, selection blocks on the left
+- **Adaptive layout**: Automatically adjusts to terminal size
+  - Single-column mode for narrow terminals (< 80 columns)
+  - Focus-driven expansion for short terminals (< 30 rows)
+  - Perfect for split-screen development
 
 ### Project Support
 - **Single-module projects**: Automatically detected, displayed as "(root project)"
@@ -23,6 +28,7 @@ Inspired by *LazyGit*, it provides a clean, keyboard-driven interface to build, 
 - Execute common Maven commands: `clean`, `compile`, `test`, `package`, `install`, `dependency:tree`
 - Module-scoped builds using `-pl` flag (multi-module projects)
 - Build combinations: `clean install` with one keystroke
+- Kill running processes with `x` key
 
 ### Profiles & Flags
 - Toggle Maven profiles interactively
@@ -37,8 +43,9 @@ Inspired by *LazyGit*, it provides a clean, keyboard-driven interface to build, 
 ### Output & Navigation
 - Real-time Maven output display with color-coded log levels
 - Search through output with regex support (`/` to search, `n`/`N` to navigate)
-- Scroll through output with arrows, Page Up/Down
+- Scroll through output with arrows, Page Up/Down, or mouse wheel
 - Automatic output scrolling to latest content
+- Responsive UI during command execution with progress indicator
 
 ### Configuration
 - Auto-detect Maven settings from project or `~/.m2/settings.xml`
@@ -99,17 +106,20 @@ cargo build
 ### Navigation
 | Key | Action |
 |-----|--------|
-| `←` / `→` | Switch focus between modules/profiles/flags pane and output pane |
-| `↑` / `↓` | Move selection in current pane / Scroll output |
+| `←` / `→` | Cycle focus between all panes (Projects → Modules → Profiles → Flags → Output) |
+| `↑` / `↓` | Move selection in current list pane / Scroll output |
 | `Page Up` / `Page Down` | Scroll output by pages |
+| `Home` / `End` | Jump to start/end of output |
+| **Mouse** | Click on pane to focus it, click on item to select it |
 
 ### Views
 | Key | Action |
 |-----|--------|
-| `1` | Switch to Projects view |
-| `2` | Switch to Modules view |
-| `3` | Switch to Profiles view (toggle profiles on/off) |
-| `4` | Switch to Flags view (toggle build flags) |
+| `0` | Focus Output pane |
+| `1` | Focus Projects pane |
+| `2` | Focus Modules pane |
+| `3` | Focus Profiles pane |
+| `4` | Focus Flags pane |
 
 ### Maven Commands
 | Key | Action | Maven Command |
