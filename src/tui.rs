@@ -113,6 +113,7 @@ mod tests {
     use ratatui::{Terminal, backend::TestBackend};
     use std::path::PathBuf;
     use tempfile::tempdir;
+    use crate::ui::keybindings::CurrentView;
 
     fn test_cfg() -> crate::config::Config {
         crate::config::Config {
