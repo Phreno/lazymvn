@@ -1,0 +1,52 @@
+image:
+  file: .gitpod.Dockerfile
+
+tasks:
+  - name: Setup Environment
+    init: |
+      # Install Rust
+      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+      source ~/.cargo/env
+      
+      # Install useful Rust tools
+      cargo install --locked cargo-watch cargo-edit cargo-audit
+      rustup component add clippy rustfmt
+      
+      # Install Java and Maven
+      sdk install java 21.0.1-ms
+      sdk install maven
+      
+      # Pre-build dependencies
+      cargo fetch
+      cargo check
+      
+      echo "✅ Environment ready!"
+    command: |
+      source ~/.cargo/env
+      source ~/.sdkman/bin/sdkman-init.sh
+      echo "🚀 LazyMVN development environment loaded!"
+      echo "Try: cargo test, cargo build, or ./mvnw test"
+
+vscode:
+  extensions:
+    - rust-lang.rust-analyzer
+    - vadimcn.vscode-lldb
+    - serayuzgur.crates
+    - tamasfe.even-better-toml
+    - redhat.java
+    - vscjava.vscode-java-pack
+    - vscjava.vscode-maven
+
+ports:
+  - port: 8080
+    onOpen: ignore
+  - port: 3000  
+    onOpen: ignore
+
+github:
+  prebuilds:
+    master: true
+    branches: true
+    pullRequests: true
+    pullRequestsFromForks: false
+    addComment: false
