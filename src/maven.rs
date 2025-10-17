@@ -41,6 +41,31 @@ pub fn get_maven_command(project_root: &Path) -> String {
     "mvn".to_string()
 }
 
+pub fn check_maven_availability(project_root: &Path) -> Result<String, std::io::Error> {
+    let maven_command = get_maven_command(project_root);
+
+    let output = Command::new(&maven_command)
+        .arg("--version")
+        .current_dir(project_root)
+        .output()?;
+
+    if !output.status.success() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("Maven command '{}' failed", maven_command),
+        ));
+    }
+
+    let version_output = String::from_utf8_lossy(&output.stdout);
+    let first_line = version_output
+        .lines()
+        .next()
+        .unwrap_or("Unknown version")
+        .to_string();
+
+    Ok(first_line)
+}
+
 pub fn execute_maven_command(
     project_root: &Path,
     module: Option<&str>,
