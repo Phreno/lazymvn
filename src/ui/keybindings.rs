@@ -1,5 +1,5 @@
 use crate::ui::theme::Theme;
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
 use ratatui::text::{Line, Span};
 
 /// Represents the current view in the TUI
@@ -57,7 +57,7 @@ struct ModuleAction {
     suffix: &'static str,
 }
 
-const MODULE_ACTIONS: [ModuleAction; 7] = [
+const MODULE_ACTIONS: [ModuleAction; 8] = [
     ModuleAction {
         key_display: "b",
         prefix: "",
@@ -93,11 +93,22 @@ const MODULE_ACTIONS: [ModuleAction; 7] = [
         prefix: "",
         suffix: "eps",
     },
+    ModuleAction {
+        key_display: "x",
+        prefix: "",
+        suffix: "kill",
+    },
 ];
-
 
 /// Handle key events and update TUI state accordingly
 pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
+    // Only process key press events, ignore release and repeat events
+    // This prevents duplicate actions on Windows and some terminals
+    if key.kind != KeyEventKind::Press {
+        log::debug!("Ignoring non-press key event: {:?}", key.kind);
+        return;
+    }
+
     log::debug!("Key event: {:?}", key);
 
     if let Some(search_mod) = state.search_mod.take() {
@@ -254,6 +265,10 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
             log::info!("Execute: dependency:tree");
             state.run_selected_module_command(&["dependency:tree"]);
         }
+        KeyCode::Char('x') => {
+            log::info!("Kill running process");
+            state.kill_running_process();
+        }
         KeyCode::Char('3') => {
             log::info!("Switch to profiles view");
             state.switch_to_profiles();
@@ -306,13 +321,7 @@ fn key_token(text: &str) -> Span<'static> {
     Span::styled(text.to_string(), Theme::KEY_HINT_STYLE)
 }
 
-
-fn append_bracketed_word(
-    spans: &mut Vec<Span<'static>>,
-    prefix: &str,
-    key: &str,
-    suffix: &str,
-) {
+fn append_bracketed_word(spans: &mut Vec<Span<'static>>, prefix: &str, key: &str, suffix: &str) {
     let key_style = Theme::KEY_HINT_STYLE;
     let text_style = Theme::DEFAULT_STYLE;
 
@@ -403,13 +412,72 @@ pub(crate) fn simplified_footer_body(_view: CurrentView) -> Line<'static> {
         if idx > 0 {
             spans.push(Span::raw(" "));
         }
-        append_bracketed_word(
-            &mut spans,
-            action.prefix,
-            action.key_display,
-            action.suffix,
-        );
+        append_bracketed_word(&mut spans, action.prefix, action.key_display, action.suffix);
     }
 
     Line::from(spans)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Config;
+    use crate::ui::state::TuiState;
+    use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_key_event_only_processes_press_events() {
+        let config = Config::default();
+        let mut state = TuiState::new(
+            vec!["module1".to_string(), "module2".to_string()],
+            PathBuf::from("."),
+            config,
+        );
+
+        // Initial state - first module selected
+        assert_eq!(state.modules_list_state.selected(), Some(0));
+
+        // Simulate key press event for Down arrow
+        let press_event = KeyEvent {
+            code: KeyCode::Down,
+            modifiers: KeyModifiers::NONE,
+            kind: KeyEventKind::Press,
+            state: crossterm::event::KeyEventState::NONE,
+        };
+
+        handle_key_event(press_event, &mut state);
+        let after_press = state.modules_list_state.selected();
+
+        // Selection should have moved to next module
+        assert_eq!(after_press, Some(1));
+
+        // Simulate key release event
+        let release_event = KeyEvent {
+            code: KeyCode::Down,
+            modifiers: KeyModifiers::NONE,
+            kind: KeyEventKind::Release,
+            state: crossterm::event::KeyEventState::NONE,
+        };
+
+        handle_key_event(release_event, &mut state);
+        let after_release = state.modules_list_state.selected();
+
+        // Selection should NOT change on release
+        assert_eq!(after_release, Some(1));
+
+        // Simulate repeat event
+        let repeat_event = KeyEvent {
+            code: KeyCode::Down,
+            modifiers: KeyModifiers::NONE,
+            kind: KeyEventKind::Repeat,
+            state: crossterm::event::KeyEventState::NONE,
+        };
+
+        handle_key_event(repeat_event, &mut state);
+        let after_repeat = state.modules_list_state.selected();
+
+        // Selection should NOT change on repeat (since we filter them out)
+        assert_eq!(after_repeat, Some(1));
+    }
 }

@@ -10,6 +10,7 @@ use std::{
 /// Updates from async command execution
 #[derive(Debug, Clone)]
 pub enum CommandUpdate {
+    Started(u32), // Process ID
     OutputLine(String),
     Completed,
     Error(String),
@@ -38,7 +39,55 @@ pub fn get_maven_command(project_root: &Path) -> String {
         }
     }
 
-    "mvn".to_string()
+    // On Windows, use mvn.cmd; on Unix, use mvn
+    #[cfg(windows)]
+    {
+        "mvn.cmd".to_string()
+    }
+    #[cfg(not(windows))]
+    {
+        "mvn".to_string()
+    }
+}
+
+/// Kill a running process by PID
+pub fn kill_process(pid: u32) -> Result<(), String> {
+    #[cfg(unix)]
+    {
+        use std::process::Command;
+        let output = Command::new("kill")
+            .arg("-TERM")
+            .arg(pid.to_string())
+            .output()
+            .map_err(|e| format!("Failed to kill process: {}", e))?;
+
+        if output.status.success() {
+            log::info!("Successfully sent SIGTERM to process {}", pid);
+            Ok(())
+        } else {
+            let error = String::from_utf8_lossy(&output.stderr);
+            Err(format!("Failed to kill process {}: {}", pid, error))
+        }
+    }
+
+    #[cfg(windows)]
+    {
+        use std::process::Command;
+        let output = Command::new("taskkill")
+            .arg("/PID")
+            .arg(pid.to_string())
+            .arg("/F")
+            .output()
+            .map_err(|e| format!("Failed to kill process: {}", e))?;
+
+        if output.status.success() {
+            log::info!("Successfully killed process {}", pid);
+            Ok(())
+        } else {
+            let error = String::from_utf8_lossy(&output.stderr);
+            Err(format!("Failed to kill process {}: {}", pid, error))
+        }
+    }
 }
 
 pub fn check_maven_availability(project_root: &Path) -> Result<String, std::io::Error> {
@@ -226,7 +275,11 @@ pub fn execute_maven_command_async(
                 .stderr(Stdio::piped())
                 .spawn()?;
 
-            log::debug!("Maven process spawned with PID: {:?}", child.id());
+            let pid = child.id();
+            log::debug!("Maven process spawned with PID: {}", pid);
+
+            // Send the PID immediately so it can be stored for potential kill
+            let _ = tx.send(CommandUpdate::Started(pid));
 
             let stdout_tx = tx.clone();
             let stderr_tx = tx.clone();
@@ -397,7 +450,14 @@ mod tests {
         }
 
         // Test without mvnw present
-        assert_eq!(get_maven_command(project_root), "mvn");
+        #[cfg(windows)]
+        {
+            assert_eq!(get_maven_command(project_root), "mvn.cmd");
+        }
+        #[cfg(not(windows))]
+        {
+            assert_eq!(get_maven_command(project_root), "mvn");
+        }
     }
 
     #[test]

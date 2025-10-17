@@ -63,7 +63,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // setup terminal
     let mut stdout = io::stdout();
     crossterm::terminal::enable_raw_mode()?;
-    crossterm::execute!(stdout, crossterm::terminal::EnterAlternateScreen)?;
+    crossterm::execute!(
+        stdout,
+        crossterm::terminal::EnterAlternateScreen,
+        crossterm::event::EnableMouseCapture
+    )?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
@@ -75,6 +79,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     crossterm::execute!(
         terminal.backend_mut(),
         crossterm::terminal::LeaveAlternateScreen,
+        crossterm::event::DisableMouseCapture
     )?;
     terminal.show_cursor()?;
 
@@ -109,14 +114,20 @@ fn run<B: ratatui::backend::Backend>(
 
         tui::draw(terminal, &mut state)?;
 
-        if event::poll(std::time::Duration::from_millis(50))?
-            && let event::Event::Key(key) = event::read()?
-        {
-            if key.code == event::KeyCode::Char('q') {
-                log::info!("User requested quit");
-                break;
+        if event::poll(std::time::Duration::from_millis(50))? {
+            match event::read()? {
+                event::Event::Key(key) => {
+                    if key.code == event::KeyCode::Char('q') {
+                        log::info!("User requested quit");
+                        break;
+                    }
+                    tui::handle_key_event(key, &mut state);
+                }
+                event::Event::Mouse(mouse) => {
+                    tui::handle_mouse_event(mouse, &mut state);
+                }
+                _ => {}
             }
-            tui::handle_key_event(key, &mut state);
         }
     }
     Ok(())

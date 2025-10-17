@@ -105,6 +105,7 @@ pub struct TuiState {
     command_receiver: Option<mpsc::Receiver<maven::CommandUpdate>>,
     pub is_command_running: bool,
     command_start_time: Option<Instant>,
+    running_process_pid: Option<u32>,
 }
 
 /// Maven build flags that can be toggled
@@ -203,13 +204,14 @@ impl TuiState {
             command_receiver: None,
             is_command_running: false,
             command_start_time: None,
+            running_process_pid: None,
         };
-        
+
         // Pre-select first flag to ensure alignment
         if !state.flags.is_empty() {
             state.flags_list_state.select(Some(0));
         }
-        
+
         state.sync_selected_module_output();
         state
     }
@@ -483,7 +485,7 @@ impl TuiState {
     }
 
     // Module output management
-    fn sync_selected_module_output(&mut self) {
+    pub(crate) fn sync_selected_module_output(&mut self) {
         if let Some(module) = self.selected_module() {
             if let Some(module_output) = self.module_outputs.get(module) {
                 self.command_output = module_output.lines.clone();
@@ -637,6 +639,10 @@ impl TuiState {
         // Now process all updates
         for update in updates {
             match update {
+                maven::CommandUpdate::Started(pid) => {
+                    log::info!("Command started with PID: {}", pid);
+                    self.running_process_pid = Some(pid);
+                }
                 maven::CommandUpdate::OutputLine(line) => {
                     self.command_output.push(line);
                     // Auto-scroll to bottom while command is running
@@ -652,6 +658,7 @@ impl TuiState {
                         .push("✓ Command completed successfully".to_string());
                     self.is_command_running = false;
                     self.command_receiver = None;
+                    self.running_process_pid = None;
                     self.store_current_module_output();
                     self.output_metrics = None;
                 }
@@ -661,6 +668,7 @@ impl TuiState {
                     self.command_output.push(format!("✗ {}", msg));
                     self.is_command_running = false;
                     self.command_receiver = None;
+                    self.running_process_pid = None;
                     self.store_current_module_output();
                     self.output_metrics = None;
                 }
@@ -670,6 +678,33 @@ impl TuiState {
         if should_clear_receiver {
             self.is_command_running = false;
             self.command_receiver = None;
+        }
+    }
+
+    /// Kill the currently running Maven process
+    pub fn kill_running_process(&mut self) {
+        if let Some(pid) = self.running_process_pid {
+            log::info!("Attempting to kill process with PID: {}", pid);
+            match maven::kill_process(pid) {
+                Ok(()) => {
+                    self.command_output.push(String::new());
+                    self.command_output
+                        .push(format!("⚠ Process {} killed by user", pid));
+                    self.is_command_running = false;
+                    self.command_receiver = None;
+                    self.running_process_pid = None;
+                    self.store_current_module_output();
+                    self.output_metrics = None;
+                }
+                Err(e) => {
+                    log::error!("Failed to kill process: {}", e);
+                    self.command_output.push(String::new());
+                    self.command_output
+                        .push(format!("✗ Failed to kill process: {}", e));
+                }
+            }
+        } else {
+            log::warn!("No running process to kill");
         }
     }
 
