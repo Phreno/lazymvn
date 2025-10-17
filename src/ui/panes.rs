@@ -18,6 +18,7 @@ pub fn render_projects_pane(
     let block = Block::default()
         .title("[1] Projects")
         .borders(Borders::ALL)
+        .border_type(ratatui::widgets::BorderType::Rounded)
         .border_style(if is_focused {
             Theme::FOCUS_STYLE
         } else {
@@ -40,6 +41,7 @@ pub fn render_modules_pane(
     let block = Block::default()
         .title("[2] Modules")
         .borders(Borders::ALL)
+        .border_type(ratatui::widgets::BorderType::Rounded)
         .border_style(if is_focused {
             Theme::FOCUS_STYLE
         } else {
@@ -85,6 +87,7 @@ pub fn render_profiles_pane(
     let block = Block::default()
         .title(title)
         .borders(Borders::ALL)
+        .border_type(ratatui::widgets::BorderType::Rounded)
         .border_style(if is_focused {
             Theme::FOCUS_STYLE
         } else {
@@ -138,6 +141,7 @@ pub fn render_flags_pane(
     let block = Block::default()
         .title(title)
         .borders(Borders::ALL)
+        .border_type(ratatui::widgets::BorderType::Rounded)
         .border_style(if is_focused {
             Theme::FOCUS_STYLE
         } else {
@@ -217,6 +221,7 @@ pub fn render_output_pane(
     let output_block = Block::default()
         .title(title)
         .borders(Borders::ALL)
+        .border_type(ratatui::widgets::BorderType::Rounded)
         .border_style(if is_focused {
             Theme::FOCUS_STYLE
         } else {
@@ -317,6 +322,7 @@ pub fn render_footer(
     let commands_block = Block::default()
         .title(title)
         .borders(Borders::ALL)
+        .border_type(ratatui::widgets::BorderType::Rounded)
         .border_style(Theme::FOOTER_BOX_BORDER_STYLE);
     let commands_paragraph =
         Paragraph::new(crate::ui::keybindings::simplified_footer_body(view)).block(commands_block);
@@ -340,7 +346,7 @@ pub fn create_layout(area: Rect) -> (Rect, Rect, Rect, Rect, Rect, Rect) {
 
     let content_chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(40), Constraint::Percentage(60)].as_ref())
+        .constraints([Constraint::Percentage(30), Constraint::Percentage(70)].as_ref())
         .split(vertical[0]);
 
     // Split left side into 4 vertical blocks for Projects, Modules, Profiles, Flags
