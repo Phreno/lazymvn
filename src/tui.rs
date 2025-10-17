@@ -24,10 +24,12 @@ pub fn draw<B: Backend>(
     state: &mut crate::ui::state::TuiState,
 ) -> Result<(), std::io::Error> {
     terminal.draw(|f| {
-        let (projects_area, modules_area, profiles_area, flags_area, output_area, footer_area) = create_layout(f.area());
+        let (projects_area, modules_area, profiles_area, flags_area, output_area, footer_area) =
+            create_layout(f.area());
 
         // Get project root name for display
-        let project_name = state.project_root
+        let project_name = state
+            .project_root
             .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("unknown");
@@ -110,10 +112,10 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ui::keybindings::CurrentView;
     use ratatui::{Terminal, backend::TestBackend};
     use std::path::PathBuf;
     use tempfile::tempdir;
-    use crate::ui::keybindings::CurrentView;
 
     fn test_cfg() -> crate::config::Config {
         crate::config::Config {
