@@ -28,6 +28,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Switch between projects without restarting LazyMVN
   - **Smart fallback**: When no POM is found in current directory, automatically loads the most recent project
   - Clear error messages when no project is available
+- **Per-Module Preferences**:
+  - Automatically saves active profiles and enabled flags for each module
+  - Preferences restored when switching between modules
+  - Stored in `~/.config/lazymvn/preferences/<project-hash>.json`
+  - Works seamlessly with multi-module projects
+  - No manual configuration needed - just toggle and go!
 
 ### Changed
 - **Kill process keybinding**: Changed from `x` to `Escape` for better UX consistency

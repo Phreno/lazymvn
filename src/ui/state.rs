@@ -118,6 +118,8 @@ pub struct TuiState {
     pub starter_candidates: Vec<String>,
     pub starter_filter: String,
     pub starters_list_state: ListState,
+    // Module preferences
+    module_preferences: crate::config::ProjectPreferences,
 }
 
 /// Maven build flags that can be toggled
@@ -193,6 +195,9 @@ impl TuiState {
             starters_list_state.select(Some(0));
         }
 
+        // Load module preferences for this project
+        let module_preferences = crate::config::ProjectPreferences::load(&project_root);
+
         let mut state = Self {
             current_view: CurrentView::Modules,
             focus: Focus::Modules,
@@ -234,6 +239,7 @@ impl TuiState {
             starter_candidates: vec![],
             starter_filter: String::new(),
             starters_list_state,
+            module_preferences,
         };
 
         // Pre-select first flag to ensure alignment
@@ -282,12 +288,18 @@ impl TuiState {
                 if self.modules.is_empty() {
                     return;
                 }
+                // Save current module preferences before switching
+                self.save_module_preferences();
+
                 let i = match self.modules_list_state.selected() {
                     Some(i) => (i + 1) % self.modules.len(),
                     None => 0,
                 };
                 self.modules_list_state.select(Some(i));
                 self.sync_selected_module_output();
+
+                // Load preferences for the new module
+                self.load_module_preferences();
             }
             Focus::Profiles => {
                 if !self.profiles.is_empty() {
@@ -326,6 +338,9 @@ impl TuiState {
                 if self.modules.is_empty() {
                     return;
                 }
+                // Save current module preferences before switching
+                self.save_module_preferences();
+
                 let i = match self.modules_list_state.selected() {
                     Some(i) => {
                         if i == 0 {
@@ -338,6 +353,9 @@ impl TuiState {
                 };
                 self.modules_list_state.select(Some(i));
                 self.sync_selected_module_output();
+
+                // Load preferences for the new module
+                self.load_module_preferences();
             }
             Focus::Profiles => {
                 if !self.profiles.is_empty() {
@@ -390,6 +408,9 @@ impl TuiState {
                 self.active_profiles.push(profile.clone());
             }
             log::debug!("Active profiles now: {:?}", self.active_profiles);
+
+            // Save preferences after toggling
+            self.save_module_preferences();
         }
     }
 
@@ -407,6 +428,9 @@ impl TuiState {
                 flag.flag,
                 flag.enabled
             );
+
+            // Save preferences after toggling
+            self.save_module_preferences();
         }
     }
 
@@ -1318,6 +1342,56 @@ impl TuiState {
                     self.starters_list_state
                         .select(Some(self.starters_cache.starters.len() - 1));
                 }
+            }
+        }
+    }
+
+    // Module preferences methods
+
+    /// Save current profiles and flags for the selected module
+    pub fn save_module_preferences(&mut self) {
+        if let Some(module) = self.selected_module() {
+            let prefs = crate::config::ModulePreferences {
+                active_profiles: self.active_profiles.clone(),
+                enabled_flags: self.enabled_flag_names(),
+            };
+
+            log::info!(
+                "Saving preferences for module '{}': profiles={:?}, flags={:?}",
+                module,
+                prefs.active_profiles,
+                prefs.enabled_flags
+            );
+
+            self.module_preferences
+                .set_module_prefs(module.to_string(), prefs);
+
+            if let Err(e) = self.module_preferences.save(&self.project_root) {
+                log::error!("Failed to save module preferences: {}", e);
+            }
+        }
+    }
+
+    /// Load preferences for the selected module
+    pub fn load_module_preferences(&mut self) {
+        if let Some(module) = self.selected_module() {
+            if let Some(prefs) = self.module_preferences.get_module_prefs(module) {
+                log::info!(
+                    "Loading preferences for module '{}': profiles={:?}, flags={:?}",
+                    module,
+                    prefs.active_profiles,
+                    prefs.enabled_flags
+                );
+
+                // Restore active profiles
+                self.active_profiles = prefs.active_profiles.clone();
+
+                // Restore enabled flags
+                for flag in &mut self.flags {
+                    flag.enabled = prefs.enabled_flags.contains(&flag.flag);
+                }
+            } else {
+                log::debug!("No saved preferences for module '{}'", module);
             }
         }
     }

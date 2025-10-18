@@ -345,3 +345,158 @@ mod tests {
         );
     }
 }
+
+/// Module preferences for saving selected profiles and flags per module
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ModulePreferences {
+    pub active_profiles: Vec<String>,
+    pub enabled_flags: Vec<String>,
+}
+
+/// Manages module preferences per project
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ProjectPreferences {
+    modules: std::collections::HashMap<String, ModulePreferences>,
+}
+
+impl ProjectPreferences {
+    /// Load preferences for a specific project
+    pub fn load(project_root: &Path) -> Self {
+        let prefs_file = Self::get_prefs_file(project_root);
+
+        if let Ok(content) = fs::read_to_string(&prefs_file)
+            && let Ok(prefs) = serde_json::from_str(&content)
+        {
+            log::debug!("Loaded module preferences from {:?}", prefs_file);
+            return prefs;
+        }
+
+        log::debug!("No preferences file found, creating new");
+        Self::default()
+    }
+
+    /// Save preferences to disk
+    pub fn save(&self, project_root: &Path) -> Result<(), String> {
+        let prefs_file = Self::get_prefs_file(project_root);
+
+        if let Some(parent) = prefs_file.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("Failed to create preferences directory: {}", e))?;
+        }
+
+        let content = serde_json::to_string_pretty(self)
+            .map_err(|e| format!("Failed to serialize preferences: {}", e))?;
+
+        fs::write(&prefs_file, content)
+            .map_err(|e| format!("Failed to write preferences: {}", e))?;
+
+        log::debug!("Saved module preferences to {:?}", prefs_file);
+        Ok(())
+    }
+
+    /// Get preferences for a specific module
+    pub fn get_module_prefs(&self, module: &str) -> Option<&ModulePreferences> {
+        self.modules.get(module)
+    }
+
+    /// Set preferences for a specific module
+    pub fn set_module_prefs(&mut self, module: String, prefs: ModulePreferences) {
+        self.modules.insert(module, prefs);
+    }
+
+    /// Get the preferences file path for a project
+    fn get_prefs_file(project_root: &Path) -> PathBuf {
+        let config_dir = get_config_dir();
+        let project_hash = format!(
+            "{:x}",
+            md5::compute(project_root.to_string_lossy().as_bytes())
+        );
+        config_dir
+            .join("preferences")
+            .join(format!("{}.json", project_hash))
+    }
+}
+
+#[cfg(test)]
+mod module_prefs_tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_module_preferences_save_and_load() {
+        let temp_dir = tempdir().unwrap();
+        let mut prefs = ProjectPreferences::default();
+
+        let module_prefs = ModulePreferences {
+            active_profiles: vec!["dev".to_string(), "debug".to_string()],
+            enabled_flags: vec!["--also-make".to_string()],
+        };
+
+        prefs.set_module_prefs("my-module".to_string(), module_prefs.clone());
+
+        // Save
+        prefs.save(temp_dir.path()).unwrap();
+
+        // Load
+        let loaded = ProjectPreferences::load(temp_dir.path());
+
+        let loaded_prefs = loaded.get_module_prefs("my-module").unwrap();
+        assert_eq!(loaded_prefs.active_profiles, module_prefs.active_profiles);
+        assert_eq!(loaded_prefs.enabled_flags, module_prefs.enabled_flags);
+    }
+
+    #[test]
+    fn test_module_preferences_multiple_modules() {
+        let temp_dir = tempdir().unwrap();
+        let mut prefs = ProjectPreferences::default();
+
+        prefs.set_module_prefs(
+            "module1".to_string(),
+            ModulePreferences {
+                active_profiles: vec!["prod".to_string()],
+                enabled_flags: vec![],
+            },
+        );
+
+        prefs.set_module_prefs(
+            "module2".to_string(),
+            ModulePreferences {
+                active_profiles: vec!["dev".to_string()],
+                enabled_flags: vec!["--offline".to_string()],
+            },
+        );
+
+        prefs.save(temp_dir.path()).unwrap();
+        let loaded = ProjectPreferences::load(temp_dir.path());
+
+        assert_eq!(loaded.modules.len(), 2);
+        assert!(loaded.get_module_prefs("module1").is_some());
+        assert!(loaded.get_module_prefs("module2").is_some());
+    }
+
+    #[test]
+    fn test_module_preferences_overwrite() {
+        let temp_dir = tempdir().unwrap();
+        let mut prefs = ProjectPreferences::default();
+
+        prefs.set_module_prefs(
+            "module1".to_string(),
+            ModulePreferences {
+                active_profiles: vec!["dev".to_string()],
+                enabled_flags: vec![],
+            },
+        );
+
+        // Overwrite with new preferences
+        prefs.set_module_prefs(
+            "module1".to_string(),
+            ModulePreferences {
+                active_profiles: vec!["prod".to_string()],
+                enabled_flags: vec!["--offline".to_string()],
+            },
+        );
+
+        let module_prefs = prefs.get_module_prefs("module1").unwrap();
+        assert_eq!(module_prefs.active_profiles, vec!["prod".to_string()]);
+    }
+}

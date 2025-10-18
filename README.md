@@ -51,6 +51,9 @@ Inspired by *LazyGit*, it provides a clean, keyboard-driven interface to build, 
   - `--update-snapshots` - Force snapshot updates
   - `--offline` - Work offline
   - `--fail-fast` - Stop at first failure
+- **Per-module preferences**: Active profiles and flags are automatically saved per module
+  - Remembered across sessions
+  - Automatically restored when switching modules
 
 ### Output & Navigation
 - Real-time Maven output display with color-coded log levels
@@ -63,6 +66,10 @@ Inspired by *LazyGit*, it provides a clean, keyboard-driven interface to build, 
 - Auto-detect Maven settings from project or `~/.m2/settings.xml`
 - Optional project-specific configuration via `lazymvn.toml`
 - Support for custom Maven wrapper scripts (`mvnw`)
+- **Persistent state**: 
+  - Module-specific profiles and flags in `~/.config/lazymvn/preferences/`
+  - Recent projects in `~/.config/lazymvn/recent.json`
+  - Spring Boot starters in `~/.config/lazymvn/starters/`
 - Global configuration in `~/.config/lazymvn/` (Linux/macOS) or `%APPDATA%\lazymvn\` (Windows)
 - Recent projects list stored in `recent.json` (automatically maintained)
 
