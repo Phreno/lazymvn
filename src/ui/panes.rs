@@ -560,11 +560,11 @@ pub fn render_projects_popup(
     let clear_block = Block::default().style(Style::default().bg(ratatui::style::Color::Black));
     f.render_widget(clear_block, popup_area);
 
-    // Create the popup block
+    // Create the popup block with rounded borders
     let block = Block::default()
         .title("Recent Projects [Ctrl+R]")
         .borders(Borders::ALL)
-        .border_type(ratatui::widgets::BorderType::Double)
+        .border_type(ratatui::widgets::BorderType::Rounded)
         .border_style(Theme::FOCUS_STYLE);
 
     // Create list items from projects

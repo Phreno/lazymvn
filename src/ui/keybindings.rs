@@ -396,6 +396,9 @@ pub(crate) fn build_navigation_line() -> Line<'static> {
         key_token("↑"),
         Span::raw("  "),
         key_token("↓"),
+        Span::raw("  •  "),
+        key_token("Ctrl+R"),
+        Span::raw(" Recent Projects"),
     ];
     Line::from(spans)
 }
