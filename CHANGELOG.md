@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Recent Projects Navigation** (#32): 
+  - Track up to 20 recently opened Maven projects
+  - Press `Ctrl+R` to open a popup listing all recent projects
+  - Navigate with arrow keys and press Enter to switch projects
+  - Projects are stored in `~/.config/lazymvn/recent.json` (Linux/macOS) or `%APPDATA%\lazymvn\recent.json` (Windows)
+  - Invalid paths are automatically cleaned from the list
+  - Switch between projects without restarting LazyMVN
+
 ## [0.2.0] - 2025-10-17
 
 ### Added

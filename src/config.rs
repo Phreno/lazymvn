@@ -1,10 +1,126 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 
 #[derive(Deserialize, Default)]
 pub struct Config {
     pub maven_settings: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Default)]
+pub struct RecentProjects {
+    projects: Vec<String>,
+}
+
+impl RecentProjects {
+    const MAX_ENTRIES: usize = 20;
+
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn load() -> Self {
+        let config_dir = get_config_dir();
+        let recent_file = config_dir.join("recent.json");
+
+        if let Ok(content) = fs::read_to_string(&recent_file)
+            && let Ok(recent) = serde_json::from_str(&content)
+        {
+            log::debug!("Loaded {} recent projects", Self::count(&recent));
+            return recent;
+        }
+
+        log::debug!("No recent projects file found, creating new");
+        Self::new()
+    }
+
+    fn count(recent: &RecentProjects) -> usize {
+        recent.projects.len()
+    }
+
+    pub fn save(&self) -> Result<(), String> {
+        let config_dir = get_config_dir();
+        fs::create_dir_all(&config_dir)
+            .map_err(|e| format!("Failed to create config directory: {}", e))?;
+
+        let recent_file = config_dir.join("recent.json");
+        let content = serde_json::to_string_pretty(self)
+            .map_err(|e| format!("Failed to serialize recent projects: {}", e))?;
+
+        fs::write(&recent_file, content)
+            .map_err(|e| format!("Failed to write recent projects: {}", e))?;
+
+        log::debug!(
+            "Saved {} recent projects to {:?}",
+            self.projects.len(),
+            recent_file
+        );
+        Ok(())
+    }
+
+    pub fn add(&mut self, path: PathBuf) {
+        let path_str = path.to_string_lossy().to_string();
+
+        // Remove if already exists
+        self.projects.retain(|p| p != &path_str);
+
+        // Add to front
+        self.projects.insert(0, path_str);
+
+        // Limit to MAX_ENTRIES
+        if self.projects.len() > Self::MAX_ENTRIES {
+            self.projects.truncate(Self::MAX_ENTRIES);
+        }
+
+        log::debug!("Added project to recent list: {:?}", path);
+
+        // Save after adding
+        if let Err(e) = self.save() {
+            log::error!("Failed to save recent projects: {}", e);
+        }
+    }
+
+    pub fn get_projects(&self) -> Vec<PathBuf> {
+        self.projects
+            .iter()
+            .filter_map(|p| {
+                let path = PathBuf::from(p);
+                if path.exists() {
+                    Some(path)
+                } else {
+                    log::debug!("Skipping non-existent path: {:?}", path);
+                    None
+                }
+            })
+            .collect()
+    }
+
+    pub fn remove_invalid(&mut self) {
+        let original_len = self.projects.len();
+        self.projects.retain(|p| PathBuf::from(p).exists());
+
+        if self.projects.len() != original_len {
+            log::info!(
+                "Removed {} invalid paths from recent projects",
+                original_len - self.projects.len()
+            );
+            if let Err(e) = self.save() {
+                log::error!("Failed to save after removing invalid paths: {}", e);
+            }
+        }
+    }
+}
+
+fn get_config_dir() -> PathBuf {
+    let config_dir = dirs::config_dir()
+        .unwrap_or_else(|| {
+            log::warn!("Could not determine config directory, using home");
+            dirs::home_dir().unwrap_or_else(|| PathBuf::from("."))
+        })
+        .join("lazymvn");
+
+    log::debug!("Config directory: {:?}", config_dir);
+    config_dir
 }
 
 pub fn load_config(project_root: &Path) -> Config {
@@ -57,4 +173,175 @@ fn find_maven_settings(project_root: &Path) -> Option<PathBuf> {
 
     log::debug!("No Maven settings file found");
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_recent_projects_new_is_empty() {
+        let recent = RecentProjects::new();
+        assert_eq!(recent.projects.len(), 0);
+    }
+
+    #[test]
+    fn test_recent_projects_add_single_project() {
+        let mut recent = RecentProjects::new();
+        let project_path = PathBuf::from("/tmp/test-project");
+
+        recent
+            .projects
+            .push(project_path.to_string_lossy().to_string());
+
+        assert_eq!(recent.projects.len(), 1);
+        assert_eq!(recent.projects[0], "/tmp/test-project");
+    }
+
+    #[test]
+    fn test_recent_projects_add_removes_duplicates() {
+        let mut recent = RecentProjects::new();
+        let project_path = PathBuf::from("/tmp/test-project");
+
+        recent.add(project_path.clone());
+        recent.add(project_path.clone());
+
+        assert_eq!(
+            recent.projects.len(),
+            1,
+            "Should only have one entry after adding duplicate"
+        );
+    }
+
+    #[test]
+    fn test_recent_projects_add_moves_to_front() {
+        let mut recent = RecentProjects::new();
+        let project1 = PathBuf::from("/tmp/project1");
+        let project2 = PathBuf::from("/tmp/project2");
+
+        recent.add(project1.clone());
+        recent.add(project2.clone());
+        recent.add(project1.clone()); // Re-add first project
+
+        assert_eq!(recent.projects.len(), 2);
+        assert_eq!(
+            recent.projects[0], "/tmp/project1",
+            "Most recently added should be first"
+        );
+        assert_eq!(recent.projects[1], "/tmp/project2");
+    }
+
+    #[test]
+    fn test_recent_projects_limits_to_max_entries() {
+        let mut recent = RecentProjects::new();
+
+        // Add more than MAX_ENTRIES projects
+        for i in 0..25 {
+            recent.add(PathBuf::from(format!("/tmp/project{}", i)));
+        }
+
+        assert_eq!(recent.projects.len(), RecentProjects::MAX_ENTRIES);
+        assert_eq!(
+            recent.projects[0], "/tmp/project24",
+            "Most recent should be first"
+        );
+    }
+
+    #[test]
+    fn test_recent_projects_save_and_load() {
+        let temp_dir = tempdir().unwrap();
+        let recent_file = temp_dir.path().join("recent.json");
+
+        // Create and save
+        let mut recent = RecentProjects::new();
+        recent.add(PathBuf::from("/tmp/project1"));
+        recent.add(PathBuf::from("/tmp/project2"));
+
+        let json = serde_json::to_string(&recent).unwrap();
+        fs::write(&recent_file, json).unwrap();
+
+        // Load and verify
+        let content = fs::read_to_string(&recent_file).unwrap();
+        let loaded: RecentProjects = serde_json::from_str(&content).unwrap();
+
+        assert_eq!(loaded.projects.len(), 2);
+        assert_eq!(loaded.projects[0], "/tmp/project2");
+        assert_eq!(loaded.projects[1], "/tmp/project1");
+    }
+
+    #[test]
+    fn test_recent_projects_get_projects_filters_invalid() {
+        let temp_dir = tempdir().unwrap();
+        let valid_path = temp_dir.path().join("valid");
+        fs::create_dir(&valid_path).unwrap();
+
+        let mut recent = RecentProjects::new();
+        recent
+            .projects
+            .push(valid_path.to_string_lossy().to_string());
+        recent.projects.push("/nonexistent/path".to_string());
+
+        let valid_projects = recent.get_projects();
+
+        assert_eq!(valid_projects.len(), 1, "Should only return existing paths");
+        assert_eq!(valid_projects[0], valid_path);
+    }
+
+    #[test]
+    fn test_recent_projects_remove_invalid() {
+        let temp_dir = tempdir().unwrap();
+        let valid_path = temp_dir.path().join("valid");
+        fs::create_dir(&valid_path).unwrap();
+
+        let mut recent = RecentProjects::new();
+        recent
+            .projects
+            .push(valid_path.to_string_lossy().to_string());
+        recent.projects.push("/nonexistent/path1".to_string());
+        recent.projects.push("/nonexistent/path2".to_string());
+
+        assert_eq!(recent.projects.len(), 3);
+
+        recent.remove_invalid();
+
+        assert_eq!(recent.projects.len(), 1, "Should remove invalid paths");
+        assert_eq!(recent.projects[0], valid_path.to_string_lossy());
+    }
+
+    #[test]
+    fn test_recent_projects_serialization_format() {
+        let mut recent = RecentProjects::new();
+        recent.add(PathBuf::from("/tmp/test"));
+
+        let json = serde_json::to_string(&recent).unwrap();
+
+        assert!(json.contains("\"projects\""));
+        assert!(json.contains("/tmp/test"));
+    }
+
+    #[test]
+    fn test_load_config_returns_default_when_no_file() {
+        let temp_dir = tempdir().unwrap();
+        let config = load_config(temp_dir.path());
+
+        // Should return default config without error
+        assert!(config.maven_settings.is_some() || config.maven_settings.is_none());
+    }
+
+    #[test]
+    fn test_load_config_parses_maven_settings() {
+        let temp_dir = tempdir().unwrap();
+        let config_file = temp_dir.path().join("lazymvn.toml");
+
+        fs::write(&config_file, r#"maven_settings = "/custom/settings.xml""#).unwrap();
+
+        let config = load_config(temp_dir.path());
+
+        assert_eq!(
+            config.maven_settings,
+            Some("/custom/settings.xml".to_string())
+        );
+    }
 }

@@ -23,6 +23,8 @@ Inspired by *LazyGit*, it provides a clean, keyboard-driven interface to build, 
 - **Single-module projects**: Automatically detected, displayed as "(root project)"
 - **Multi-module projects**: Lists all modules from the `<modules>` section
 - **Smart caching**: Remembers project structure and tracks POM changes
+- **Recent projects**: Track up to 20 recently opened Maven projects
+- **Quick switching**: Switch between projects with `Ctrl+R` without restarting
 
 ### Maven Operations
 - Execute common Maven commands: `clean`, `compile`, `test`, `package`, `install`, `dependency:tree`
@@ -51,6 +53,8 @@ Inspired by *LazyGit*, it provides a clean, keyboard-driven interface to build, 
 - Auto-detect Maven settings from project or `~/.m2/settings.xml`
 - Optional project-specific configuration via `lazymvn.toml`
 - Support for custom Maven wrapper scripts (`mvnw`)
+- Global configuration in `~/.config/lazymvn/` (Linux/macOS) or `%APPDATA%\lazymvn\` (Windows)
+- Recent projects list stored in `recent.json` (automatically maintained)
 
 ## Technical Stack
 
@@ -110,6 +114,7 @@ cargo build
 | `↑` / `↓` | Move selection in current list pane / Scroll output |
 | `Page Up` / `Page Down` | Scroll output by pages |
 | `Home` / `End` | Jump to start/end of output |
+| `Ctrl+R` | Show recent projects and switch to a different project |
 | **Mouse** | Click on pane to focus it, click on item to select it |
 
 ### Views

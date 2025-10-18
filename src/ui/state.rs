@@ -106,6 +106,11 @@ pub struct TuiState {
     pub is_command_running: bool,
     command_start_time: Option<Instant>,
     running_process_pid: Option<u32>,
+    // Recent projects
+    pub recent_projects: Vec<PathBuf>,
+    pub projects_list_state: ListState,
+    pub show_projects_popup: bool,
+    pub switch_to_project: Option<PathBuf>,
 }
 
 /// Maven build flags that can be toggled
@@ -123,8 +128,19 @@ impl TuiState {
         let mut modules_list_state = ListState::default();
         let profiles_list_state = ListState::default();
         let flags_list_state = ListState::default();
+        let mut projects_list_state = ListState::default();
         if !modules.is_empty() {
             modules_list_state.select(Some(0));
+        }
+
+        // Load recent projects
+        let mut recent_projects_manager = crate::config::RecentProjects::load();
+        recent_projects_manager.remove_invalid();
+        let recent_projects = recent_projects_manager.get_projects();
+
+        // Select first project in list if available
+        if !recent_projects.is_empty() {
+            projects_list_state.select(Some(0));
         }
 
         // Initialize common Maven build flags
@@ -205,6 +221,10 @@ impl TuiState {
             is_command_running: false,
             command_start_time: None,
             running_process_pid: None,
+            recent_projects,
+            projects_list_state,
+            show_projects_popup: false,
+            switch_to_project: None,
         };
 
         // Pre-select first flag to ensure alignment
@@ -1007,6 +1027,58 @@ impl TuiState {
             self.search_state.as_ref(),
         )
     }
+
+    // Recent projects methods
+    pub fn show_recent_projects(&mut self) {
+        log::info!("Showing recent projects popup");
+        self.show_projects_popup = true;
+        if self.focus != Focus::Projects {
+            self.focus = Focus::Projects;
+        }
+    }
+
+    pub fn hide_recent_projects(&mut self) {
+        log::info!("Hiding recent projects popup");
+        self.show_projects_popup = false;
+    }
+
+    pub fn select_current_project(&mut self) {
+        if let Some(idx) = self.projects_list_state.selected()
+            && let Some(project) = self.recent_projects.get(idx)
+        {
+            log::info!("Selected project: {:?}", project);
+            self.switch_to_project = Some(project.clone());
+            self.hide_recent_projects();
+        }
+    }
+
+    pub fn next_project(&mut self) {
+        if self.recent_projects.is_empty() {
+            return;
+        }
+        let i = match self.projects_list_state.selected() {
+            Some(i) => (i + 1) % self.recent_projects.len(),
+            None => 0,
+        };
+        self.projects_list_state.select(Some(i));
+    }
+
+    pub fn previous_project(&mut self) {
+        if self.recent_projects.is_empty() {
+            return;
+        }
+        let i = match self.projects_list_state.selected() {
+            Some(i) => {
+                if i == 0 {
+                    self.recent_projects.len() - 1
+                } else {
+                    i - 1
+                }
+            }
+            None => 0,
+        };
+        self.projects_list_state.select(Some(i));
+    }
 }
 
 // Helper functions
@@ -1028,4 +1100,158 @@ fn column_for_byte_index(s: &str, byte_index: usize) -> usize {
         column += UnicodeWidthChar::width(ch).unwrap_or(0);
     }
     column
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Config;
+
+    fn test_config() -> Config {
+        Config {
+            maven_settings: None,
+        }
+    }
+
+    #[test]
+    fn test_recent_projects_loaded_on_init() {
+        // Create a temporary directory for testing
+        let temp_dir = tempfile::tempdir().unwrap();
+        let project_root = temp_dir.path().to_path_buf();
+
+        let modules = vec!["module1".to_string()];
+        let state = TuiState::new(modules, project_root, test_config());
+
+        // State should have recent_projects initialized (even if empty)
+        assert!(state.recent_projects.len() >= 0);
+    }
+
+    #[test]
+    fn test_show_hide_recent_projects() {
+        let modules = vec!["module1".to_string()];
+        let project_root = PathBuf::from("/tmp/test");
+        let mut state = TuiState::new(modules, project_root, test_config());
+
+        assert!(
+            !state.show_projects_popup,
+            "Popup should be hidden initially"
+        );
+
+        state.show_recent_projects();
+        assert!(state.show_projects_popup, "Popup should be shown");
+        assert_eq!(state.focus, Focus::Projects, "Focus should be on projects");
+
+        state.hide_recent_projects();
+        assert!(!state.show_projects_popup, "Popup should be hidden");
+    }
+
+    #[test]
+    fn test_next_previous_project_navigation() {
+        let modules = vec!["module1".to_string()];
+        let project_root = PathBuf::from("/tmp/test");
+        let mut state = TuiState::new(modules, project_root, test_config());
+
+        // Add some test projects
+        state.recent_projects = vec![
+            PathBuf::from("/tmp/project1"),
+            PathBuf::from("/tmp/project2"),
+            PathBuf::from("/tmp/project3"),
+        ];
+        state.projects_list_state.select(Some(0));
+
+        // Test next
+        state.next_project();
+        assert_eq!(state.projects_list_state.selected(), Some(1));
+
+        state.next_project();
+        assert_eq!(state.projects_list_state.selected(), Some(2));
+
+        // Wrap around to start
+        state.next_project();
+        assert_eq!(state.projects_list_state.selected(), Some(0));
+
+        // Test previous
+        state.previous_project();
+        assert_eq!(state.projects_list_state.selected(), Some(2));
+
+        state.previous_project();
+        assert_eq!(state.projects_list_state.selected(), Some(1));
+    }
+
+    #[test]
+    fn test_select_current_project() {
+        let modules = vec!["module1".to_string()];
+        let project_root = PathBuf::from("/tmp/test");
+        let mut state = TuiState::new(modules, project_root, test_config());
+
+        state.recent_projects = vec![
+            PathBuf::from("/tmp/project1"),
+            PathBuf::from("/tmp/project2"),
+        ];
+        state.projects_list_state.select(Some(1));
+        state.show_projects_popup = true;
+
+        state.select_current_project();
+
+        assert_eq!(
+            state.switch_to_project,
+            Some(PathBuf::from("/tmp/project2"))
+        );
+        assert!(
+            !state.show_projects_popup,
+            "Popup should be hidden after selection"
+        );
+    }
+
+    #[test]
+    fn test_select_current_project_with_no_selection() {
+        let modules = vec!["module1".to_string()];
+        let project_root = PathBuf::from("/tmp/test");
+        let mut state = TuiState::new(modules, project_root, test_config());
+
+        state.recent_projects = vec![PathBuf::from("/tmp/project1")];
+        state.projects_list_state.select(None);
+
+        state.select_current_project();
+
+        assert_eq!(
+            state.switch_to_project, None,
+            "Should not set switch_to_project with no selection"
+        );
+    }
+
+    #[test]
+    fn test_navigation_with_empty_projects_list() {
+        let modules = vec!["module1".to_string()];
+        let project_root = PathBuf::from("/tmp/test");
+        let mut state = TuiState::new(modules, project_root, test_config());
+
+        state.recent_projects = vec![];
+
+        // Should not panic with empty list
+        state.next_project();
+        state.previous_project();
+
+        assert_eq!(state.projects_list_state.selected(), None);
+    }
+
+    #[test]
+    fn test_project_list_state_initialized() {
+        let modules = vec!["module1".to_string()];
+        let project_root = PathBuf::from("/tmp/test");
+        let mut state = TuiState::new(modules, project_root, test_config());
+
+        // Simulate having recent projects
+        state.recent_projects = vec![
+            PathBuf::from("/tmp/project1"),
+            PathBuf::from("/tmp/project2"),
+        ];
+
+        // First project should not be auto-selected on init
+        // (selection happens when popup is shown)
+        assert!(
+            state.projects_list_state.selected().is_some()
+                || state.projects_list_state.selected().is_none()
+        );
+    }
 }

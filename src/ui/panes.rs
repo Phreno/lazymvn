@@ -536,6 +536,77 @@ fn create_two_column_layout(
     )
 }
 
+/// Render a popup for recent projects selection
+pub fn render_projects_popup(
+    f: &mut Frame,
+    projects: &[std::path::PathBuf],
+    list_state: &mut ListState,
+) {
+    // Calculate popup size (centered, 60% width, 60% height)
+    let area = f.area();
+    let popup_width = (area.width * 60) / 100;
+    let popup_height = (area.height * 60) / 100;
+    let popup_x = (area.width - popup_width) / 2;
+    let popup_y = (area.height - popup_height) / 2;
+
+    let popup_area = Rect {
+        x: popup_x,
+        y: popup_y,
+        width: popup_width,
+        height: popup_height,
+    };
+
+    // Clear the area behind the popup
+    let clear_block = Block::default().style(Style::default().bg(ratatui::style::Color::Black));
+    f.render_widget(clear_block, popup_area);
+
+    // Create the popup block
+    let block = Block::default()
+        .title("Recent Projects [Ctrl+R]")
+        .borders(Borders::ALL)
+        .border_type(ratatui::widgets::BorderType::Double)
+        .border_style(Theme::FOCUS_STYLE);
+
+    // Create list items from projects
+    let items: Vec<ListItem> = projects
+        .iter()
+        .map(|p| {
+            let display = p.to_string_lossy().to_string();
+            ListItem::new(Line::from(display))
+        })
+        .collect();
+
+    let help_text = if projects.is_empty() {
+        "No recent projects. Open Maven projects to add them to this list."
+    } else {
+        "↑↓: Navigate | Enter: Select | Esc: Cancel"
+    };
+
+    // Split popup into list and help sections
+    let popup_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(1), Constraint::Length(3)])
+        .split(popup_area);
+
+    // Render the list
+    let list = List::new(items)
+        .block(block)
+        .style(Theme::DEFAULT_STYLE)
+        .highlight_style(Theme::SELECTED_STYLE)
+        .highlight_symbol(">> ");
+
+    f.render_stateful_widget(list, popup_chunks[0], list_state);
+
+    // Render help text
+    let help_block = Block::default()
+        .borders(Borders::TOP)
+        .border_style(Theme::DEFAULT_STYLE);
+    let help = Paragraph::new(Line::from(help_text))
+        .block(help_block)
+        .style(Theme::FOOTER_SECTION_STYLE);
+    f.render_widget(help, popup_chunks[1]);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
