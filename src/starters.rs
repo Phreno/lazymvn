@@ -18,16 +18,6 @@ impl Starter {
             is_default,
         }
     }
-
-    /// Get display name for UI
-    #[allow(dead_code)]
-    pub fn display_name(&self) -> String {
-        if self.is_default {
-            format!("★ {} ({})", self.label, self.fully_qualified_class_name)
-        } else {
-            format!("{} ({})", self.label, self.fully_qualified_class_name)
-        }
-    }
 }
 
 /// Manages starters for a project
@@ -217,23 +207,6 @@ fn extract_fqcn_from_file(file_path: &Path) -> Option<String> {
 mod tests {
     use super::*;
     use tempfile::tempdir;
-
-    #[test]
-    fn test_starter_display_name() {
-        let starter = Starter::new(
-            "com.example.Application".to_string(),
-            "Main API".to_string(),
-            false,
-        );
-        assert_eq!(starter.display_name(), "Main API (com.example.Application)");
-
-        let default_starter = Starter::new(
-            "com.example.Application".to_string(),
-            "Main API".to_string(),
-            true,
-        );
-        assert!(default_starter.display_name().starts_with("★"));
-    }
 
     #[test]
     fn test_starters_cache_add_and_get() {

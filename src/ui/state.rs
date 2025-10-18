@@ -125,8 +125,6 @@ pub struct TuiState {
 pub struct BuildFlag {
     pub name: String,
     pub flag: String,
-    #[allow(dead_code)]
-    pub description: String,
     pub enabled: bool,
 }
 
@@ -144,44 +142,36 @@ impl TuiState {
             BuildFlag {
                 name: "Also Make".to_string(),
                 flag: "--also-make".to_string(),
-                description: "Build dependencies of specified modules".to_string(),
                 enabled: false,
             },
             BuildFlag {
                 name: "Also Make Dependents".to_string(),
                 flag: "--also-make-dependents".to_string(),
-                description: "Build modules that depend on specified modules".to_string(),
                 enabled: false,
             },
             BuildFlag {
                 name: "Update Snapshots".to_string(),
                 flag: "--update-snapshots".to_string(),
-                description: "Force update of snapshot dependencies".to_string(),
                 enabled: false,
             },
             BuildFlag {
                 name: "Skip Tests".to_string(),
                 flag: "-DskipTests".to_string(),
-                description: "Skip running tests".to_string(),
                 enabled: false,
             },
             BuildFlag {
                 name: "Offline".to_string(),
                 flag: "--offline".to_string(),
-                description: "Work offline (don't download dependencies)".to_string(),
                 enabled: false,
             },
             BuildFlag {
                 name: "Fail Fast".to_string(),
                 flag: "--fail-fast".to_string(),
-                description: "Stop at first failure in multi-module build".to_string(),
                 enabled: false,
             },
             BuildFlag {
                 name: "Fail At End".to_string(),
                 flag: "--fail-at-end".to_string(),
-                description: "Fail build at end; allow all non-impacted builds to continue"
-                    .to_string(),
                 enabled: false,
             },
         ];
