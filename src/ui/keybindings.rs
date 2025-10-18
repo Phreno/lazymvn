@@ -57,7 +57,7 @@ struct ModuleAction {
     suffix: &'static str,
 }
 
-const MODULE_ACTIONS: [ModuleAction; 8] = [
+const MODULE_ACTIONS: [ModuleAction; 9] = [
     ModuleAction {
         key_display: "b",
         prefix: "",
@@ -87,6 +87,11 @@ const MODULE_ACTIONS: [ModuleAction; 8] = [
         key_display: "i",
         prefix: "",
         suffix: "nstall",
+    },
+    ModuleAction {
+        key_display: "s",
+        prefix: "",
+        suffix: "tart",
     },
     ModuleAction {
         key_display: "d",
@@ -195,6 +200,79 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
         }
     }
 
+    // Handle starter selector popup
+    if state.show_starter_selector {
+        match key.code {
+            KeyCode::Char(ch)
+                if !key
+                    .modifiers
+                    .contains(crossterm::event::KeyModifiers::CONTROL) =>
+            {
+                log::debug!("Starter filter input: '{}'", ch);
+                state.push_starter_filter_char(ch);
+            }
+            KeyCode::Backspace => {
+                log::debug!("Starter filter backspace");
+                state.pop_starter_filter_char();
+            }
+            KeyCode::Down => {
+                log::debug!("Next starter");
+                state.next_starter();
+            }
+            KeyCode::Up => {
+                log::debug!("Previous starter");
+                state.previous_starter();
+            }
+            KeyCode::Enter => {
+                log::info!("Select and run starter");
+                state.select_and_run_starter();
+            }
+            KeyCode::Esc => {
+                log::info!("Cancel starter selection");
+                state.hide_starter_selector();
+            }
+            _ => {}
+        }
+        return;
+    }
+
+    // Handle starter manager popup
+    if state.show_starter_manager {
+        match key.code {
+            KeyCode::Down => {
+                log::debug!("Next starter in manager");
+                state.next_starter();
+            }
+            KeyCode::Up => {
+                log::debug!("Previous starter in manager");
+                state.previous_starter();
+            }
+            KeyCode::Enter => {
+                log::info!("Run selected starter from manager");
+                if let Some(idx) = state.starters_list_state.selected()
+                    && let Some(starter) = state.starters_cache.starters.get(idx) {
+                        let fqcn = starter.fully_qualified_class_name.clone();
+                        state.run_spring_boot_starter(&fqcn);
+                        state.hide_starter_manager();
+                    }
+            }
+            KeyCode::Char(' ') => {
+                log::info!("Toggle starter default");
+                state.toggle_starter_default();
+            }
+            KeyCode::Char('d') | KeyCode::Delete => {
+                log::info!("Delete starter");
+                state.remove_selected_starter();
+            }
+            KeyCode::Esc | KeyCode::Char('q') => {
+                log::info!("Close starter manager");
+                state.hide_starter_manager();
+            }
+            _ => {}
+        }
+        return;
+    }
+
     // Direct command execution - no menu navigation needed
     match key.code {
         KeyCode::Left => {
@@ -264,6 +342,18 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
         KeyCode::Char('d') => {
             log::info!("Execute: dependency:tree");
             state.run_selected_module_command(&["dependency:tree"]);
+        }
+        KeyCode::Char('s') => {
+            log::info!("Run Spring Boot starter");
+            state.run_preferred_starter();
+        }
+        KeyCode::Char('S')
+            if key.modifiers.contains(
+                crossterm::event::KeyModifiers::CONTROL | crossterm::event::KeyModifiers::SHIFT,
+            ) =>
+        {
+            log::info!("Open starter manager");
+            state.show_starter_manager();
         }
         KeyCode::Char('x') => {
             log::info!("Kill running process");

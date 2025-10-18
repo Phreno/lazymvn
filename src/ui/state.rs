@@ -106,6 +106,13 @@ pub struct TuiState {
     pub is_command_running: bool,
     command_start_time: Option<Instant>,
     running_process_pid: Option<u32>,
+    // Spring Boot starters
+    pub starters_cache: crate::starters::StartersCache,
+    pub show_starter_selector: bool,
+    pub show_starter_manager: bool,
+    pub starter_candidates: Vec<String>,
+    pub starter_filter: String,
+    pub starters_list_state: ListState,
 }
 
 /// Maven build flags that can be toggled
@@ -174,6 +181,13 @@ impl TuiState {
             },
         ];
 
+        // Load starters cache for this project
+        let starters_cache = crate::starters::StartersCache::load(&project_root);
+        let mut starters_list_state = ListState::default();
+        if !starters_cache.starters.is_empty() {
+            starters_list_state.select(Some(0));
+        }
+
         let mut state = Self {
             current_view: CurrentView::Modules,
             focus: Focus::Modules,
@@ -205,6 +219,12 @@ impl TuiState {
             is_command_running: false,
             command_start_time: None,
             running_process_pid: None,
+            starters_cache,
+            show_starter_selector: false,
+            show_starter_manager: false,
+            starter_candidates: vec![],
+            starter_filter: String::new(),
+            starters_list_state,
         };
 
         // Pre-select first flag to ensure alignment
@@ -1006,6 +1026,252 @@ impl TuiState {
             self.search_error.as_deref(),
             self.search_state.as_ref(),
         )
+    }
+
+    // Spring Boot starter methods
+    pub fn show_starter_selector(&mut self) {
+        log::info!("Showing starter selector");
+
+        // Scan for potential starters if candidates list is empty
+        if self.starter_candidates.is_empty() {
+            self.starter_candidates = crate::starters::find_potential_starters(&self.project_root);
+            log::debug!("Found {} potential starters", self.starter_candidates.len());
+        }
+
+        self.show_starter_selector = true;
+        self.starter_filter.clear();
+
+        if !self.starter_candidates.is_empty() {
+            self.starters_list_state.select(Some(0));
+        }
+    }
+
+    pub fn hide_starter_selector(&mut self) {
+        log::info!("Hiding starter selector");
+        self.show_starter_selector = false;
+        self.starter_filter.clear();
+    }
+
+    pub fn show_starter_manager(&mut self) {
+        log::info!("Showing starter manager");
+        self.show_starter_manager = true;
+
+        if !self.starters_cache.starters.is_empty() {
+            self.starters_list_state.select(Some(0));
+        }
+    }
+
+    pub fn hide_starter_manager(&mut self) {
+        log::info!("Hiding starter manager");
+        self.show_starter_manager = false;
+    }
+
+    pub fn select_and_run_starter(&mut self) {
+        if let Some(idx) = self.starters_list_state.selected() {
+            let filtered = self.get_filtered_starter_candidates();
+
+            if let Some(fqcn) = filtered.get(idx) {
+                log::info!("Selected starter: {}", fqcn);
+
+                // Create a new starter entry if not already cached
+                if !self
+                    .starters_cache
+                    .starters
+                    .iter()
+                    .any(|s| &s.fully_qualified_class_name == fqcn)
+                {
+                    let label = fqcn.split('.').next_back().unwrap_or(fqcn).to_string();
+                    let is_default = self.starters_cache.starters.is_empty();
+                    let starter = crate::starters::Starter::new(fqcn.clone(), label, is_default);
+                    self.starters_cache.add_starter(starter);
+
+                    // Save the cache
+                    if let Err(e) = self.starters_cache.save(&self.project_root) {
+                        log::error!("Failed to save starters cache: {}", e);
+                    }
+                }
+
+                // Update last used
+                self.starters_cache.set_last_used(fqcn.clone());
+                if let Err(e) = self.starters_cache.save(&self.project_root) {
+                    log::error!("Failed to save last used starter: {}", e);
+                }
+
+                // Run the starter
+                self.run_spring_boot_starter(fqcn);
+                self.hide_starter_selector();
+            }
+        }
+    }
+
+    pub fn run_spring_boot_starter(&mut self, fqcn: &str) {
+        log::info!("Running Spring Boot starter: {}", fqcn);
+
+        // Build the Maven command with &str references
+        let spring_run = "spring-boot:run";
+        let main_class_arg = format!("-Dspring-boot.run.mainClass={}", fqcn);
+        let profile_arg = if !self.active_profiles.is_empty() {
+            Some(format!("-P{}", self.active_profiles.join(",")))
+        } else {
+            None
+        };
+
+        // Collect flag strings
+        let flag_strings: Vec<String> = self
+            .flags
+            .iter()
+            .filter(|f| f.enabled)
+            .map(|f| f.flag.clone())
+            .collect();
+
+        // Build args vector with proper lifetimes
+        let mut args: Vec<&str> = vec![spring_run, &main_class_arg];
+
+        if let Some(ref profile) = profile_arg {
+            args.push(profile.as_str());
+        }
+
+        for flag in &flag_strings {
+            args.push(flag.as_str());
+        }
+
+        self.run_selected_module_command(&args);
+    }
+
+    pub fn run_preferred_starter(&mut self) {
+        if let Some(starter) = self.starters_cache.get_preferred_starter() {
+            log::info!(
+                "Running preferred starter: {}",
+                starter.fully_qualified_class_name
+            );
+            self.run_spring_boot_starter(&starter.fully_qualified_class_name.clone());
+        } else {
+            // No cached starter, show selector
+            log::info!("No preferred starter found, showing selector");
+            self.show_starter_selector();
+        }
+    }
+
+    pub fn get_filtered_starter_candidates(&self) -> Vec<String> {
+        use fuzzy_matcher::FuzzyMatcher;
+
+        if self.starter_filter.is_empty() {
+            return self.starter_candidates.clone();
+        }
+
+        let matcher = fuzzy_matcher::skim::SkimMatcherV2::default();
+        let mut scored: Vec<_> = self
+            .starter_candidates
+            .iter()
+            .filter_map(|candidate| {
+                matcher
+                    .fuzzy_match(candidate, &self.starter_filter)
+                    .map(|score| (candidate.clone(), score))
+            })
+            .collect();
+
+        scored.sort_by(|a, b| b.1.cmp(&a.1));
+        scored.into_iter().map(|(candidate, _)| candidate).collect()
+    }
+
+    pub fn push_starter_filter_char(&mut self, ch: char) {
+        self.starter_filter.push(ch);
+        // Reset selection to first match
+        if !self.get_filtered_starter_candidates().is_empty() {
+            self.starters_list_state.select(Some(0));
+        }
+    }
+
+    pub fn pop_starter_filter_char(&mut self) {
+        self.starter_filter.pop();
+        // Reset selection to first match
+        if !self.get_filtered_starter_candidates().is_empty() {
+            self.starters_list_state.select(Some(0));
+        }
+    }
+
+    pub fn next_starter(&mut self) {
+        let candidates = if self.show_starter_selector {
+            self.get_filtered_starter_candidates()
+        } else {
+            self.starters_cache
+                .starters
+                .iter()
+                .map(|s| s.fully_qualified_class_name.clone())
+                .collect()
+        };
+
+        if candidates.is_empty() {
+            return;
+        }
+
+        let i = match self.starters_list_state.selected() {
+            Some(i) => (i + 1) % candidates.len(),
+            None => 0,
+        };
+        self.starters_list_state.select(Some(i));
+    }
+
+    pub fn previous_starter(&mut self) {
+        let candidates = if self.show_starter_selector {
+            self.get_filtered_starter_candidates()
+        } else {
+            self.starters_cache
+                .starters
+                .iter()
+                .map(|s| s.fully_qualified_class_name.clone())
+                .collect()
+        };
+
+        if candidates.is_empty() {
+            return;
+        }
+
+        let i = match self.starters_list_state.selected() {
+            Some(i) => {
+                if i == 0 {
+                    candidates.len() - 1
+                } else {
+                    i - 1
+                }
+            }
+            None => 0,
+        };
+        self.starters_list_state.select(Some(i));
+    }
+
+    pub fn toggle_starter_default(&mut self) {
+        if let Some(idx) = self.starters_list_state.selected()
+            && let Some(starter) = self.starters_cache.starters.get(idx) {
+                let fqcn = starter.fully_qualified_class_name.clone();
+                self.starters_cache.set_default(&fqcn);
+
+                if let Err(e) = self.starters_cache.save(&self.project_root) {
+                    log::error!("Failed to save starters cache: {}", e);
+                }
+            }
+    }
+
+    pub fn remove_selected_starter(&mut self) {
+        if let Some(idx) = self.starters_list_state.selected()
+            && let Some(starter) = self.starters_cache.starters.get(idx) {
+                let fqcn = starter.fully_qualified_class_name.clone();
+                if self.starters_cache.remove_starter(&fqcn) {
+                    log::info!("Removed starter: {}", fqcn);
+
+                    if let Err(e) = self.starters_cache.save(&self.project_root) {
+                        log::error!("Failed to save starters cache: {}", e);
+                    }
+
+                    // Adjust selection
+                    if self.starters_cache.starters.is_empty() {
+                        self.starters_list_state.select(None);
+                    } else if idx >= self.starters_cache.starters.len() {
+                        self.starters_list_state
+                            .select(Some(self.starters_cache.starters.len() - 1));
+                    }
+                }
+            }
     }
 }
 

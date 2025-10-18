@@ -26,9 +26,18 @@ Inspired by *LazyGit*, it provides a clean, keyboard-driven interface to build, 
 
 ### Maven Operations
 - Execute common Maven commands: `clean`, `compile`, `test`, `package`, `install`, `dependency:tree`
+- **Run Spring Boot applications** with `s` key
 - Module-scoped builds using `-pl` flag (multi-module projects)
 - Build combinations: `clean install` with one keystroke
 - Kill running processes with `x` key
+
+### Spring Boot Support
+- **Intelligent starter detection**: Scans for `*Application.java`, `*Main.java`, and `@SpringBootApplication`
+- **Fuzzy search selection**: Type to filter potential main classes
+- **Cached starters**: Remember your main classes per project
+- **Multiple starters**: Support for API, Admin, Batch, etc.
+- **Manager interface**: `Ctrl+Shift+S` to view, run, and manage cached starters
+- Executes via `mvn spring-boot:run -Dspring-boot.run.mainClass=<FQCN>`
 
 ### Profiles & Flags
 - Toggle Maven profiles interactively
@@ -130,8 +139,15 @@ cargo build
 | `k` | Package | `package` |
 | `t` | Test | `test` |
 | `i` | Install | `install` |
+| `s` | **Start** (Spring Boot) | `spring-boot:run` |
 | `d` | Dependencies | `dependency:tree` |
 | `x` | Kill running process | - |
+
+### Spring Boot
+| Key | Action |
+|-----|--------|
+| `s` | Run preferred/cached starter (or show selector) |
+| `Ctrl+Shift+S` | Open starter manager |
 
 ### Selection & Search
 | Key | Action |

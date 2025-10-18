@@ -2,6 +2,7 @@ mod config;
 mod logger;
 mod maven;
 mod project;
+mod starters;
 mod tui;
 mod ui;
 mod utils;

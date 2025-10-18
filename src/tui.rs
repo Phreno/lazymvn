@@ -9,6 +9,7 @@ use crate::ui::{
     panes::{
         create_adaptive_layout, render_flags_pane, render_footer, render_modules_pane,
         render_output_pane, render_profiles_pane, render_projects_pane,
+        render_starter_manager_popup, render_starter_selector_popup,
     },
 };
 use crossterm::event::KeyEvent;
@@ -100,6 +101,26 @@ pub fn draw<B: Backend>(
             &state.enabled_flag_names(),
             state.search_status_line(),
         );
+
+        // Render starter selector popup if shown
+        if state.show_starter_selector {
+            let candidates = state.get_filtered_starter_candidates();
+            render_starter_selector_popup(
+                f,
+                &candidates,
+                &state.starter_filter,
+                &mut state.starters_list_state,
+            );
+        }
+
+        // Render starter manager popup if shown
+        if state.show_starter_manager {
+            render_starter_manager_popup(
+                f,
+                &state.starters_cache.starters,
+                &mut state.starters_list_state,
+            );
+        }
     })?;
     Ok(())
 }

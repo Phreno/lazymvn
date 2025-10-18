@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Spring Boot Starter Support** (#33):
+  - Press `s` to run Spring Boot applications
+  - Intelligent detection of `*Application.java`, `*Main.java`, and `@SpringBootApplication` classes
+  - Fuzzy search selector for choosing main class
+  - Cached starters per project in `~/.config/lazymvn/starters/<hash>.json`
+  - Support for multiple starters (API, Admin, Batch, etc.)
+  - Starter manager with `Ctrl+Shift+S` to view, run, and manage cached starters
+  - Mark starters as default
+  - Remembers last used starter
+  - Executes via `mvn spring-boot:run -Dspring-boot.run.mainClass=<FQCN>`
+  - Full integration with profiles and build flags
+
 ## [0.2.0] - 2025-10-17
 
 ### Added
