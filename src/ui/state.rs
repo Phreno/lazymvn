@@ -248,6 +248,10 @@ impl TuiState {
         }
 
         state.sync_selected_module_output();
+
+        // Load preferences for the initially selected module
+        state.load_module_preferences();
+
         state
     }
 
@@ -445,7 +449,7 @@ impl TuiState {
         self.flags
             .iter()
             .filter(|f| f.enabled)
-            .map(|f| f.name.clone())
+            .map(|f| f.flag.clone()) // Use flag.flag instead of flag.name
             .collect()
     }
 
