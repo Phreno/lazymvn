@@ -106,6 +106,11 @@ pub struct TuiState {
     pub is_command_running: bool,
     command_start_time: Option<Instant>,
     running_process_pid: Option<u32>,
+    // Recent projects
+    pub recent_projects: Vec<PathBuf>,
+    pub projects_list_state: ListState,
+    pub show_projects_popup: bool,
+    pub switch_to_project: Option<PathBuf>,
     // Spring Boot starters
     pub starters_cache: crate::starters::StartersCache,
     pub show_starter_selector: bool,
@@ -181,6 +186,16 @@ impl TuiState {
             },
         ];
 
+        // Load recent projects
+        let mut recent_projects_manager = crate::config::RecentProjects::load();
+        recent_projects_manager.remove_invalid();
+        let recent_projects = recent_projects_manager.get_projects();
+        
+        let mut projects_list_state = ListState::default();
+        if !recent_projects.is_empty() {
+            projects_list_state.select(Some(0));
+        }
+
         // Load starters cache for this project
         let starters_cache = crate::starters::StartersCache::load(&project_root);
         let mut starters_list_state = ListState::default();
@@ -219,6 +234,10 @@ impl TuiState {
             is_command_running: false,
             command_start_time: None,
             running_process_pid: None,
+            recent_projects,
+            projects_list_state,
+            show_projects_popup: false,
+            switch_to_project: None,
             starters_cache,
             show_starter_selector: false,
             show_starter_manager: false,
@@ -1026,6 +1045,58 @@ impl TuiState {
             self.search_error.as_deref(),
             self.search_state.as_ref(),
         )
+    }
+
+    // Recent projects methods
+    pub fn show_recent_projects(&mut self) {
+        log::info!("Showing recent projects popup");
+        self.show_projects_popup = true;
+        if self.focus != Focus::Projects {
+            self.focus = Focus::Projects;
+        }
+    }
+
+    pub fn hide_recent_projects(&mut self) {
+        log::info!("Hiding recent projects popup");
+        self.show_projects_popup = false;
+    }
+
+    pub fn select_current_project(&mut self) {
+        if let Some(idx) = self.projects_list_state.selected()
+            && let Some(project) = self.recent_projects.get(idx)
+        {
+            log::info!("Selected project: {:?}", project);
+            self.switch_to_project = Some(project.clone());
+            self.hide_recent_projects();
+        }
+    }
+
+    pub fn next_project(&mut self) {
+        if self.recent_projects.is_empty() {
+            return;
+        }
+        let i = match self.projects_list_state.selected() {
+            Some(i) => (i + 1) % self.recent_projects.len(),
+            None => 0,
+        };
+        self.projects_list_state.select(Some(i));
+    }
+
+    pub fn previous_project(&mut self) {
+        if self.recent_projects.is_empty() {
+            return;
+        }
+        let i = match self.projects_list_state.selected() {
+            Some(i) => {
+                if i == 0 {
+                    self.recent_projects.len() - 1
+                } else {
+                    i - 1
+                }
+            }
+            None => 0,
+        };
+        self.projects_list_state.select(Some(i));
     }
 
     // Spring Boot starter methods

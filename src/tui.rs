@@ -8,7 +8,7 @@ use crate::ui::{
     keybindings,
     panes::{
         create_adaptive_layout, render_flags_pane, render_footer, render_modules_pane,
-        render_output_pane, render_profiles_pane, render_projects_pane,
+        render_output_pane, render_profiles_pane, render_projects_pane, render_projects_popup,
         render_starter_manager_popup, render_starter_selector_popup,
     },
 };
@@ -101,6 +101,11 @@ pub fn draw<B: Backend>(
             &state.enabled_flag_names(),
             state.search_status_line(),
         );
+
+        // Render projects popup on top if shown
+        if state.show_projects_popup {
+            render_projects_popup(f, &state.recent_projects, &mut state.projects_list_state);
+        }
 
         // Render starter selector popup if shown
         if state.show_starter_selector {

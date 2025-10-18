@@ -19,6 +19,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Remembers last used starter
   - Executes via `mvn spring-boot:run -Dspring-boot.run.mainClass=<FQCN>`
   - Full integration with profiles and build flags
+- **Recent Projects Navigation** (#32): 
+  - Track up to 20 recently opened Maven projects
+  - Press `Ctrl+R` to open a popup listing all recent projects
+  - Navigate with arrow keys and press Enter to switch projects
+  - Projects are stored in `~/.config/lazymvn/recent.json` (Linux/macOS) or `%APPDATA%\lazymvn\recent.json` (Windows)
+  - Invalid paths are automatically cleaned from the list
+  - Switch between projects without restarting LazyMVN
+  - **Smart fallback**: When no POM is found in current directory, automatically loads the most recent project
+  - Clear error messages when no project is available
 
 ## [0.2.0] - 2025-10-17
 

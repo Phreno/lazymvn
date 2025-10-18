@@ -116,6 +116,30 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
 
     log::debug!("Key event: {:?}", key);
 
+    // Handle projects popup separately
+    if state.show_projects_popup {
+        match key.code {
+            KeyCode::Down => {
+                log::debug!("Navigate down in projects list");
+                state.next_project();
+            }
+            KeyCode::Up => {
+                log::debug!("Navigate up in projects list");
+                state.previous_project();
+            }
+            KeyCode::Enter => {
+                log::info!("Select project from recent list");
+                state.select_current_project();
+            }
+            KeyCode::Esc | KeyCode::Char('q') => {
+                log::info!("Cancel project selection");
+                state.hide_recent_projects();
+            }
+            _ => {}
+        }
+        return;
+    }
+
     if let Some(search_mod) = state.search_mod.take() {
         log::debug!(
             "In search mode: {:?}",
@@ -275,6 +299,14 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
 
     // Direct command execution - no menu navigation needed
     match key.code {
+        KeyCode::Char('r')
+            if key
+                .modifiers
+                .contains(crossterm::event::KeyModifiers::CONTROL) =>
+        {
+            log::info!("Show recent projects");
+            state.show_recent_projects();
+        }
         KeyCode::Left => {
             log::debug!("Cycle focus left");
             state.cycle_focus_left();
@@ -454,6 +486,9 @@ pub(crate) fn build_navigation_line() -> Line<'static> {
         key_token("↑"),
         Span::raw("  "),
         key_token("↓"),
+        Span::raw("  •  "),
+        key_token("Ctrl+R"),
+        Span::raw(" Recent Projects"),
     ];
     Line::from(spans)
 }
@@ -569,5 +604,142 @@ mod tests {
 
         // Selection should NOT change on repeat (since we filter them out)
         assert_eq!(after_repeat, Some(1));
+    }
+
+    #[test]
+    fn test_ctrl_r_shows_recent_projects_popup() {
+        let config = Config::default();
+        let mut state = TuiState::new(vec!["module1".to_string()], PathBuf::from("."), config);
+
+        assert!(
+            !state.show_projects_popup,
+            "Popup should be hidden initially"
+        );
+
+        // Simulate Ctrl+R key press
+        let ctrl_r_event = KeyEvent {
+            code: KeyCode::Char('r'),
+            modifiers: KeyModifiers::CONTROL,
+            kind: KeyEventKind::Press,
+            state: crossterm::event::KeyEventState::NONE,
+        };
+
+        handle_key_event(ctrl_r_event, &mut state);
+
+        assert!(
+            state.show_projects_popup,
+            "Ctrl+R should show the projects popup"
+        );
+        assert_eq!(state.focus, Focus::Projects, "Focus should be on projects");
+    }
+
+    #[test]
+    fn test_popup_navigation_up_down() {
+        let config = Config::default();
+        let mut state = TuiState::new(vec!["module1".to_string()], PathBuf::from("."), config);
+
+        state.recent_projects = vec![
+            PathBuf::from("/tmp/project1"),
+            PathBuf::from("/tmp/project2"),
+            PathBuf::from("/tmp/project3"),
+        ];
+        state.projects_list_state.select(Some(0));
+        state.show_projects_popup = true;
+
+        // Simulate Down arrow in popup
+        let down_event = KeyEvent {
+            code: KeyCode::Down,
+            modifiers: KeyModifiers::NONE,
+            kind: KeyEventKind::Press,
+            state: crossterm::event::KeyEventState::NONE,
+        };
+
+        handle_key_event(down_event, &mut state);
+        assert_eq!(state.projects_list_state.selected(), Some(1));
+
+        // Simulate Up arrow in popup
+        let up_event = KeyEvent {
+            code: KeyCode::Up,
+            modifiers: KeyModifiers::NONE,
+            kind: KeyEventKind::Press,
+            state: crossterm::event::KeyEventState::NONE,
+        };
+
+        handle_key_event(up_event, &mut state);
+        assert_eq!(state.projects_list_state.selected(), Some(0));
+    }
+
+    #[test]
+    fn test_popup_escape_closes_popup() {
+        let config = Config::default();
+        let mut state = TuiState::new(vec!["module1".to_string()], PathBuf::from("."), config);
+
+        state.show_projects_popup = true;
+
+        // Simulate Esc key
+        let esc_event = KeyEvent {
+            code: KeyCode::Esc,
+            modifiers: KeyModifiers::NONE,
+            kind: KeyEventKind::Press,
+            state: crossterm::event::KeyEventState::NONE,
+        };
+
+        handle_key_event(esc_event, &mut state);
+
+        assert!(!state.show_projects_popup, "Esc should close the popup");
+    }
+
+    #[test]
+    fn test_popup_enter_selects_project() {
+        let config = Config::default();
+        let mut state = TuiState::new(vec!["module1".to_string()], PathBuf::from("."), config);
+
+        state.recent_projects = vec![
+            PathBuf::from("/tmp/project1"),
+            PathBuf::from("/tmp/project2"),
+        ];
+        state.projects_list_state.select(Some(1));
+        state.show_projects_popup = true;
+
+        // Simulate Enter key
+        let enter_event = KeyEvent {
+            code: KeyCode::Enter,
+            modifiers: KeyModifiers::NONE,
+            kind: KeyEventKind::Press,
+            state: crossterm::event::KeyEventState::NONE,
+        };
+
+        handle_key_event(enter_event, &mut state);
+
+        assert_eq!(
+            state.switch_to_project,
+            Some(PathBuf::from("/tmp/project2")),
+            "Enter should select the project"
+        );
+        assert!(
+            !state.show_projects_popup,
+            "Popup should close after selection"
+        );
+    }
+
+    #[test]
+    fn test_popup_q_closes_without_quitting_app() {
+        let config = Config::default();
+        let mut state = TuiState::new(vec!["module1".to_string()], PathBuf::from("."), config);
+
+        state.show_projects_popup = true;
+
+        // Simulate 'q' key in popup
+        let q_event = KeyEvent {
+            code: KeyCode::Char('q'),
+            modifiers: KeyModifiers::NONE,
+            kind: KeyEventKind::Press,
+            state: crossterm::event::KeyEventState::NONE,
+        };
+
+        handle_key_event(q_event, &mut state);
+
+        assert!(!state.show_projects_popup, "'q' should close popup");
+        // Note: In actual app, main loop checks !state.show_projects_popup before quitting
     }
 }
