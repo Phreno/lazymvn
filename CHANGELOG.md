@@ -29,6 +29,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Smart fallback**: When no POM is found in current directory, automatically loads the most recent project
   - Clear error messages when no project is available
 
+### Changed
+- **Kill process keybinding**: Changed from `x` to `Escape` for better UX consistency
+  - More intuitive and follows common conventions (Escape to stop/cancel)
+  - Shown in footer navigation bar as "Esc Kill"
+
 ## [0.2.0] - 2025-10-17
 
 ### Added

@@ -57,7 +57,7 @@ struct ModuleAction {
     suffix: &'static str,
 }
 
-const MODULE_ACTIONS: [ModuleAction; 9] = [
+const MODULE_ACTIONS: [ModuleAction; 8] = [
     ModuleAction {
         key_display: "b",
         prefix: "",
@@ -97,11 +97,6 @@ const MODULE_ACTIONS: [ModuleAction; 9] = [
         key_display: "d",
         prefix: "",
         suffix: "eps",
-    },
-    ModuleAction {
-        key_display: "x",
-        prefix: "",
-        suffix: "kill",
     },
 ];
 
@@ -388,8 +383,8 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
             log::info!("Open starter manager");
             state.show_starter_manager();
         }
-        KeyCode::Char('x') => {
-            log::info!("Kill running process");
+        KeyCode::Esc => {
+            log::info!("Kill running process with Escape");
             state.kill_running_process();
         }
         KeyCode::Char('3') => {
@@ -489,7 +484,9 @@ pub(crate) fn build_navigation_line() -> Line<'static> {
         key_token("↓"),
         Span::raw("  •  "),
         key_token("Ctrl+R"),
-        Span::raw(" Recent Projects"),
+        Span::raw(" Recent  •  "),
+        key_token("Esc"),
+        Span::raw(" Kill"),
     ];
     Line::from(spans)
 }

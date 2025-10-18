@@ -32,7 +32,7 @@ Inspired by *LazyGit*, it provides a clean, keyboard-driven interface to build, 
 - **Run Spring Boot applications** with `s` key
 - Module-scoped builds using `-pl` flag (multi-module projects)
 - Build combinations: `clean install` with one keystroke
-- Kill running processes with `x` key
+- Kill running processes with `Escape` key
 
 ### Spring Boot Support
 - **Intelligent starter detection**: Scans for `*Application.java`, `*Main.java`, and `@SpringBootApplication`
@@ -147,7 +147,7 @@ cargo build
 | `i` | Install | `install` |
 | `s` | **Start** (Spring Boot) | `spring-boot:run` |
 | `d` | Dependencies | `dependency:tree` |
-| `x` | Kill running process | - |
+| `Esc` | Kill running process | - |
 
 ### Spring Boot
 | Key | Action |
