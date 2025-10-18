@@ -190,7 +190,7 @@ impl TuiState {
         let mut recent_projects_manager = crate::config::RecentProjects::load();
         recent_projects_manager.remove_invalid();
         let recent_projects = recent_projects_manager.get_projects();
-        
+
         let mut projects_list_state = ListState::default();
         if !recent_projects.is_empty() {
             projects_list_state.select(Some(0));
@@ -563,21 +563,6 @@ impl TuiState {
             self.module_outputs
                 .insert(module.to_string(), module_output);
         }
-    }
-
-    #[allow(dead_code)]
-    pub fn clear_current_module_output(&mut self) {
-        if let Some(module) = self.selected_module().map(|m| m.to_string()) {
-            self.command_output.clear();
-            self.output_offset = 0;
-            self.module_outputs.insert(module, ModuleOutput::default());
-        } else {
-            self.command_output.clear();
-            self.output_offset = 0;
-        }
-        self.clamp_output_offset();
-        self.output_metrics = None;
-        self.refresh_search_matches();
     }
 
     // Command execution
@@ -1313,36 +1298,38 @@ impl TuiState {
 
     pub fn toggle_starter_default(&mut self) {
         if let Some(idx) = self.starters_list_state.selected()
-            && let Some(starter) = self.starters_cache.starters.get(idx) {
-                let fqcn = starter.fully_qualified_class_name.clone();
-                self.starters_cache.set_default(&fqcn);
+            && let Some(starter) = self.starters_cache.starters.get(idx)
+        {
+            let fqcn = starter.fully_qualified_class_name.clone();
+            self.starters_cache.set_default(&fqcn);
 
-                if let Err(e) = self.starters_cache.save(&self.project_root) {
-                    log::error!("Failed to save starters cache: {}", e);
-                }
+            if let Err(e) = self.starters_cache.save(&self.project_root) {
+                log::error!("Failed to save starters cache: {}", e);
             }
+        }
     }
 
     pub fn remove_selected_starter(&mut self) {
         if let Some(idx) = self.starters_list_state.selected()
-            && let Some(starter) = self.starters_cache.starters.get(idx) {
-                let fqcn = starter.fully_qualified_class_name.clone();
-                if self.starters_cache.remove_starter(&fqcn) {
-                    log::info!("Removed starter: {}", fqcn);
+            && let Some(starter) = self.starters_cache.starters.get(idx)
+        {
+            let fqcn = starter.fully_qualified_class_name.clone();
+            if self.starters_cache.remove_starter(&fqcn) {
+                log::info!("Removed starter: {}", fqcn);
 
-                    if let Err(e) = self.starters_cache.save(&self.project_root) {
-                        log::error!("Failed to save starters cache: {}", e);
-                    }
+                if let Err(e) = self.starters_cache.save(&self.project_root) {
+                    log::error!("Failed to save starters cache: {}", e);
+                }
 
-                    // Adjust selection
-                    if self.starters_cache.starters.is_empty() {
-                        self.starters_list_state.select(None);
-                    } else if idx >= self.starters_cache.starters.len() {
-                        self.starters_list_state
-                            .select(Some(self.starters_cache.starters.len() - 1));
-                    }
+                // Adjust selection
+                if self.starters_cache.starters.is_empty() {
+                    self.starters_list_state.select(None);
+                } else if idx >= self.starters_cache.starters.len() {
+                    self.starters_list_state
+                        .select(Some(self.starters_cache.starters.len() - 1));
                 }
             }
+        }
     }
 }
 

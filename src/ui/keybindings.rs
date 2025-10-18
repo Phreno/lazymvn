@@ -274,11 +274,12 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
             KeyCode::Enter => {
                 log::info!("Run selected starter from manager");
                 if let Some(idx) = state.starters_list_state.selected()
-                    && let Some(starter) = state.starters_cache.starters.get(idx) {
-                        let fqcn = starter.fully_qualified_class_name.clone();
-                        state.run_spring_boot_starter(&fqcn);
-                        state.hide_starter_manager();
-                    }
+                    && let Some(starter) = state.starters_cache.starters.get(idx)
+                {
+                    let fqcn = starter.fully_qualified_class_name.clone();
+                    state.run_spring_boot_starter(&fqcn);
+                    state.hide_starter_manager();
+                }
             }
             KeyCode::Char(' ') => {
                 log::info!("Toggle starter default");
@@ -741,5 +742,213 @@ mod tests {
 
         assert!(!state.show_projects_popup, "'q' should close popup");
         // Note: In actual app, main loop checks !state.show_projects_popup before quitting
+    }
+
+    #[test]
+    fn test_s_key_shows_starter_selector_when_no_cached() {
+        let config = Config::default();
+        let mut state = TuiState::new(vec!["module1".to_string()], PathBuf::from("."), config);
+
+        // Ensure no cached starters
+        state.starters_cache.starters.clear();
+
+        // Simulate 's' key
+        let s_event = KeyEvent {
+            code: KeyCode::Char('s'),
+            modifiers: KeyModifiers::NONE,
+            kind: KeyEventKind::Press,
+            state: crossterm::event::KeyEventState::NONE,
+        };
+
+        handle_key_event(s_event, &mut state);
+
+        assert!(
+            state.show_starter_selector,
+            "'s' should show starter selector when no cached starters"
+        );
+    }
+
+    #[test]
+    fn test_starter_selector_navigation() {
+        let config = Config::default();
+        let mut state = TuiState::new(vec!["module1".to_string()], PathBuf::from("."), config);
+
+        state.starter_candidates = vec![
+            "com.example.App1".to_string(),
+            "com.example.App2".to_string(),
+        ];
+        state.show_starter_selector = true;
+        state.starters_list_state.select(Some(0));
+
+        // Test Down arrow
+        let down_event = KeyEvent {
+            code: KeyCode::Down,
+            modifiers: KeyModifiers::NONE,
+            kind: KeyEventKind::Press,
+            state: crossterm::event::KeyEventState::NONE,
+        };
+
+        handle_key_event(down_event, &mut state);
+        assert_eq!(state.starters_list_state.selected(), Some(1));
+
+        // Test Up arrow
+        let up_event = KeyEvent {
+            code: KeyCode::Up,
+            modifiers: KeyModifiers::NONE,
+            kind: KeyEventKind::Press,
+            state: crossterm::event::KeyEventState::NONE,
+        };
+
+        handle_key_event(up_event, &mut state);
+        assert_eq!(state.starters_list_state.selected(), Some(0));
+    }
+
+    #[test]
+    fn test_starter_selector_filter() {
+        let config = Config::default();
+        let mut state = TuiState::new(vec!["module1".to_string()], PathBuf::from("."), config);
+
+        state.starter_candidates = vec![
+            "com.example.Application".to_string(),
+            "com.example.Main".to_string(),
+        ];
+        state.show_starter_selector = true;
+
+        // Type 'A' to filter
+        let char_event = KeyEvent {
+            code: KeyCode::Char('A'),
+            modifiers: KeyModifiers::NONE,
+            kind: KeyEventKind::Press,
+            state: crossterm::event::KeyEventState::NONE,
+        };
+
+        handle_key_event(char_event, &mut state);
+        assert_eq!(state.starter_filter, "A");
+
+        // Backspace to clear
+        let backspace_event = KeyEvent {
+            code: KeyCode::Backspace,
+            modifiers: KeyModifiers::NONE,
+            kind: KeyEventKind::Press,
+            state: crossterm::event::KeyEventState::NONE,
+        };
+
+        handle_key_event(backspace_event, &mut state);
+        assert_eq!(state.starter_filter, "");
+    }
+
+    #[test]
+    fn test_starter_selector_esc_closes() {
+        let config = Config::default();
+        let mut state = TuiState::new(vec!["module1".to_string()], PathBuf::from("."), config);
+
+        state.show_starter_selector = true;
+
+        let esc_event = KeyEvent {
+            code: KeyCode::Esc,
+            modifiers: KeyModifiers::NONE,
+            kind: KeyEventKind::Press,
+            state: crossterm::event::KeyEventState::NONE,
+        };
+
+        handle_key_event(esc_event, &mut state);
+        assert!(!state.show_starter_selector, "Esc should close selector");
+    }
+
+    #[test]
+    fn test_ctrl_shift_s_opens_starter_manager() {
+        let config = Config::default();
+        let mut state = TuiState::new(vec!["module1".to_string()], PathBuf::from("."), config);
+
+        let ctrl_shift_s_event = KeyEvent {
+            code: KeyCode::Char('S'),
+            modifiers: KeyModifiers::CONTROL | KeyModifiers::SHIFT,
+            kind: KeyEventKind::Press,
+            state: crossterm::event::KeyEventState::NONE,
+        };
+
+        handle_key_event(ctrl_shift_s_event, &mut state);
+        assert!(
+            state.show_starter_manager,
+            "Ctrl+Shift+S should open starter manager"
+        );
+    }
+
+    #[test]
+    fn test_starter_manager_space_toggles_default() {
+        let config = Config::default();
+        let temp_dir = tempfile::tempdir().unwrap();
+        let mut state = TuiState::new(
+            vec!["module1".to_string()],
+            temp_dir.path().to_path_buf(),
+            config,
+        );
+
+        // Clear any loaded starters and add fresh ones
+        state.starters_cache.starters.clear();
+        state
+            .starters_cache
+            .add_starter(crate::starters::Starter::new(
+                "com.example.App1".to_string(),
+                "App1".to_string(),
+                false,
+            ));
+        state
+            .starters_cache
+            .add_starter(crate::starters::Starter::new(
+                "com.example.App2".to_string(),
+                "App2".to_string(),
+                false,
+            ));
+
+        state.show_starter_manager = true;
+        state.starters_list_state.select(Some(1));
+
+        // Press space to toggle default
+        let space_event = KeyEvent {
+            code: KeyCode::Char(' '),
+            modifiers: KeyModifiers::NONE,
+            kind: KeyEventKind::Press,
+            state: crossterm::event::KeyEventState::NONE,
+        };
+
+        handle_key_event(space_event, &mut state);
+        assert!(state.starters_cache.starters[1].is_default);
+        assert!(!state.starters_cache.starters[0].is_default);
+    }
+
+    #[test]
+    fn test_starter_manager_delete() {
+        let config = Config::default();
+        let temp_dir = tempfile::tempdir().unwrap();
+        let mut state = TuiState::new(
+            vec!["module1".to_string()],
+            temp_dir.path().to_path_buf(),
+            config,
+        );
+
+        // Clear any loaded starters and add fresh one
+        state.starters_cache.starters.clear();
+        state
+            .starters_cache
+            .add_starter(crate::starters::Starter::new(
+                "com.example.App1".to_string(),
+                "App1".to_string(),
+                false,
+            ));
+
+        state.show_starter_manager = true;
+        state.starters_list_state.select(Some(0));
+
+        // Press 'd' to delete
+        let d_event = KeyEvent {
+            code: KeyCode::Char('d'),
+            modifiers: KeyModifiers::NONE,
+            kind: KeyEventKind::Press,
+            state: crossterm::event::KeyEventState::NONE,
+        };
+
+        handle_key_event(d_event, &mut state);
+        assert_eq!(state.starters_cache.starters.len(), 0);
     }
 }

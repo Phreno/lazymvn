@@ -767,7 +767,7 @@ pub fn render_projects_popup(
     let popup_height = (area.height * 60) / 100;
     let popup_x = (area.width - popup_width) / 2;
     let popup_y = (area.height - popup_height) / 2;
-    
+
     let popup_area = Rect {
         x: popup_x,
         y: popup_y,
@@ -776,8 +776,7 @@ pub fn render_projects_popup(
     };
 
     // Clear the area behind the popup
-    let clear_block = Block::default()
-        .style(Style::default().bg(ratatui::style::Color::Black));
+    let clear_block = Block::default().style(Style::default().bg(ratatui::style::Color::Black));
     f.render_widget(clear_block, popup_area);
 
     // Create the popup block with rounded borders
@@ -805,10 +804,7 @@ pub fn render_projects_popup(
     // Split popup into list and help sections
     let popup_chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Min(1),
-            Constraint::Length(3),
-        ])
+        .constraints([Constraint::Min(1), Constraint::Length(3)])
         .split(popup_area);
 
     // Render the list

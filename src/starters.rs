@@ -47,10 +47,11 @@ impl StartersCache {
         let cache_file = get_starters_cache_file(project_root);
 
         if let Ok(content) = fs::read_to_string(&cache_file)
-            && let Ok(cache) = serde_json::from_str(&content) {
-                log::debug!("Loaded starters cache from {:?}", cache_file);
-                return cache;
-            }
+            && let Ok(cache) = serde_json::from_str(&content)
+        {
+            log::debug!("Loaded starters cache from {:?}", cache_file);
+            return cache;
+        }
 
         log::debug!("No starters cache found for project");
         Self::new()
@@ -123,9 +124,9 @@ impl StartersCache {
                 .starters
                 .iter()
                 .find(|s| &s.fully_qualified_class_name == last_fqcn)
-            {
-                return Some(starter);
-            }
+        {
+            return Some(starter);
+        }
 
         // Fall back to default
         self.get_default()
@@ -178,11 +179,12 @@ pub fn find_potential_starters(project_root: &Path) -> Vec<String> {
             if let Ok(content) = fs::read_to_string(&entry)
                 && (content.contains("SpringApplication.run")
                     || content.contains("@SpringBootApplication"))
-                    && let Some(fqcn) = extract_fqcn_from_file(&entry)
-                        && !candidates.contains(&fqcn) {
-                            log::debug!("Found Spring Boot class: {}", fqcn);
-                            candidates.push(fqcn);
-                        }
+                && let Some(fqcn) = extract_fqcn_from_file(&entry)
+                && !candidates.contains(&fqcn)
+            {
+                log::debug!("Found Spring Boot class: {}", fqcn);
+                candidates.push(fqcn);
+            }
         }
     }
 
