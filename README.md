@@ -25,6 +25,7 @@ Inspired by *LazyGit*, it provides a clean, keyboard-driven interface to build, 
 - **Smart caching**: Remembers project structure and tracks POM changes
 - **Recent projects**: Track up to 20 recently opened Maven projects
 - **Quick switching**: Switch between projects with `Ctrl+R` without restarting
+- **Smart fallback**: If no POM is found, automatically loads the most recent project
 
 ### Maven Operations
 - Execute common Maven commands: `clean`, `compile`, `test`, `package`, `install`, `dependency:tree`
@@ -184,6 +185,11 @@ Navigate to any Maven project directory and run:
 ```bash
 lazymvn
 ```
+
+**Smart Project Detection:**
+- If a `pom.xml` is found in the current directory or parent directories, LazyMVN loads that project
+- If no POM is found, LazyMVN automatically loads your most recently used Maven project
+- If no recent projects exist, you'll see a helpful error message with instructions
 
 LazyMVN automatically detects your project structure:
 

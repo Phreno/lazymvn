@@ -96,8 +96,57 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 fn run<B: ratatui::backend::Backend>(
     terminal: &mut Terminal<B>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let (modules, project_root) = project::get_project_modules()?;
-    log::debug!("Loaded {} modules from {:?}", modules.len(), project_root);
+    // Try to load project modules from current directory
+    let (modules, project_root) = match project::get_project_modules() {
+        Ok(result) => {
+            log::debug!("Loaded {} modules from {:?}", result.0.len(), result.1);
+            result
+        }
+        Err(e) => {
+            log::warn!("No POM found in current directory: {}", e);
+
+            // Try to load most recent project as fallback
+            let recent_projects = config::RecentProjects::load();
+            let valid_projects = recent_projects.get_projects();
+
+            if let Some(last_project) = valid_projects.first() {
+                log::info!("Attempting to load most recent project: {:?}", last_project);
+
+                // Change to the recent project directory
+                if let Err(e) = std::env::set_current_dir(last_project) {
+                    return Err(format!(
+                        "No POM found in current directory and failed to load recent project '{}': {}",
+                        last_project.display(),
+                        e
+                    )
+                    .into());
+                }
+
+                // Try to load modules from recent project
+                match project::get_project_modules() {
+                    Ok(result) => {
+                        log::info!("Successfully loaded recent project: {:?}", result.1);
+                        result
+                    }
+                    Err(e) => {
+                        return Err(format!(
+                            "No POM found in current directory and recent project '{}' is invalid: {}",
+                            last_project.display(),
+                            e
+                        )
+                        .into());
+                    }
+                }
+            } else {
+                return Err(
+                    "No POM found in current directory and no recent projects available.\n\
+                     Please run lazymvn from a Maven project directory or use --project flag.\n\
+                     Example: lazymvn --project /path/to/maven/project"
+                        .into(),
+                );
+            }
+        }
+    };
 
     // Add current project to recent projects
     let mut recent_projects = config::RecentProjects::load();

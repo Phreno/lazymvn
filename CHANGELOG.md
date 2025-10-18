@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Projects are stored in `~/.config/lazymvn/recent.json` (Linux/macOS) or `%APPDATA%\lazymvn\recent.json` (Windows)
   - Invalid paths are automatically cleaned from the list
   - Switch between projects without restarting LazyMVN
+  - **Smart fallback**: When no POM is found in current directory, automatically loads the most recent project
+  - Clear error messages when no project is available
 
 ## [0.2.0] - 2025-10-17
 
