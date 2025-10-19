@@ -1,10 +1,11 @@
 use crate::utils;
 use std::{
     io::{BufRead, BufReader},
-    path::Path,
+    path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::mpsc,
     thread,
+    fs,
 };
 
 /// Updates from async command execution
@@ -484,6 +485,119 @@ pub fn get_active_profiles(project_root: &Path) -> Result<Vec<String>, std::io::
     Ok(profiles)
 }
 
+/// Extract the XML snippet for a specific profile from POM files
+/// Returns (profile_xml, source_pom_path) or None if not found
+pub fn get_profile_xml(project_root: &Path, profile_id: &str) -> Option<(String, PathBuf)> {
+    log::debug!("Searching for profile '{}' XML in {:?}", profile_id, project_root);
+    
+    let mut pom_paths = Vec::new();
+    
+    // 1. Check settings.xml first (local project settings)
+    let settings_xml = project_root.join("settings.xml");
+    if settings_xml.exists() {
+        pom_paths.push(settings_xml);
+    }
+    
+    // 2. Check user settings.xml (~/.m2/settings.xml)
+    if let Some(home) = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")) {
+        let user_settings = PathBuf::from(home).join(".m2").join("settings.xml");
+        if user_settings.exists() {
+            pom_paths.push(user_settings);
+        }
+    }
+    
+    // 3. Check project root pom.xml
+    pom_paths.push(project_root.join("pom.xml"));
+    
+    // 4. Check module POMs
+    if let Ok(entries) = fs::read_dir(project_root) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                let module_pom = path.join("pom.xml");
+                if module_pom.exists() {
+                    pom_paths.push(module_pom);
+                }
+            }
+        }
+    }
+    
+    // Search each file
+    for pom_path in pom_paths {
+        if let Ok(content) = fs::read_to_string(&pom_path) {
+            if let Some(xml) = extract_profile_from_xml(&content, profile_id) {
+                log::info!("Found profile '{}' in {:?}", profile_id, pom_path);
+                return Some((xml, pom_path));
+            }
+        }
+    }
+    
+    log::warn!("Profile '{}' not found in any POM or settings file", profile_id);
+    None
+}
+
+/// Extract a single profile XML block from POM content
+fn extract_profile_from_xml(xml_content: &str, profile_id: &str) -> Option<String> {
+    // Find the profile block with the matching ID
+    // Look for <profile> ... <id>profile_id</id> ... </profile>
+    
+    let mut in_profile = false;
+    let mut in_profile_id = false;
+    let mut current_profile = String::new();
+    let mut depth = 0;
+    let mut found_matching_id = false;
+    
+    for line in xml_content.lines() {
+        let trimmed = line.trim();
+        
+        // Track when we enter a <profile> tag
+        if trimmed.starts_with("<profile>") || trimmed.starts_with("<profile ") {
+            in_profile = true;
+            current_profile.clear();
+            found_matching_id = false;
+            depth = 0;
+        }
+        
+        if in_profile {
+            current_profile.push_str(line);
+            current_profile.push('\n');
+            
+            // Track depth to handle nested tags
+            if trimmed.contains("<profile>") {
+                depth += 1;
+            }
+            
+            // Check if we're in the <id> tag
+            if trimmed.starts_with("<id>") {
+                in_profile_id = true;
+                if trimmed.contains(profile_id) && trimmed.contains("</id>") {
+                    found_matching_id = true;
+                }
+            }
+            
+            if in_profile_id && trimmed.contains("</id>") {
+                in_profile_id = false;
+            }
+            
+            // Check if we've closed the profile tag
+            if trimmed.contains("</profile>") {
+                depth -= 1;
+                if depth == 0 {
+                    in_profile = false;
+                    
+                    // If this was the matching profile, return it
+                    if found_matching_id {
+                        // Clean up the XML - preserve indentation
+                        return Some(current_profile.trim_end().to_string());
+                    }
+                }
+            }
+        }
+    }
+    
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -669,6 +783,121 @@ mod tests {
         let profiles = get_profiles(project_root).unwrap();
         // Should be deduplicated and sorted
         assert_eq!(profiles, vec!["child-profile", "profile-1", "profile-2"]);
+    }
+
+    #[test]
+    fn test_get_profile_xml() {
+        let dir = tempdir().unwrap();
+        let project_root = dir.path();
+        
+        // Create a POM with a profile
+        let pom_content = r#"<?xml version="1.0" encoding="UTF-8"?>
+<project>
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.example</groupId>
+    <artifactId>test-project</artifactId>
+    <version>1.0.0</version>
+    
+    <profiles>
+        <profile>
+            <id>dev</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <properties>
+                <env>development</env>
+            </properties>
+        </profile>
+        <profile>
+            <id>prod</id>
+            <properties>
+                <env>production</env>
+            </properties>
+        </profile>
+    </profiles>
+</project>"#;
+        
+        fs::write(project_root.join("pom.xml"), pom_content).unwrap();
+        
+        // Test extracting the dev profile
+        let result = get_profile_xml(project_root, "dev");
+        assert!(result.is_some(), "Should find dev profile");
+        
+        let (xml, _path) = result.unwrap();
+        assert!(xml.contains("<id>dev</id>"), "XML should contain profile ID");
+        assert!(xml.contains("<env>development</env>"), "XML should contain profile properties");
+        assert!(xml.contains("<profile>"), "XML should have opening tag");
+        assert!(xml.contains("</profile>"), "XML should have closing tag");
+        
+        // Test extracting the prod profile
+        let result = get_profile_xml(project_root, "prod");
+        assert!(result.is_some(), "Should find prod profile");
+        
+        let (xml, _path) = result.unwrap();
+        assert!(xml.contains("<id>prod</id>"), "XML should contain prod profile ID");
+        assert!(xml.contains("<env>production</env>"), "XML should contain prod properties");
+        
+        // Test non-existent profile
+        let result = get_profile_xml(project_root, "nonexistent");
+        assert!(result.is_none(), "Should not find nonexistent profile");
+    }
+
+    #[test]
+    fn test_get_profile_xml_from_settings() {
+        let dir = tempdir().unwrap();
+        let project_root = dir.path();
+        
+        // Create a settings.xml with profiles
+        let settings_content = r#"<?xml version="1.0" encoding="UTF-8"?>
+<settings>
+    <profiles>
+        <profile>
+            <id>corporate-proxy</id>
+            <properties>
+                <http.proxyHost>proxy.corp.com</http.proxyHost>
+                <http.proxyPort>8080</http.proxyPort>
+            </properties>
+        </profile>
+        <profile>
+            <id>development</id>
+            <activation>
+                <activeByDefault>false</activeByDefault>
+            </activation>
+            <properties>
+                <maven.compiler.debug>true</maven.compiler.debug>
+                <env>dev</env>
+            </properties>
+        </profile>
+    </profiles>
+</settings>"#;
+        
+        fs::write(project_root.join("settings.xml"), settings_content).unwrap();
+        
+        // Also create a POM to ensure we search settings.xml first
+        let pom_content = r#"<?xml version="1.0" encoding="UTF-8"?>
+<project>
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.example</groupId>
+    <artifactId>test</artifactId>
+    <version>1.0.0</version>
+</project>"#;
+        fs::write(project_root.join("pom.xml"), pom_content).unwrap();
+        
+        // Test finding profile from settings.xml
+        let result = get_profile_xml(project_root, "development");
+        assert!(result.is_some(), "Should find development profile from settings.xml");
+        
+        let (xml, path) = result.unwrap();
+        assert!(xml.contains("<id>development</id>"), "XML should contain development profile");
+        assert!(xml.contains("<env>dev</env>"), "XML should contain settings profile properties");
+        assert!(path.ends_with("settings.xml"), "Should be from settings.xml");
+        
+        // Test corporate proxy profile
+        let result = get_profile_xml(project_root, "corporate-proxy");
+        assert!(result.is_some(), "Should find corporate-proxy profile");
+        
+        let (xml, _) = result.unwrap();
+        assert!(xml.contains("proxy.corp.com"), "XML should contain proxy settings");
     }
 
     #[test]
