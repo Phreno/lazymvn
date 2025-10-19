@@ -527,13 +527,37 @@ pub fn get_profile_xml(project_root: &Path, profile_id: &str) -> Option<(String,
         if let Ok(content) = fs::read_to_string(&pom_path) {
             if let Some(xml) = extract_profile_from_xml(&content, profile_id) {
                 log::info!("Found profile '{}' in {:?}", profile_id, pom_path);
-                return Some((xml, pom_path));
+                // Prettify the XML before returning
+                let prettified = prettify_xml(&xml).unwrap_or(xml);
+                return Some((prettified, pom_path));
             }
         }
     }
     
     log::warn!("Profile '{}' not found in any POM or settings file", profile_id);
     None
+}
+
+/// Prettify XML with proper indentation
+fn prettify_xml(xml: &str) -> Option<String> {
+    use std::io::Cursor;
+    
+    // Try to parse and reformat the XML
+    match xmltree::Element::parse(Cursor::new(xml.as_bytes())) {
+        Ok(element) => {
+            let mut output = Vec::new();
+            let config = xmltree::EmitterConfig::new()
+                .perform_indent(true)
+                .indent_string("    ");
+            
+            if element.write_with_config(&mut output, config).is_ok() {
+                String::from_utf8(output).ok()
+            } else {
+                None
+            }
+        }
+        Err(_) => None,
+    }
 }
 
 /// Extract a single profile XML block from POM content
