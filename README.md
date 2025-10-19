@@ -1,8 +1,5 @@
 # LazyMVN
 
-[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/Phreno/lazymvn)
-[![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/Phreno/lazymvn)
-
 **LazyMVN** is a **cross-platform terminal UI (TUI)** for interacting with **Maven** projects efficiently without leaving the terminal.
 Inspired by *LazyGit*, it provides a clean, keyboard-driven interface to build, test, and manage Maven projects via a **single Rust binary** with no external dependencies.
 
@@ -95,46 +92,6 @@ I want to credit both the project and its author for the idea and for shaping ho
 - **XML:** `quick-xml` (POM parsing)
 - **Config:** `toml` + `serde` (configuration)
 
-## Development Environment
-
-
-### GitHub Codespaces / DevContainer
-
-LazyMVN includes a fully configured development environment for instant setup:
-
-```bash
-# Launch in GitHub Codespaces
-1. Click "Code" → "Create codespace on main"
-2. Wait for automatic setup (Rust + Java + tools)
-3. Start developing immediately!
-```
-
-**Included tools:**
-- ✅ Rust (latest stable) + cargo tools
-- ✅ Java 21 + Maven
-- ✅ VS Code extensions (rust-analyzer, Java pack)
-- ✅ Git Flow + useful aliases
-- ✅ Pre-configured settings and optimizations
-
-See [`.devcontainer/README.md`](.devcontainer/README.md) for details.
-
-### Manual Setup
-
-For local development without containers:
-
-```bash
-# Install Rust
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-
-# Install Java + Maven
-sudo apt install openjdk-21-jdk maven  # Ubuntu/Debian
-brew install openjdk@21 maven         # macOS
-
-# Clone and build
-git clone https://github.com/Phreno/lazymvn.git
-cd lazymvn
-cargo build
-```
 
 ## Key Bindings
 
@@ -190,23 +147,6 @@ cargo build
 |-----|--------|
 | `q` | Quit lazymvn |
 
-## Installation
-
-### From Source
-
-```bash
-git clone https://github.com/Phreno/lazymvn.git
-cd lazymvn
-cargo build --release
-sudo cp target/release/lazymvn /usr/local/bin/
-```
-
-### From Release (Coming Soon)
-
-```bash
-curl -sSL https://github.com/Phreno/lazymvn/releases/latest/download/lazymvn -o /usr/local/bin/lazymvn
-chmod +x /usr/local/bin/lazymvn
-```
 
 ### Requirements
 
