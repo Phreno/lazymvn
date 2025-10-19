@@ -415,8 +415,8 @@ pub fn get_active_profiles(project_root: &Path) -> Result<Vec<String>, std::io::
     for line in output.iter() {
         let trimmed = line.trim();
         // Lines with active profiles look like: " - dev (source: ...)"
-        if trimmed.starts_with("- ") {
-            let parts: Vec<&str> = trimmed[2..].split_whitespace().collect();
+        if let Some(stripped) = trimmed.strip_prefix("- ") {
+            let parts: Vec<&str> = stripped.split_whitespace().collect();
             if let Some(profile_name) = parts.first() {
                 log::debug!("Found active profile: {}", profile_name);
                 active_profiles.insert(profile_name.to_string());

@@ -476,7 +476,7 @@ mod module_prefs_tests {
 
     #[test]
     fn test_module_preferences_overwrite() {
-        let temp_dir = tempdir().unwrap();
+        let _temp_dir = tempdir().unwrap();
         let mut prefs = ProjectPreferences::default();
 
         prefs.set_module_prefs(
