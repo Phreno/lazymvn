@@ -1,10 +1,11 @@
 use crate::utils;
 use std::{
     io::{BufRead, BufReader},
-    path::Path,
+    path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::mpsc,
     thread,
+    fs,
 };
 
 /// Updates from async command execution
@@ -48,6 +49,45 @@ pub fn get_maven_command(project_root: &Path) -> String {
     {
         "mvn".to_string()
     }
+}
+
+/// Build the full command string for display
+pub fn build_command_string(
+    maven_command: &str,
+    module: Option<&str>,
+    args: &[&str],
+    profiles: &[String],
+    settings_path: Option<&str>,
+    flags: &[String],
+) -> String {
+    let mut parts = vec![maven_command.to_string()];
+
+    if let Some(settings_path) = settings_path {
+        parts.push("--settings".to_string());
+        parts.push(settings_path.to_string());
+    }
+
+    if !profiles.is_empty() {
+        parts.push("-P".to_string());
+        parts.push(profiles.join(","));
+    }
+
+    if let Some(module) = module
+        && module != "."
+    {
+        parts.push("-pl".to_string());
+        parts.push(module.to_string());
+    }
+
+    for flag in flags {
+        parts.push(flag.to_string());
+    }
+
+    for arg in args {
+        parts.push(arg.to_string());
+    }
+
+    parts.join(" ")
 }
 
 /// Kill a running process by PID
@@ -132,7 +172,7 @@ pub fn execute_maven_command(
     log::debug!("  settings_path: {:?}", settings_path);
     log::debug!("  flags: {:?}", flags);
 
-    let mut command = Command::new(maven_command);
+    let mut command = Command::new(&maven_command);
     if let Some(settings_path) = settings_path {
         command.arg("--settings").arg(settings_path);
         log::debug!("Added settings argument: {}", settings_path);
@@ -157,6 +197,10 @@ pub fn execute_maven_command(
         log::debug!("Added flag: {}", flag);
     }
 
+    // Build the full command string for display
+    let command_str = build_command_string(&maven_command, module, args, profiles, settings_path, flags);
+    log::info!("Executing: {}", command_str);
+
     log::info!("Spawning Maven process...");
     let mut child = command
         .args(args)
@@ -166,7 +210,9 @@ pub fn execute_maven_command(
         .spawn()?;
 
     log::debug!("Maven process spawned with PID: {:?}", child.id());
-    let mut output = Vec::new();
+    
+    // Start with the command string as the first line
+    let mut output = vec![format!("$ {}", command_str), String::new()];
     let (tx, rx) = mpsc::channel();
     let mut handles = Vec::new();
 
@@ -242,6 +288,10 @@ pub fn execute_maven_command_async(
     log::debug!("  module: {:?}", module);
     log::debug!("  args: {:?}", args);
 
+    // Build the full command string for display
+    let command_str = build_command_string(&maven_command, module, args, profiles, settings_path, flags);
+    log::info!("Executing: {}", command_str);
+
     let mut command = Command::new(maven_command);
     if let Some(settings_path) = settings_path {
         command.arg("--settings").arg(settings_path);
@@ -263,6 +313,10 @@ pub fn execute_maven_command_async(
     let args: Vec<String> = args.iter().map(|s| s.to_string()).collect();
 
     let (tx, rx) = mpsc::channel();
+
+    // Send the command string as the first output line
+    let _ = tx.send(CommandUpdate::OutputLine(format!("$ {}", command_str)));
+    let _ = tx.send(CommandUpdate::OutputLine(String::new()));
 
     // Spawn command execution in background thread
     thread::spawn(move || {
@@ -347,6 +401,7 @@ pub fn get_profiles(project_root: &Path) -> Result<Vec<String>, std::io::Error> 
     );
     // Try to load config and use settings if available
     let config = crate::config::load_config(project_root);
+    
     // Run without -N flag to include profiles from all modules
     let output = execute_maven_command(
         project_root,
@@ -361,6 +416,7 @@ pub fn get_profiles(project_root: &Path) -> Result<Vec<String>, std::io::Error> 
     // (once per module that inherits or defines them)
     let mut profile_set = std::collections::HashSet::new();
 
+    // Get profiles from Maven command output (POM files)
     for line in output.iter() {
         if line.contains("Profile Id:") {
             let parts: Vec<&str> = line.split("Profile Id:").collect();
@@ -376,9 +432,22 @@ pub fn get_profiles(project_root: &Path) -> Result<Vec<String>, std::io::Error> 
                     .unwrap_or("")
                     .trim();
                 if !profile_name.is_empty() {
-                    log::debug!("Found profile: {}", profile_name);
+                    log::debug!("Found profile from POM: {}", profile_name);
                     profile_set.insert(profile_name.to_string());
                 }
+            }
+        }
+    }
+
+    // Also get profiles from settings.xml (Maven's help:all-profiles doesn't include these)
+    if let Some(settings_path) = config.maven_settings.as_ref() {
+        log::debug!("Checking settings.xml for profiles: {}", settings_path);
+        if let Ok(settings_content) = fs::read_to_string(settings_path)
+            && let Ok(profiles_from_settings) = extract_profiles_from_settings_xml(&settings_content)
+        {
+            for profile_name in profiles_from_settings {
+                log::debug!("Found profile from settings.xml: {}", profile_name);
+                profile_set.insert(profile_name);
             }
         }
     }
@@ -388,6 +457,56 @@ pub fn get_profiles(project_root: &Path) -> Result<Vec<String>, std::io::Error> 
     profiles.sort();
 
     log::info!("Discovered {} unique Maven profiles", profiles.len());
+    Ok(profiles)
+}
+
+/// Extract profile IDs from settings.xml content
+fn extract_profiles_from_settings_xml(xml_content: &str) -> Result<Vec<String>, String> {
+    let mut profiles = Vec::new();
+    let lines: Vec<&str> = xml_content.lines().collect();
+    
+    let mut in_profiles_section = false;
+    let mut in_profile = false;
+    
+    for line in lines {
+        let trimmed = line.trim();
+        
+        // Check if we're entering the <profiles> section
+        if trimmed.starts_with("<profiles>") {
+            in_profiles_section = true;
+            continue;
+        }
+        
+        // Check if we're leaving the <profiles> section
+        if trimmed.starts_with("</profiles>") {
+            in_profiles_section = false;
+            continue;
+        }
+        
+        if in_profiles_section {
+            // Check if we're entering a <profile>
+            if trimmed.starts_with("<profile>") {
+                in_profile = true;
+                continue;
+            }
+            
+            // Check if we're leaving a <profile>
+            if trimmed.starts_with("</profile>") {
+                in_profile = false;
+                continue;
+            }
+            
+            // If we're in a profile, look for <id>
+            if in_profile && trimmed.starts_with("<id>") && trimmed.contains("</id>")
+                && let Some(id_start) = trimmed.find("<id>")
+                && let Some(id_end) = trimmed.find("</id>")
+            {
+                let id = &trimmed[id_start + 4..id_end];
+                profiles.push(id.to_string());
+            }
+        }
+    }
+    
     Ok(profiles)
 }
 
@@ -429,6 +548,143 @@ pub fn get_active_profiles(project_root: &Path) -> Result<Vec<String>, std::io::
 
     log::info!("Discovered {} auto-activated profiles", profiles.len());
     Ok(profiles)
+}
+
+/// Extract the XML snippet for a specific profile from POM files
+/// Returns (profile_xml, source_pom_path) or None if not found
+pub fn get_profile_xml(project_root: &Path, profile_id: &str) -> Option<(String, PathBuf)> {
+    log::debug!("Searching for profile '{}' XML in {:?}", profile_id, project_root);
+    
+    let mut pom_paths = Vec::new();
+    
+    // 1. Check settings.xml first (local project settings)
+    let settings_xml = project_root.join("settings.xml");
+    if settings_xml.exists() {
+        pom_paths.push(settings_xml);
+    }
+    
+    // 2. Check user settings.xml (~/.m2/settings.xml)
+    if let Some(home) = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")) {
+        let user_settings = PathBuf::from(home).join(".m2").join("settings.xml");
+        if user_settings.exists() {
+            pom_paths.push(user_settings);
+        }
+    }
+    
+    // 3. Check project root pom.xml
+    pom_paths.push(project_root.join("pom.xml"));
+    
+    // 4. Check module POMs
+    if let Ok(entries) = fs::read_dir(project_root) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                let module_pom = path.join("pom.xml");
+                if module_pom.exists() {
+                    pom_paths.push(module_pom);
+                }
+            }
+        }
+    }
+    
+    // Search each file
+    for pom_path in pom_paths {
+        if let Ok(content) = fs::read_to_string(&pom_path)
+            && let Some(xml) = extract_profile_from_xml(&content, profile_id)
+        {
+            log::info!("Found profile '{}' in {:?}", profile_id, pom_path);
+            // Prettify the XML before returning
+            let prettified = prettify_xml(&xml).unwrap_or(xml);
+            return Some((prettified, pom_path));
+        }
+    }
+    
+    log::warn!("Profile '{}' not found in any POM or settings file", profile_id);
+    None
+}
+
+/// Prettify XML with proper indentation
+fn prettify_xml(xml: &str) -> Option<String> {
+    use std::io::Cursor;
+    
+    // Try to parse and reformat the XML
+    match xmltree::Element::parse(Cursor::new(xml.as_bytes())) {
+        Ok(element) => {
+            let mut output = Vec::new();
+            let config = xmltree::EmitterConfig::new()
+                .perform_indent(true)
+                .indent_string("    ");
+            
+            if element.write_with_config(&mut output, config).is_ok() {
+                String::from_utf8(output).ok()
+            } else {
+                None
+            }
+        }
+        Err(_) => None,
+    }
+}
+
+/// Extract a single profile XML block from POM content
+fn extract_profile_from_xml(xml_content: &str, profile_id: &str) -> Option<String> {
+    // Find the profile block with the matching ID
+    // Look for <profile> ... <id>profile_id</id> ... </profile>
+    
+    let mut in_profile = false;
+    let mut in_profile_id = false;
+    let mut current_profile = String::new();
+    let mut depth = 0;
+    let mut found_matching_id = false;
+    
+    for line in xml_content.lines() {
+        let trimmed = line.trim();
+        
+        // Track when we enter a <profile> tag
+        if trimmed.starts_with("<profile>") || trimmed.starts_with("<profile ") {
+            in_profile = true;
+            current_profile.clear();
+            found_matching_id = false;
+            depth = 0;
+        }
+        
+        if in_profile {
+            current_profile.push_str(line);
+            current_profile.push('\n');
+            
+            // Track depth to handle nested tags
+            if trimmed.contains("<profile>") {
+                depth += 1;
+            }
+            
+            // Check if we're in the <id> tag
+            if trimmed.starts_with("<id>") {
+                in_profile_id = true;
+                if trimmed.contains(profile_id) && trimmed.contains("</id>") {
+                    found_matching_id = true;
+                }
+            }
+            
+            if in_profile_id && trimmed.contains("</id>") {
+                in_profile_id = false;
+            }
+            
+            // Check if we've closed the profile tag
+            if trimmed.contains("</profile>") {
+                depth -= 1;
+                if depth == 0 {
+                    in_profile = false;
+                    
+                    // If this was the matching profile, return it
+                    if found_matching_id {
+                        // Clean up the XML - preserve indentation
+                        return Some(current_profile.trim_end().to_string());
+                    }
+                }
+            }
+        }
+    }
+    
+    None
 }
 
 #[cfg(test)]
@@ -515,9 +771,13 @@ mod tests {
             execute_maven_command(project_root, None, &["test"], &[], None, &[])
                 .unwrap()
                 .iter()
-                .map(|line| utils::clean_log_line(line).unwrap())
+                .filter_map(|line| utils::clean_log_line(line))
                 .collect();
-        assert_eq!(output, vec!["line 1", "line 2"]);
+        
+        // Output now includes command line at the start
+        // Skip the command line to check actual Maven output
+        let maven_output: Vec<String> = output.iter().skip_while(|line| line.starts_with("$ ")).cloned().collect();
+        assert_eq!(maven_output, vec!["line 1", "line 2"]);
     }
 
     #[test]
@@ -537,14 +797,17 @@ mod tests {
             execute_maven_command(project_root, None, &["test"], &[], None, &[])
                 .unwrap()
                 .iter()
-                .map(|line| utils::clean_log_line(line).unwrap())
+                .filter_map(|line| utils::clean_log_line(line))
                 .collect();
+        
+        // Skip command line header
+        let maven_output: Vec<String> = output.iter().skip_while(|line| line.starts_with("$ ")).cloned().collect();
         assert!(
-            output.contains(&"line 1".to_string()),
+            maven_output.contains(&"line 1".to_string()),
             "stdout line should be present"
         );
         assert!(
-            output.contains(&"[ERR] warn message".to_string()),
+            maven_output.contains(&"[ERR] warn message".to_string()),
             "stderr line should be tagged"
         );
     }
@@ -565,9 +828,12 @@ mod tests {
             execute_maven_command(project_root, None, &["test"], &profiles, None, &[])
                 .unwrap()
                 .iter()
-                .map(|line| utils::clean_log_line(line).unwrap())
+                .filter_map(|line| utils::clean_log_line(line))
                 .collect();
-        assert_eq!(output, vec!["-P p1,p2 test"]);
+        
+        // Skip command line header and check actual Maven output
+        let maven_output: Vec<String> = output.iter().skip_while(|line| line.starts_with("$ ")).cloned().collect();
+        assert_eq!(maven_output, vec!["-P p1,p2 test"]);
     }
 
     #[test]
@@ -609,6 +875,154 @@ mod tests {
     }
 
     #[test]
+    fn test_get_profile_xml() {
+        let dir = tempdir().unwrap();
+        let project_root = dir.path();
+        
+        // Create a POM with a profile
+        let pom_content = r#"<?xml version="1.0" encoding="UTF-8"?>
+<project>
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.example</groupId>
+    <artifactId>test-project</artifactId>
+    <version>1.0.0</version>
+    
+    <profiles>
+        <profile>
+            <id>dev</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <properties>
+                <env>development</env>
+            </properties>
+        </profile>
+        <profile>
+            <id>prod</id>
+            <properties>
+                <env>production</env>
+            </properties>
+        </profile>
+    </profiles>
+</project>"#;
+        
+        fs::write(project_root.join("pom.xml"), pom_content).unwrap();
+        
+        // Test extracting the dev profile
+        let result = get_profile_xml(project_root, "dev");
+        assert!(result.is_some(), "Should find dev profile");
+        
+        let (xml, _path) = result.unwrap();
+        assert!(xml.contains("<id>dev</id>"), "XML should contain profile ID");
+        assert!(xml.contains("<env>development</env>"), "XML should contain profile properties");
+        assert!(xml.contains("<profile>"), "XML should have opening tag");
+        assert!(xml.contains("</profile>"), "XML should have closing tag");
+        
+        // Test extracting the prod profile
+        let result = get_profile_xml(project_root, "prod");
+        assert!(result.is_some(), "Should find prod profile");
+        
+        let (xml, _path) = result.unwrap();
+        assert!(xml.contains("<id>prod</id>"), "XML should contain prod profile ID");
+        assert!(xml.contains("<env>production</env>"), "XML should contain prod properties");
+        
+        // Test non-existent profile
+        let result = get_profile_xml(project_root, "nonexistent");
+        assert!(result.is_none(), "Should not find nonexistent profile");
+    }
+
+    #[test]
+    fn test_get_profile_xml_from_settings() {
+        let dir = tempdir().unwrap();
+        let project_root = dir.path();
+        
+        // Create a settings.xml with profiles
+        let settings_content = r#"<?xml version="1.0" encoding="UTF-8"?>
+<settings>
+    <profiles>
+        <profile>
+            <id>corporate-proxy</id>
+            <properties>
+                <http.proxyHost>proxy.corp.com</http.proxyHost>
+                <http.proxyPort>8080</http.proxyPort>
+            </properties>
+        </profile>
+        <profile>
+            <id>development</id>
+            <activation>
+                <activeByDefault>false</activeByDefault>
+            </activation>
+            <properties>
+                <maven.compiler.debug>true</maven.compiler.debug>
+                <env>dev</env>
+            </properties>
+        </profile>
+    </profiles>
+</settings>"#;
+        
+        fs::write(project_root.join("settings.xml"), settings_content).unwrap();
+        
+        // Also create a POM to ensure we search settings.xml first
+        let pom_content = r#"<?xml version="1.0" encoding="UTF-8"?>
+<project>
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.example</groupId>
+    <artifactId>test</artifactId>
+    <version>1.0.0</version>
+</project>"#;
+        fs::write(project_root.join("pom.xml"), pom_content).unwrap();
+        
+        // Test finding profile from settings.xml
+        let result = get_profile_xml(project_root, "development");
+        assert!(result.is_some(), "Should find development profile from settings.xml");
+        
+        let (xml, path) = result.unwrap();
+        assert!(xml.contains("<id>development</id>"), "XML should contain development profile");
+        assert!(xml.contains("<env>dev</env>"), "XML should contain settings profile properties");
+        assert!(path.ends_with("settings.xml"), "Should be from settings.xml");
+        
+        // Test corporate proxy profile
+        let result = get_profile_xml(project_root, "corporate-proxy");
+        assert!(result.is_some(), "Should find corporate-proxy profile");
+        
+        let (xml, _) = result.unwrap();
+        assert!(xml.contains("proxy.corp.com"), "XML should contain proxy settings");
+    }
+
+    #[test]
+    fn test_extract_profiles_from_settings_xml() {
+        let settings_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<settings>
+    <profiles>
+        <profile>
+            <id>development</id>
+            <properties>
+                <env>dev</env>
+            </properties>
+        </profile>
+        <profile>
+            <id>production</id>
+            <properties>
+                <env>prod</env>
+            </properties>
+        </profile>
+        <profile>
+            <id>testing</id>
+            <properties>
+                <env>test</env>
+            </properties>
+        </profile>
+    </profiles>
+</settings>"#;
+        
+        let profiles = extract_profiles_from_settings_xml(settings_xml).unwrap();
+        assert_eq!(profiles.len(), 3, "Should find 3 profiles");
+        assert!(profiles.contains(&"development".to_string()));
+        assert!(profiles.contains(&"production".to_string()));
+        assert!(profiles.contains(&"testing".to_string()));
+    }
+
+    #[test]
     #[cfg(unix)] // Shell script execution not supported on Windows
     fn execute_maven_command_scopes_to_module() {
         let _guard = test_lock().lock().unwrap();
@@ -622,9 +1036,12 @@ mod tests {
             execute_maven_command(project_root, Some("module-a"), &["test"], &[], None, &[])
                 .unwrap()
                 .iter()
-                .map(|line| utils::clean_log_line(line).unwrap())
+                .filter_map(|line| utils::clean_log_line(line))
                 .collect();
-        assert_eq!(output, vec!["-pl module-a test"]);
+        
+        // Skip command line header
+        let maven_output: Vec<String> = output.iter().skip_while(|line| line.starts_with("$ ")).cloned().collect();
+        assert_eq!(maven_output, vec!["-pl module-a test"]);
     }
 
     #[test]
@@ -641,8 +1058,61 @@ mod tests {
             execute_maven_command(project_root, Some("."), &["test"], &[], None, &[])
                 .unwrap()
                 .iter()
-                .map(|line| utils::clean_log_line(line).unwrap())
+                .filter_map(|line| utils::clean_log_line(line))
                 .collect();
-        assert_eq!(output, vec!["test"]);
+        
+        // Skip command line header
+        let maven_output: Vec<String> = output.iter().skip_while(|line| line.starts_with("$ ")).cloned().collect();
+        assert_eq!(maven_output, vec!["test"]);
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_command_display_in_output() {
+        let _guard = test_lock().lock().unwrap();
+        let dir = tempdir().unwrap();
+        let project_root = dir.path();
+
+        let mvnw_path = project_root.join("mvnw");
+        write_script(&mvnw_path, "#!/bin/sh\necho 'test output'\n");
+
+        let profiles = vec!["dev".to_string()];
+        let flags = vec!["--offline".to_string()];
+        let output = execute_maven_command(
+            project_root,
+            Some("my-module"),
+            &["clean", "install"],
+            &profiles,
+            None,
+            &flags,
+        )
+        .unwrap();
+
+        // First line should be the command
+        assert!(
+            output[0].starts_with("$ ./mvnw"),
+            "First line should be the command: {}",
+            output[0]
+        );
+        assert!(
+            output[0].contains("-P dev"),
+            "Command should include profiles: {}",
+            output[0]
+        );
+        assert!(
+            output[0].contains("-pl my-module"),
+            "Command should include module: {}",
+            output[0]
+        );
+        assert!(
+            output[0].contains("--offline"),
+            "Command should include flags: {}",
+            output[0]
+        );
+        assert!(
+            output[0].contains("clean install"),
+            "Command should include goals: {}",
+            output[0]
+        );
     }
 }

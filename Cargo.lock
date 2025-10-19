@@ -535,7 +535,7 @@ dependencies = [
 
 [[package]]
 name = "lazymvn"
-version = "0.3.0"
+version = "0.3.4"
 dependencies = [
  "chrono",
  "clap",
@@ -553,6 +553,7 @@ dependencies = [
  "tempfile",
  "toml",
  "unicode-width 0.1.14",
+ "xmltree",
 ]
 
 [[package]]
@@ -1424,3 +1425,18 @@ name = "wit-bindgen"
 version = "0.46.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f17a85883d4e6d00e8a97c586de764dabcc06133f7f1d55dce5cdc070ad7fe59"
+
+[[package]]
+name = "xml-rs"
+version = "0.8.27"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6fd8403733700263c6eb89f192880191f1b83e332f7a20371ddcf421c4a337c7"
+
+[[package]]
+name = "xmltree"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b619f8c85654798007fb10afa5125590b43b088c225a25fc2fec100a9fad0fc6"
+dependencies = [
+ "xml-rs",
+]
