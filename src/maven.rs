@@ -50,6 +50,45 @@ pub fn get_maven_command(project_root: &Path) -> String {
     }
 }
 
+/// Build the full command string for display
+pub fn build_command_string(
+    maven_command: &str,
+    module: Option<&str>,
+    args: &[&str],
+    profiles: &[String],
+    settings_path: Option<&str>,
+    flags: &[String],
+) -> String {
+    let mut parts = vec![maven_command.to_string()];
+
+    if let Some(settings_path) = settings_path {
+        parts.push("--settings".to_string());
+        parts.push(settings_path.to_string());
+    }
+
+    if !profiles.is_empty() {
+        parts.push("-P".to_string());
+        parts.push(profiles.join(","));
+    }
+
+    if let Some(module) = module {
+        if module != "." {
+            parts.push("-pl".to_string());
+            parts.push(module.to_string());
+        }
+    }
+
+    for flag in flags {
+        parts.push(flag.to_string());
+    }
+
+    for arg in args {
+        parts.push(arg.to_string());
+    }
+
+    parts.join(" ")
+}
+
 /// Kill a running process by PID
 pub fn kill_process(pid: u32) -> Result<(), String> {
     #[cfg(unix)]
@@ -132,7 +171,7 @@ pub fn execute_maven_command(
     log::debug!("  settings_path: {:?}", settings_path);
     log::debug!("  flags: {:?}", flags);
 
-    let mut command = Command::new(maven_command);
+    let mut command = Command::new(&maven_command);
     if let Some(settings_path) = settings_path {
         command.arg("--settings").arg(settings_path);
         log::debug!("Added settings argument: {}", settings_path);
@@ -157,6 +196,10 @@ pub fn execute_maven_command(
         log::debug!("Added flag: {}", flag);
     }
 
+    // Build the full command string for display
+    let command_str = build_command_string(&maven_command, module, args, profiles, settings_path, flags);
+    log::info!("Executing: {}", command_str);
+
     log::info!("Spawning Maven process...");
     let mut child = command
         .args(args)
@@ -166,7 +209,9 @@ pub fn execute_maven_command(
         .spawn()?;
 
     log::debug!("Maven process spawned with PID: {:?}", child.id());
-    let mut output = Vec::new();
+    
+    // Start with the command string as the first line
+    let mut output = vec![format!("$ {}", command_str), String::new()];
     let (tx, rx) = mpsc::channel();
     let mut handles = Vec::new();
 
@@ -242,6 +287,10 @@ pub fn execute_maven_command_async(
     log::debug!("  module: {:?}", module);
     log::debug!("  args: {:?}", args);
 
+    // Build the full command string for display
+    let command_str = build_command_string(&maven_command, module, args, profiles, settings_path, flags);
+    log::info!("Executing: {}", command_str);
+
     let mut command = Command::new(maven_command);
     if let Some(settings_path) = settings_path {
         command.arg("--settings").arg(settings_path);
@@ -263,6 +312,10 @@ pub fn execute_maven_command_async(
     let args: Vec<String> = args.iter().map(|s| s.to_string()).collect();
 
     let (tx, rx) = mpsc::channel();
+
+    // Send the command string as the first output line
+    let _ = tx.send(CommandUpdate::OutputLine(format!("$ {}", command_str)));
+    let _ = tx.send(CommandUpdate::OutputLine(String::new()));
 
     // Spawn command execution in background thread
     thread::spawn(move || {
@@ -515,9 +568,13 @@ mod tests {
             execute_maven_command(project_root, None, &["test"], &[], None, &[])
                 .unwrap()
                 .iter()
-                .map(|line| utils::clean_log_line(line).unwrap())
+                .filter_map(|line| utils::clean_log_line(line))
                 .collect();
-        assert_eq!(output, vec!["line 1", "line 2"]);
+        
+        // Output now includes command line at the start
+        // Skip the command line to check actual Maven output
+        let maven_output: Vec<String> = output.iter().skip_while(|line| line.starts_with("$ ")).cloned().collect();
+        assert_eq!(maven_output, vec!["line 1", "line 2"]);
     }
 
     #[test]
@@ -537,14 +594,17 @@ mod tests {
             execute_maven_command(project_root, None, &["test"], &[], None, &[])
                 .unwrap()
                 .iter()
-                .map(|line| utils::clean_log_line(line).unwrap())
+                .filter_map(|line| utils::clean_log_line(line))
                 .collect();
+        
+        // Skip command line header
+        let maven_output: Vec<String> = output.iter().skip_while(|line| line.starts_with("$ ")).cloned().collect();
         assert!(
-            output.contains(&"line 1".to_string()),
+            maven_output.contains(&"line 1".to_string()),
             "stdout line should be present"
         );
         assert!(
-            output.contains(&"[ERR] warn message".to_string()),
+            maven_output.contains(&"[ERR] warn message".to_string()),
             "stderr line should be tagged"
         );
     }
@@ -565,9 +625,12 @@ mod tests {
             execute_maven_command(project_root, None, &["test"], &profiles, None, &[])
                 .unwrap()
                 .iter()
-                .map(|line| utils::clean_log_line(line).unwrap())
+                .filter_map(|line| utils::clean_log_line(line))
                 .collect();
-        assert_eq!(output, vec!["-P p1,p2 test"]);
+        
+        // Skip command line header and check actual Maven output
+        let maven_output: Vec<String> = output.iter().skip_while(|line| line.starts_with("$ ")).cloned().collect();
+        assert_eq!(maven_output, vec!["-P p1,p2 test"]);
     }
 
     #[test]
@@ -622,9 +685,12 @@ mod tests {
             execute_maven_command(project_root, Some("module-a"), &["test"], &[], None, &[])
                 .unwrap()
                 .iter()
-                .map(|line| utils::clean_log_line(line).unwrap())
+                .filter_map(|line| utils::clean_log_line(line))
                 .collect();
-        assert_eq!(output, vec!["-pl module-a test"]);
+        
+        // Skip command line header
+        let maven_output: Vec<String> = output.iter().skip_while(|line| line.starts_with("$ ")).cloned().collect();
+        assert_eq!(maven_output, vec!["-pl module-a test"]);
     }
 
     #[test]
@@ -641,8 +707,61 @@ mod tests {
             execute_maven_command(project_root, Some("."), &["test"], &[], None, &[])
                 .unwrap()
                 .iter()
-                .map(|line| utils::clean_log_line(line).unwrap())
+                .filter_map(|line| utils::clean_log_line(line))
                 .collect();
-        assert_eq!(output, vec!["test"]);
+        
+        // Skip command line header
+        let maven_output: Vec<String> = output.iter().skip_while(|line| line.starts_with("$ ")).cloned().collect();
+        assert_eq!(maven_output, vec!["test"]);
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_command_display_in_output() {
+        let _guard = test_lock().lock().unwrap();
+        let dir = tempdir().unwrap();
+        let project_root = dir.path();
+
+        let mvnw_path = project_root.join("mvnw");
+        write_script(&mvnw_path, "#!/bin/sh\necho 'test output'\n");
+
+        let profiles = vec!["dev".to_string()];
+        let flags = vec!["--offline".to_string()];
+        let output = execute_maven_command(
+            project_root,
+            Some("my-module"),
+            &["clean", "install"],
+            &profiles,
+            None,
+            &flags,
+        )
+        .unwrap();
+
+        // First line should be the command
+        assert!(
+            output[0].starts_with("$ ./mvnw"),
+            "First line should be the command: {}",
+            output[0]
+        );
+        assert!(
+            output[0].contains("-P dev"),
+            "Command should include profiles: {}",
+            output[0]
+        );
+        assert!(
+            output[0].contains("-pl my-module"),
+            "Command should include module: {}",
+            output[0]
+        );
+        assert!(
+            output[0].contains("--offline"),
+            "Command should include flags: {}",
+            output[0]
+        );
+        assert!(
+            output[0].contains("clean install"),
+            "Command should include goals: {}",
+            output[0]
+        );
     }
 }

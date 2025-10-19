@@ -37,7 +37,15 @@ pub fn clean_log_line(raw: &str) -> Option<String> {
 pub fn colorize_log_line(text: &str) -> Line<'static> {
     let mut spans = Vec::new();
 
-    if let Some(info_pos) = text.find("[INFO]") {
+    // Check if this is a command line (starts with $)
+    if text.starts_with("$ ") {
+        spans.push(Span::styled(
+            text.to_string(),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(ratatui::style::Modifier::BOLD),
+        ));
+    } else if let Some(info_pos) = text.find("[INFO]") {
         // Split around [INFO]
         if info_pos > 0 {
             spans.push(Span::raw(text[..info_pos].to_string()));
