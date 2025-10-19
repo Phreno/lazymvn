@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.4] - 2025-10-19
+
+### Added
+- **Profile XML Display** (#38-related):
+  - Press `2` to focus on Profiles view and see the full XML of the selected profile
+  - Displays profile source (pom.xml, settings.xml, or ~/.m2/settings.xml)
+  - Auto-formatted XML with proper 4-space indentation using `xmltree` library
+  - Professional syntax highlighting with color-coded elements:
+    - Light Blue for opening tags
+    - Light Red for closing tags
+    - Light Yellow for attribute names
+    - Light Green for attribute values
+    - Dark Gray for structural elements (brackets, comments)
+  - Automatically switches between profile XML and Maven logs when changing focus
+  - Preserves Maven log buffer when viewing profiles
+  - Scrollable and read-only display
+  
+- **Extended Profile Detection**:
+  - Now detects profiles from `settings.xml` in addition to POM files
+  - Searches in order: `<project>/settings.xml`, `~/.m2/settings.xml`, project POMs, module POMs
+  - Maven's `help:all-profiles` only shows POM profiles - now supplemented with direct settings.xml parsing
+  - All profiles from all sources merged and deduplicated
+  
+- **Maven Command Display** (#38):
+  - Shows the exact Maven command being executed at the top of output
+  - Displayed in cyan with bold styling: `$ mvn -P profiles -pl module flags goals`
+  - Includes all parameters: settings, profiles, module, flags, and goals
+  - Also logged to debug log with timestamp
+  
+### Fixed
+- Profile persistence now working correctly - states saved and restored between sessions
+- Mouse click tests adjusted for Projects pane
+- Settings.xml profiles now properly detected and usable in Maven commands
+- All clippy warnings resolved with idiomatic Rust patterns (let-chains, for loops)
+- XML indentation preserved in profile display (fixed Wrap trimming issue)
+
+### Technical
+- Added `xmltree = "0.11"` dependency for professional XML parsing and formatting
+- New functions: `prettify_xml()`, `colorize_xml_line()`, `extract_profiles_from_settings_xml()`
+- Enhanced `get_profiles()` to read from both POM files and settings.xml
+- Improved color scheme for better readability on dark terminals
+- 84 tests passing (9 new tests added)
+- Zero clippy warnings with `-D warnings` flag
+
 ## [0.3.0] - 2025-10-19
 
 ### Added
