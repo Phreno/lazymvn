@@ -349,6 +349,9 @@ impl TuiState {
             self.profiles.len(),
             auto_activated.len()
         );
+
+        // Load saved preferences for the current module after profiles are created
+        self.load_module_preferences();
     }
 
     /// Check if enough time has passed since last navigation key
