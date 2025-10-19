@@ -150,9 +150,10 @@ pub fn handle_mouse_event(
 
     // Get the current layout areas to determine which pane was clicked
     // We need to calculate this based on terminal size
+    // Use default size if terminal size cannot be determined (e.g., in tests)
     let terminal_size = match crossterm::terminal::size() {
         Ok((cols, rows)) => (cols, rows),
-        Err(_) => return,
+        Err(_) => (80, 24), // Default terminal size for tests
     };
 
     // Calculate layout areas using same logic as draw function
