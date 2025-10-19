@@ -398,8 +398,9 @@ mod tests {
 
     #[test]
     fn test_flags_toggle() {
+        let temp_dir = tempfile::tempdir().unwrap();
         let modules = vec!["module1".to_string()];
-        let project_root = PathBuf::from("/");
+        let project_root = temp_dir.path().to_path_buf();
         let mut state = crate::ui::state::TuiState::new(modules, project_root, test_cfg());
 
         // Switch to flags view with '4'
