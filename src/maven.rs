@@ -72,11 +72,11 @@ pub fn build_command_string(
         parts.push(profiles.join(","));
     }
 
-    if let Some(module) = module {
-        if module != "." {
-            parts.push("-pl".to_string());
-            parts.push(module.to_string());
-        }
+    if let Some(module) = module
+        && module != "."
+    {
+        parts.push("-pl".to_string());
+        parts.push(module.to_string());
     }
 
     for flag in flags {
@@ -524,13 +524,13 @@ pub fn get_profile_xml(project_root: &Path, profile_id: &str) -> Option<(String,
     
     // Search each file
     for pom_path in pom_paths {
-        if let Ok(content) = fs::read_to_string(&pom_path) {
-            if let Some(xml) = extract_profile_from_xml(&content, profile_id) {
-                log::info!("Found profile '{}' in {:?}", profile_id, pom_path);
-                // Prettify the XML before returning
-                let prettified = prettify_xml(&xml).unwrap_or(xml);
-                return Some((prettified, pom_path));
-            }
+        if let Ok(content) = fs::read_to_string(&pom_path)
+            && let Some(xml) = extract_profile_from_xml(&content, profile_id)
+        {
+            log::info!("Found profile '{}' in {:?}", profile_id, pom_path);
+            // Prettify the XML before returning
+            let prettified = prettify_xml(&xml).unwrap_or(xml);
+            return Some((prettified, pom_path));
         }
     }
     

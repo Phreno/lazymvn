@@ -232,12 +232,12 @@ fn colorize_xml_tag(tag: &str, spans: &mut Vec<Span<'static>>, is_closing: bool)
 
 /// Helper to colorize XML attributes
 fn colorize_xml_attributes(attrs: &str, spans: &mut Vec<Span<'static>>) {
-    let mut chars = attrs.chars().peekable();
+    let chars = attrs.chars();
     let mut current = String::new();
     let mut in_quotes = false;
     let mut in_value = false;
     
-    while let Some(ch) = chars.next() {
+    for ch in chars {
         if ch == '=' && !in_quotes {
             // Attribute name in light yellow
             if !current.trim().is_empty() {
