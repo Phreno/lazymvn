@@ -27,13 +27,14 @@ jobs:
       - name: Run tests
         run: cargo test --verbose
 
-  release-win:
+  release-linux-test:
     if: github.event_name == 'release'
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
     - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
     - name: Build
       run: cargo build --verbose
     - name: Run tests
@@ -41,6 +42,7 @@ jobs:
 
   release-linux:
     if: github.event_name == 'release'
+    needs: release-linux-test
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -50,28 +52,47 @@ jobs:
     - uses: dtolnay/rust-toolchain@stable
     - name: Build release binary
       run: cargo build --release --verbose
+    - name: Rename binary with platform identifier
+      run: mv ./target/release/lazymvn ./target/release/lazymvn-linux-x86_64
     - name: Upload Linux x86_64 binary to release
       uses: softprops/action-gh-release@v2
       with:
-        files: ./target/release/lazymvn
+        files: ./target/release/lazymvn-linux-x86_64
         tag_name: ${{ github.event.release.tag_name }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  release:
+  release-win-test:
     if: github.event_name == 'release'
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+    - name: Build
+      run: cargo build --verbose
+    - name: Run tests
+      run: cargo test --verbose
+
+  release-win:
+    if: github.event_name == 'release'
+    needs: release-win-test
     runs-on: windows-latest
     permissions:
       contents: write
     
     steps:
     - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
     - name: Build release binary
       run: cargo build --release --verbose
+    - name: Rename binary with platform identifier
+      run: mv ./target/release/lazymvn.exe ./target/release/lazymvn-windows-x86_64.exe
     - name: Upload Windows x86_64 binary to release
       uses: softprops/action-gh-release@v2
       with:
-        files: ./target/release/lazymvn.exe
+        files: ./target/release/lazymvn-windows-x86_64.exe
         tag_name: ${{ github.event.release.tag_name }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

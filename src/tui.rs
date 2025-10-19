@@ -150,9 +150,10 @@ pub fn handle_mouse_event(
 
     // Get the current layout areas to determine which pane was clicked
     // We need to calculate this based on terminal size
+    // Use default size if terminal size cannot be determined (e.g., in tests)
     let terminal_size = match crossterm::terminal::size() {
         Ok((cols, rows)) => (cols, rows),
-        Err(_) => return,
+        Err(_) => (80, 24), // Default terminal size for tests
     };
 
     // Calculate layout areas using same logic as draw function
@@ -397,8 +398,9 @@ mod tests {
 
     #[test]
     fn test_flags_toggle() {
+        let temp_dir = tempfile::tempdir().unwrap();
         let modules = vec!["module1".to_string()];
-        let project_root = PathBuf::from("/");
+        let project_root = temp_dir.path().to_path_buf();
         let mut state = crate::ui::state::TuiState::new(modules, project_root, test_cfg());
 
         // Switch to flags view with '4'
@@ -577,10 +579,11 @@ mod tests {
 
         // Simulate mouse click on output pane (right side)
         // Based on 30/70 split, output pane starts at column ~24 for 80 cols terminal
+        // Use row 10 to avoid projects pane (rows 0-2) and stay in middle area
         let mouse_event = crossterm::event::MouseEvent {
             kind: crossterm::event::MouseEventKind::Down(crossterm::event::MouseButton::Left),
             column: 50, // Right side of screen - output pane
-            row: 5,
+            row: 10,
             modifiers: crossterm::event::KeyModifiers::empty(),
         };
 
@@ -668,12 +671,13 @@ mod tests {
         // Initial selection is first module
         assert_eq!(state.modules_list_state.selected(), Some(0));
 
-        // Simulate mouse click on modules pane, row 5 (which would be ~3rd item)
-        // Assuming modules pane starts at y=3, row 5 would be item at index 0 (5-3-2=0)
+        // Simulate mouse click on modules pane
+        // Projects pane is at rows 0-2 (3 lines), modules pane starts at row 3
+        // Row 5 is within modules pane (accounting for border and title at row 3-4)
         let mouse_event = crossterm::event::MouseEvent {
             kind: crossterm::event::MouseEventKind::Down(crossterm::event::MouseButton::Left),
             column: 5, // Left side - modules pane
-            row: 6,    // Within modules pane
+            row: 5,    // Within modules pane, below projects pane
             modifiers: crossterm::event::KeyModifiers::empty(),
         };
 
