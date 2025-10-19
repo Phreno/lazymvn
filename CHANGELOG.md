@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2025-10-19
+
 ### Added
 - **Spring Boot Starter Support** (#33):
   - Press `s` to run Spring Boot applications
@@ -34,11 +36,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Stored in `~/.config/lazymvn/preferences/<project-hash>.json`
   - Works seamlessly with multi-module projects
   - No manual configuration needed - just toggle and go!
+- **Truthful Maven Profile Activation**:
+  - Three-state profile system: Active (✓), Inactive ( ), Explicitly Disabled (✗)
+  - Detects auto-activated profiles (via file existence, OS, JDK version, etc.)
+  - Toggle profiles with Space: Inactive → Active → Explicitly Disabled → Inactive
+  - Commands respect all three states: `-P profile` (active), omit (inactive), `-P !profile` (disabled)
+  - Proper handling of `mvn help:active-profiles` to detect activation
+  - See PROFILE_ACTIVATION.md for detailed documentation
 
 ### Changed
 - **Kill process keybinding**: Changed from `x` to `Escape` for better UX consistency
   - More intuitive and follows common conventions (Escape to stop/cancel)
   - Shown in footer navigation bar as "Esc Kill"
+- Rounded borders for popup windows (recent projects, starters)
+- Improved UI consistency across all components
 
 ## [0.2.0] - 2025-10-17
 
