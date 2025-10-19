@@ -77,8 +77,7 @@ pub struct TuiState {
     pub current_view: CurrentView,
     pub focus: Focus,
     pub modules: Vec<String>,
-    pub profiles: Vec<String>,
-    pub active_profiles: Vec<String>,
+    pub profiles: Vec<MavenProfile>,
     pub flags: Vec<BuildFlag>,
     pub modules_list_state: ListState,
     pub profiles_list_state: ListState,
@@ -120,6 +119,72 @@ pub struct TuiState {
     pub starters_list_state: ListState,
     // Module preferences
     module_preferences: crate::config::ProjectPreferences,
+}
+
+/// State of a Maven profile
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ProfileState {
+    /// Profile follows Maven's auto-activation rules
+    Default,
+    /// Profile is explicitly enabled (will add to -P)
+    ExplicitlyEnabled,
+    /// Profile is explicitly disabled (will add !profile to -P)
+    ExplicitlyDisabled,
+}
+
+/// Maven profile with activation state
+#[derive(Clone, Debug)]
+pub struct MavenProfile {
+    pub name: String,
+    pub state: ProfileState,
+    /// Whether this profile is auto-activated by Maven (file, JDK, OS, etc.)
+    pub auto_activated: bool,
+}
+
+impl MavenProfile {
+    pub fn new(name: String, auto_activated: bool) -> Self {
+        Self {
+            name,
+            state: ProfileState::Default,
+            auto_activated,
+        }
+    }
+
+    /// Returns true if this profile will be active when running Maven
+    pub fn is_active(&self) -> bool {
+        match self.state {
+            ProfileState::Default => self.auto_activated,
+            ProfileState::ExplicitlyEnabled => true,
+            ProfileState::ExplicitlyDisabled => false,
+        }
+    }
+
+    /// Returns the profile argument string for Maven (-P flag)
+    /// Returns None if profile is in Default state
+    pub fn to_maven_arg(&self) -> Option<String> {
+        match self.state {
+            ProfileState::Default => None,
+            ProfileState::ExplicitlyEnabled => Some(self.name.clone()),
+            ProfileState::ExplicitlyDisabled => Some(format!("!{}", self.name)),
+        }
+    }
+
+    /// Cycle through states when toggled
+    pub fn toggle(&mut self) {
+        self.state = match self.state {
+            ProfileState::Default => {
+                if self.auto_activated {
+                    // Auto-activated: Default → Disabled
+                    ProfileState::ExplicitlyDisabled
+                } else {
+                    // Not auto-activated: Default → Enabled
+                    ProfileState::ExplicitlyEnabled
+                }
+            }
+            ProfileState::ExplicitlyEnabled => ProfileState::Default,
+            ProfileState::ExplicitlyDisabled => ProfileState::Default,
+        };
+    }
 }
 
 /// Maven build flags that can be toggled
@@ -203,7 +268,6 @@ impl TuiState {
             focus: Focus::Modules,
             modules,
             profiles: vec![],
-            active_profiles: vec![],
             flags,
             modules_list_state,
             profiles_list_state,
@@ -255,11 +319,36 @@ impl TuiState {
         state
     }
 
-    pub fn set_profiles(&mut self, profiles: Vec<String>) {
-        self.profiles = profiles;
+    pub fn set_profiles(&mut self, profile_names: Vec<String>) {
+        log::info!("set_profiles: Loading {} profiles", profile_names.len());
+
+        // Get auto-activated profiles
+        let auto_activated = maven::get_active_profiles(&self.project_root).unwrap_or_else(|e| {
+            log::warn!("Failed to get active profiles: {}", e);
+            vec![]
+        });
+
+        log::debug!("Auto-activated profiles: {:?}", auto_activated);
+
+        // Create MavenProfile structs
+        self.profiles = profile_names
+            .into_iter()
+            .map(|name| {
+                let is_auto = auto_activated.contains(&name);
+                log::debug!("Profile '{}' auto-activated: {}", name, is_auto);
+                MavenProfile::new(name, is_auto)
+            })
+            .collect();
+
         if !self.profiles.is_empty() {
             self.profiles_list_state.select(Some(0));
         }
+
+        log::info!(
+            "Loaded {} profiles ({} auto-activated)",
+            self.profiles.len(),
+            auto_activated.len()
+        );
     }
 
     /// Check if enough time has passed since last navigation key
@@ -402,16 +491,17 @@ impl TuiState {
             return;
         }
         if let Some(selected) = self.profiles_list_state.selected()
-            && let Some(profile) = self.profiles.get(selected)
+            && let Some(profile) = self.profiles.get_mut(selected)
         {
-            if let Some(pos) = self.active_profiles.iter().position(|p| p == profile) {
-                log::info!("Deactivating profile: {}", profile);
-                self.active_profiles.remove(pos);
-            } else {
-                log::info!("Activating profile: {}", profile);
-                self.active_profiles.push(profile.clone());
-            }
-            log::debug!("Active profiles now: {:?}", self.active_profiles);
+            let old_state = profile.state.clone();
+            profile.toggle();
+            log::info!(
+                "Profile '{}': {:?} → {:?} (auto: {})",
+                profile.name,
+                old_state,
+                profile.state,
+                profile.auto_activated
+            );
 
             // Save preferences after toggling
             self.save_module_preferences();
@@ -450,6 +540,15 @@ impl TuiState {
             .iter()
             .filter(|f| f.enabled)
             .map(|f| f.flag.clone()) // Use flag.flag instead of flag.name
+            .collect()
+    }
+
+    /// Get list of active profile names for display
+    pub fn active_profile_names(&self) -> Vec<String> {
+        self.profiles
+            .iter()
+            .filter(|p| p.is_active())
+            .map(|p| p.name.clone())
             .collect()
     }
 
@@ -611,8 +710,25 @@ impl TuiState {
                 .map(|f| f.name.clone())
                 .collect();
 
+            // Collect profiles that need to be passed to Maven
+            // Only profiles that are not in Default state
+            let profile_args: Vec<String> = self
+                .profiles
+                .iter()
+                .filter_map(|p| p.to_maven_arg())
+                .collect();
+
+            // Get list of active profile names for display
+            let active_profile_names: Vec<String> = self
+                .profiles
+                .iter()
+                .filter(|p| p.is_active())
+                .map(|p| p.name.clone())
+                .collect();
+
             log::debug!("Enabled flags: {:?}", enabled_flag_names);
-            log::debug!("Active profiles: {:?}", self.active_profiles);
+            log::debug!("Profile args for Maven: {:?}", profile_args);
+            log::debug!("Active profiles (display): {:?}", active_profile_names);
 
             // Clear previous output and prepare for new command
             self.command_output = vec![format!("Running: {} ...", args.join(" "))];
@@ -622,7 +738,7 @@ impl TuiState {
                 &self.project_root,
                 Some(&module),
                 args,
-                &self.active_profiles,
+                &profile_args,
                 self.config.maven_settings.as_deref(),
                 &enabled_flags,
             ) {
@@ -637,7 +753,7 @@ impl TuiState {
                         lines: self.command_output.clone(),
                         scroll_offset: self.output_offset,
                         command: Some(args.join(" ")),
-                        profiles: self.active_profiles.clone(),
+                        profiles: active_profile_names,
                         flags: enabled_flag_names,
                     };
                     self.module_outputs.insert(module, module_output);
@@ -1184,8 +1300,16 @@ impl TuiState {
         // Build the Maven command with &str references
         let spring_run = "spring-boot:run";
         let main_class_arg = format!("-Dspring-boot.run.mainClass={}", fqcn);
-        let profile_arg = if !self.active_profiles.is_empty() {
-            Some(format!("-P{}", self.active_profiles.join(",")))
+
+        // Get profile args for Maven (only explicitly set profiles)
+        let profile_args: Vec<String> = self
+            .profiles
+            .iter()
+            .filter_map(|p| p.to_maven_arg())
+            .collect();
+
+        let profile_arg = if !profile_args.is_empty() {
+            Some(format!("-P{}", profile_args.join(",")))
         } else {
             None
         };
@@ -1355,8 +1479,19 @@ impl TuiState {
     /// Save current profiles and flags for the selected module
     pub fn save_module_preferences(&mut self) {
         if let Some(module) = self.selected_module() {
+            // Save only explicitly set profiles (not Default state)
+            let explicit_profiles: Vec<String> = self
+                .profiles
+                .iter()
+                .filter_map(|p| match p.state {
+                    ProfileState::ExplicitlyEnabled => Some(p.name.clone()),
+                    ProfileState::ExplicitlyDisabled => Some(format!("!{}", p.name)),
+                    ProfileState::Default => None,
+                })
+                .collect();
+
             let prefs = crate::config::ModulePreferences {
-                active_profiles: self.active_profiles.clone(),
+                active_profiles: explicit_profiles.clone(),
                 enabled_flags: self.enabled_flag_names(),
             };
 
@@ -1387,8 +1522,22 @@ impl TuiState {
                     prefs.enabled_flags
                 );
 
-                // Restore active profiles
-                self.active_profiles = prefs.active_profiles.clone();
+                // Restore profile states
+                for profile in &mut self.profiles {
+                    // Check if profile is explicitly enabled or disabled
+                    let disabled_name = format!("!{}", profile.name);
+
+                    if prefs.active_profiles.contains(&profile.name) {
+                        profile.state = ProfileState::ExplicitlyEnabled;
+                        log::debug!("Restored profile '{}' as ExplicitlyEnabled", profile.name);
+                    } else if prefs.active_profiles.contains(&disabled_name) {
+                        profile.state = ProfileState::ExplicitlyDisabled;
+                        log::debug!("Restored profile '{}' as ExplicitlyDisabled", profile.name);
+                    } else {
+                        profile.state = ProfileState::Default;
+                        log::debug!("Profile '{}' in Default state", profile.name);
+                    }
+                }
 
                 // Restore enabled flags
                 for flag in &mut self.flags {
@@ -1396,6 +1545,10 @@ impl TuiState {
                 }
             } else {
                 log::debug!("No saved preferences for module '{}'", module);
+                // Reset all profiles to Default state
+                for profile in &mut self.profiles {
+                    profile.state = ProfileState::Default;
+                }
             }
         }
     }

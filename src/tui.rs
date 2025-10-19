@@ -55,7 +55,6 @@ pub fn draw<B: Backend>(
             f,
             profiles_area,
             &state.profiles,
-            &state.active_profiles,
             &mut state.profiles_list_state,
             state.focus == Focus::Profiles,
         );
@@ -97,7 +96,7 @@ pub fn draw<B: Backend>(
             state.current_view,
             state.focus,
             state.selected_module(),
-            &state.active_profiles,
+            &state.active_profile_names(),
             &state.enabled_flag_names(),
             state.search_status_line(),
         );
@@ -333,7 +332,13 @@ mod tests {
         let modules = vec!["module1".to_string()];
         let mut state =
             crate::ui::state::TuiState::new(modules, project_root.to_path_buf(), test_cfg());
-        state.active_profiles = vec!["p1".to_string()];
+
+        // Set profile names first to initialize MavenProfile structs
+        state.set_profiles(vec!["p1".to_string()]);
+        // Then toggle the profile to explicitly enable it
+        if !state.profiles.is_empty() {
+            state.profiles[0].state = crate::ui::state::ProfileState::ExplicitlyEnabled;
+        }
 
         // 4. Simulate 'k' key press for package
         handle_key_event(
@@ -481,7 +486,7 @@ mod tests {
         let project_root = PathBuf::from("/");
         let mut state = crate::ui::state::TuiState::new(modules, project_root, test_cfg());
 
-        // Add some profiles
+        // Add some profiles (not auto-activated)
         state.set_profiles(vec!["dev".to_string(), "prod".to_string()]);
 
         // Switch to profiles view
@@ -491,8 +496,9 @@ mod tests {
         assert_eq!(state.focus, Focus::Profiles);
         assert_eq!(state.current_view, CurrentView::Profiles);
 
-        // No profiles should be active initially
-        assert_eq!(state.active_profiles.len(), 0);
+        // No profiles should be explicitly enabled initially
+        let active_count = state.profiles.iter().filter(|p| p.is_active()).count();
+        assert_eq!(active_count, 0);
 
         // Simulate pressing Enter to toggle profile
         handle_key_event(
@@ -500,18 +506,25 @@ mod tests {
             &mut state,
         );
 
-        // First profile should now be active
-        assert_eq!(state.active_profiles.len(), 1);
-        assert_eq!(state.active_profiles[0], "dev");
+        // First profile should now be explicitly enabled
+        let active_count = state.profiles.iter().filter(|p| p.is_active()).count();
+        assert_eq!(active_count, 1);
+        assert_eq!(
+            state.profiles[0].state,
+            crate::ui::state::ProfileState::ExplicitlyEnabled
+        );
 
-        // Press Enter again to deactivate
+        // Press Enter again to deactivate (back to Default)
         handle_key_event(
             crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Enter),
             &mut state,
         );
 
-        // Profile should be deactivated
-        assert_eq!(state.active_profiles.len(), 0);
+        // Profile should be back to Default state
+        assert_eq!(
+            state.profiles[0].state,
+            crate::ui::state::ProfileState::Default
+        );
     }
 
     #[test]
@@ -598,6 +611,48 @@ mod tests {
         assert!(!is_inside_area((30, 8), area)); // Right of area
         assert!(!is_inside_area((15, 4), area)); // Above area
         assert!(!is_inside_area((15, 15), area)); // Below area
+    }
+
+    #[test]
+    fn test_profile_auto_activation_three_states() {
+        use crate::ui::state::{MavenProfile, ProfileState};
+
+        // Test 1: Non-auto-activated profile
+        let mut profile = MavenProfile::new("dev".to_string(), false);
+        assert_eq!(profile.state, ProfileState::Default);
+        assert!(!profile.is_active()); // Not active in default state
+        assert_eq!(profile.to_maven_arg(), None); // No arg needed
+
+        // Toggle: Default → ExplicitlyEnabled (for non-auto profiles)
+        profile.toggle();
+        assert_eq!(profile.state, ProfileState::ExplicitlyEnabled);
+        assert!(profile.is_active());
+        assert_eq!(profile.to_maven_arg(), Some("dev".to_string()));
+
+        // Toggle: ExplicitlyEnabled → Default
+        profile.toggle();
+        assert_eq!(profile.state, ProfileState::Default);
+        assert!(!profile.is_active());
+
+        // Test 2: Auto-activated profile
+        let mut auto_profile = MavenProfile::new("out-eclipse".to_string(), true);
+        assert_eq!(auto_profile.state, ProfileState::Default);
+        assert!(auto_profile.is_active()); // Active due to auto-activation
+        assert_eq!(auto_profile.to_maven_arg(), None); // Default = no explicit arg
+
+        // Toggle: Default → ExplicitlyDisabled (for auto profiles)
+        auto_profile.toggle();
+        assert_eq!(auto_profile.state, ProfileState::ExplicitlyDisabled);
+        assert!(!auto_profile.is_active()); // Now disabled
+        assert_eq!(
+            auto_profile.to_maven_arg(),
+            Some("!out-eclipse".to_string())
+        );
+
+        // Toggle: ExplicitlyDisabled → Default
+        auto_profile.toggle();
+        assert_eq!(auto_profile.state, ProfileState::Default);
+        assert!(auto_profile.is_active()); // Back to auto-activated
     }
 
     #[test]

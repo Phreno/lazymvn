@@ -398,7 +398,7 @@ pub fn get_active_profiles(project_root: &Path) -> Result<Vec<String>, std::io::
         "get_active_profiles: Fetching auto-activated Maven profiles from {:?}",
         project_root
     );
-    
+
     let config = crate::config::load_config(project_root);
     let output = execute_maven_command(
         project_root,
@@ -426,11 +426,10 @@ pub fn get_active_profiles(project_root: &Path) -> Result<Vec<String>, std::io::
 
     let mut profiles: Vec<String> = active_profiles.into_iter().collect();
     profiles.sort();
-    
+
     log::info!("Discovered {} auto-activated profiles", profiles.len());
     Ok(profiles)
 }
-
 
 #[cfg(test)]
 mod tests {

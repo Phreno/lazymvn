@@ -68,15 +68,16 @@ pub fn render_modules_pane(
 pub fn render_profiles_pane(
     f: &mut Frame,
     area: Rect,
-    profiles: &[String],
-    active_profiles: &[String],
+    profiles: &[crate::ui::state::MavenProfile],
     list_state: &mut ListState,
     is_focused: bool,
 ) {
-    let title = if active_profiles.is_empty() {
+    let active_count = profiles.iter().filter(|p| p.is_active()).count();
+
+    let title = if active_count == 0 {
         "[3] Profiles".to_string()
     } else {
-        format!("[3] Profiles ({})", active_profiles.len())
+        format!("[3] Profiles ({})", active_count)
     };
 
     let block = Block::default()
@@ -92,18 +93,24 @@ pub fn render_profiles_pane(
     let items: Vec<ListItem> = profiles
         .iter()
         .map(|p| {
-            let checkbox = if active_profiles.contains(p) {
-                "☑"
-            } else {
-                "☐"
+            use crate::ui::state::ProfileState;
+
+            let (checkbox, suffix, style) = match p.state {
+                ProfileState::Default => {
+                    if p.auto_activated {
+                        ("☑", " (auto)", Theme::AUTO_PROFILE_STYLE)
+                    } else {
+                        ("☐", "", Theme::DEFAULT_STYLE)
+                    }
+                }
+                ProfileState::ExplicitlyEnabled => ("☑", "", Theme::ACTIVE_PROFILE_STYLE),
+                ProfileState::ExplicitlyDisabled => {
+                    ("☒", " (disabled)", Theme::DISABLED_PROFILE_STYLE)
+                }
             };
-            let style = if active_profiles.contains(p) {
-                Theme::ACTIVE_PROFILE_STYLE
-            } else {
-                Theme::DEFAULT_STYLE
-            };
+
             ListItem::new(Line::from(Span::styled(
-                format!("{} {}", checkbox, p),
+                format!("{} {}{}", checkbox, p.name, suffix),
                 style,
             )))
         })
