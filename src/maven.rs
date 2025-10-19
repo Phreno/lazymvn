@@ -391,6 +391,46 @@ pub fn get_profiles(project_root: &Path) -> Result<Vec<String>, std::io::Error> 
     Ok(profiles)
 }
 
+/// Get profiles that are currently auto-activated by Maven
+/// These are profiles activated by conditions like file existence, JDK version, OS, etc.
+pub fn get_active_profiles(project_root: &Path) -> Result<Vec<String>, std::io::Error> {
+    log::debug!(
+        "get_active_profiles: Fetching auto-activated Maven profiles from {:?}",
+        project_root
+    );
+
+    let config = crate::config::load_config(project_root);
+    let output = execute_maven_command(
+        project_root,
+        None,
+        &["help:active-profiles"],
+        &[],
+        config.maven_settings.as_deref(),
+        &[],
+    )?;
+
+    let mut active_profiles = std::collections::HashSet::new();
+
+    // Parse output looking for profile names after "- " lines
+    for line in output.iter() {
+        let trimmed = line.trim();
+        // Lines with active profiles look like: " - dev (source: ...)"
+        if let Some(stripped) = trimmed.strip_prefix("- ") {
+            let parts: Vec<&str> = stripped.split_whitespace().collect();
+            if let Some(profile_name) = parts.first() {
+                log::debug!("Found active profile: {}", profile_name);
+                active_profiles.insert(profile_name.to_string());
+            }
+        }
+    }
+
+    let mut profiles: Vec<String> = active_profiles.into_iter().collect();
+    profiles.sort();
+
+    log::info!("Discovered {} auto-activated profiles", profiles.len());
+    Ok(profiles)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

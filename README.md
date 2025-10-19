@@ -6,6 +6,19 @@
 **LazyMVN** is a **cross-platform terminal UI (TUI)** for interacting with **Maven** projects efficiently without leaving the terminal.
 Inspired by *LazyGit*, it provides a clean, keyboard-driven interface to build, test, and manage Maven projects via a **single Rust binary** with no external dependencies.
 
+## Warning
+
+I built this project mainly for myself, as I spend most of my time working in the terminal and wanted a tool tailored to my workflow.
+I wrote it in Rust mostly for fun — and because my skills are limited, I rely heavily on AI assistance and improvising as I learned.
+
+It’s a personal experiment more than a polished product, but I’m quite happy with how it turned out.
+That said, there is no warranty or guarantee — use it entirely at your own risk.
+
+## Acknowledgment
+
+LazyMVN draws strong inspiration from LazyGit by Jesse Duffield.
+I want to credit both the project and its author for the idea and for shaping how I think about terminal-based interfaces.
+
 ## Features
 
 ### LazyGit-Style Interface
@@ -23,12 +36,24 @@ Inspired by *LazyGit*, it provides a clean, keyboard-driven interface to build, 
 - **Single-module projects**: Automatically detected, displayed as "(root project)"
 - **Multi-module projects**: Lists all modules from the `<modules>` section
 - **Smart caching**: Remembers project structure and tracks POM changes
+- **Recent projects**: Track up to 20 recently opened Maven projects
+- **Quick switching**: Switch between projects with `Ctrl+R` without restarting
+- **Smart fallback**: If no POM is found, automatically loads the most recent project
 
 ### Maven Operations
 - Execute common Maven commands: `clean`, `compile`, `test`, `package`, `install`, `dependency:tree`
+- **Run Spring Boot applications** with `s` key
 - Module-scoped builds using `-pl` flag (multi-module projects)
 - Build combinations: `clean install` with one keystroke
-- Kill running processes with `x` key
+- Kill running processes with `Escape` key
+
+### Spring Boot Support
+- **Intelligent starter detection**: Scans for `*Application.java`, `*Main.java`, and `@SpringBootApplication`
+- **Fuzzy search selection**: Type to filter potential main classes
+- **Cached starters**: Remember your main classes per project
+- **Multiple starters**: Support for API, Admin, Batch, etc.
+- **Manager interface**: `Ctrl+Shift+S` to view, run, and manage cached starters
+- Executes via `mvn spring-boot:run -Dspring-boot.run.mainClass=<FQCN>`
 
 ### Profiles & Flags
 - Toggle Maven profiles interactively
@@ -39,6 +64,9 @@ Inspired by *LazyGit*, it provides a clean, keyboard-driven interface to build, 
   - `--update-snapshots` - Force snapshot updates
   - `--offline` - Work offline
   - `--fail-fast` - Stop at first failure
+- **Per-module preferences**: Active profiles and flags are automatically saved per module
+  - Remembered across sessions
+  - Automatically restored when switching modules
 
 ### Output & Navigation
 - Real-time Maven output display with color-coded log levels
@@ -51,6 +79,12 @@ Inspired by *LazyGit*, it provides a clean, keyboard-driven interface to build, 
 - Auto-detect Maven settings from project or `~/.m2/settings.xml`
 - Optional project-specific configuration via `lazymvn.toml`
 - Support for custom Maven wrapper scripts (`mvnw`)
+- **Persistent state**: 
+  - Module-specific profiles and flags in `~/.config/lazymvn/preferences/`
+  - Recent projects in `~/.config/lazymvn/recent.json`
+  - Spring Boot starters in `~/.config/lazymvn/starters/`
+- Global configuration in `~/.config/lazymvn/` (Linux/macOS) or `%APPDATA%\lazymvn\` (Windows)
+- Recent projects list stored in `recent.json` (automatically maintained)
 
 ## Technical Stack
 
@@ -62,6 +96,7 @@ Inspired by *LazyGit*, it provides a clean, keyboard-driven interface to build, 
 - **Config:** `toml` + `serde` (configuration)
 
 ## Development Environment
+
 
 ### GitHub Codespaces / DevContainer
 
@@ -110,6 +145,7 @@ cargo build
 | `↑` / `↓` | Move selection in current list pane / Scroll output |
 | `Page Up` / `Page Down` | Scroll output by pages |
 | `Home` / `End` | Jump to start/end of output |
+| `Ctrl+R` | Show recent projects and switch to a different project |
 | **Mouse** | Click on pane to focus it, click on item to select it |
 
 ### Views
@@ -130,8 +166,15 @@ cargo build
 | `k` | Package | `package` |
 | `t` | Test | `test` |
 | `i` | Install | `install` |
+| `s` | **Start** (Spring Boot) | `spring-boot:run` |
 | `d` | Dependencies | `dependency:tree` |
-| `x` | Kill running process | - |
+| `Esc` | Kill running process | - |
+
+### Spring Boot
+| Key | Action |
+|-----|--------|
+| `s` | Run preferred/cached starter (or show selector) |
+| `Ctrl+Shift+S` | Open starter manager |
 
 ### Selection & Search
 | Key | Action |
@@ -179,6 +222,11 @@ Navigate to any Maven project directory and run:
 ```bash
 lazymvn
 ```
+
+**Smart Project Detection:**
+- If a `pom.xml` is found in the current directory or parent directories, LazyMVN loads that project
+- If no POM is found, LazyMVN automatically loads your most recently used Maven project
+- If no recent projects exist, you'll see a helpful error message with instructions
 
 LazyMVN automatically detects your project structure:
 

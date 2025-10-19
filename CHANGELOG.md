@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2025-10-19
+
+### Added
+- **Spring Boot Starter Support** (#33):
+  - Press `s` to run Spring Boot applications
+  - Intelligent detection of `*Application.java`, `*Main.java`, and `@SpringBootApplication` classes
+  - Fuzzy search selector for choosing main class
+  - Cached starters per project in `~/.config/lazymvn/starters/<hash>.json`
+  - Support for multiple starters (API, Admin, Batch, etc.)
+  - Starter manager with `Ctrl+Shift+S` to view, run, and manage cached starters
+  - Mark starters as default
+  - Remembers last used starter
+  - Executes via `mvn spring-boot:run -Dspring-boot.run.mainClass=<FQCN>`
+  - Full integration with profiles and build flags
+- **Recent Projects Navigation** (#32): 
+  - Track up to 20 recently opened Maven projects
+  - Press `Ctrl+R` to open a popup listing all recent projects
+  - Navigate with arrow keys and press Enter to switch projects
+  - Projects are stored in `~/.config/lazymvn/recent.json` (Linux/macOS) or `%APPDATA%\lazymvn\recent.json` (Windows)
+  - Invalid paths are automatically cleaned from the list
+  - Switch between projects without restarting LazyMVN
+  - **Smart fallback**: When no POM is found in current directory, automatically loads the most recent project
+  - Clear error messages when no project is available
+- **Per-Module Preferences**:
+  - Automatically saves active profiles and enabled flags for each module
+  - Preferences restored when switching between modules
+  - Stored in `~/.config/lazymvn/preferences/<project-hash>.json`
+  - Works seamlessly with multi-module projects
+  - No manual configuration needed - just toggle and go!
+- **Truthful Maven Profile Activation**:
+  - Three-state profile system: Active (✓), Inactive ( ), Explicitly Disabled (✗)
+  - Detects auto-activated profiles (via file existence, OS, JDK version, etc.)
+  - Toggle profiles with Space: Inactive → Active → Explicitly Disabled → Inactive
+  - Commands respect all three states: `-P profile` (active), omit (inactive), `-P !profile` (disabled)
+  - Proper handling of `mvn help:active-profiles` to detect activation
+  - See PROFILE_ACTIVATION.md for detailed documentation
+
+### Changed
+- **Kill process keybinding**: Changed from `x` to `Escape` for better UX consistency
+  - More intuitive and follows common conventions (Escape to stop/cancel)
+  - Shown in footer navigation bar as "Esc Kill"
+- Rounded borders for popup windows (recent projects, starters)
+- Improved UI consistency across all components
+
 ## [0.2.0] - 2025-10-17
 
 ### Added

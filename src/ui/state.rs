@@ -77,8 +77,7 @@ pub struct TuiState {
     pub current_view: CurrentView,
     pub focus: Focus,
     pub modules: Vec<String>,
-    pub profiles: Vec<String>,
-    pub active_profiles: Vec<String>,
+    pub profiles: Vec<MavenProfile>,
     pub flags: Vec<BuildFlag>,
     pub modules_list_state: ListState,
     pub profiles_list_state: ListState,
@@ -106,6 +105,86 @@ pub struct TuiState {
     pub is_command_running: bool,
     command_start_time: Option<Instant>,
     running_process_pid: Option<u32>,
+    // Recent projects
+    pub recent_projects: Vec<PathBuf>,
+    pub projects_list_state: ListState,
+    pub show_projects_popup: bool,
+    pub switch_to_project: Option<PathBuf>,
+    // Spring Boot starters
+    pub starters_cache: crate::starters::StartersCache,
+    pub show_starter_selector: bool,
+    pub show_starter_manager: bool,
+    pub starter_candidates: Vec<String>,
+    pub starter_filter: String,
+    pub starters_list_state: ListState,
+    // Module preferences
+    module_preferences: crate::config::ProjectPreferences,
+}
+
+/// State of a Maven profile
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ProfileState {
+    /// Profile follows Maven's auto-activation rules
+    Default,
+    /// Profile is explicitly enabled (will add to -P)
+    ExplicitlyEnabled,
+    /// Profile is explicitly disabled (will add !profile to -P)
+    ExplicitlyDisabled,
+}
+
+/// Maven profile with activation state
+#[derive(Clone, Debug)]
+pub struct MavenProfile {
+    pub name: String,
+    pub state: ProfileState,
+    /// Whether this profile is auto-activated by Maven (file, JDK, OS, etc.)
+    pub auto_activated: bool,
+}
+
+impl MavenProfile {
+    pub fn new(name: String, auto_activated: bool) -> Self {
+        Self {
+            name,
+            state: ProfileState::Default,
+            auto_activated,
+        }
+    }
+
+    /// Returns true if this profile will be active when running Maven
+    pub fn is_active(&self) -> bool {
+        match self.state {
+            ProfileState::Default => self.auto_activated,
+            ProfileState::ExplicitlyEnabled => true,
+            ProfileState::ExplicitlyDisabled => false,
+        }
+    }
+
+    /// Returns the profile argument string for Maven (-P flag)
+    /// Returns None if profile is in Default state
+    pub fn to_maven_arg(&self) -> Option<String> {
+        match self.state {
+            ProfileState::Default => None,
+            ProfileState::ExplicitlyEnabled => Some(self.name.clone()),
+            ProfileState::ExplicitlyDisabled => Some(format!("!{}", self.name)),
+        }
+    }
+
+    /// Cycle through states when toggled
+    pub fn toggle(&mut self) {
+        self.state = match self.state {
+            ProfileState::Default => {
+                if self.auto_activated {
+                    // Auto-activated: Default → Disabled
+                    ProfileState::ExplicitlyDisabled
+                } else {
+                    // Not auto-activated: Default → Enabled
+                    ProfileState::ExplicitlyEnabled
+                }
+            }
+            ProfileState::ExplicitlyEnabled => ProfileState::Default,
+            ProfileState::ExplicitlyDisabled => ProfileState::Default,
+        };
+    }
 }
 
 /// Maven build flags that can be toggled
@@ -113,8 +192,6 @@ pub struct TuiState {
 pub struct BuildFlag {
     pub name: String,
     pub flag: String,
-    #[allow(dead_code)]
-    pub description: String,
     pub enabled: bool,
 }
 
@@ -132,54 +209,65 @@ impl TuiState {
             BuildFlag {
                 name: "Also Make".to_string(),
                 flag: "--also-make".to_string(),
-                description: "Build dependencies of specified modules".to_string(),
                 enabled: false,
             },
             BuildFlag {
                 name: "Also Make Dependents".to_string(),
                 flag: "--also-make-dependents".to_string(),
-                description: "Build modules that depend on specified modules".to_string(),
                 enabled: false,
             },
             BuildFlag {
                 name: "Update Snapshots".to_string(),
                 flag: "--update-snapshots".to_string(),
-                description: "Force update of snapshot dependencies".to_string(),
                 enabled: false,
             },
             BuildFlag {
                 name: "Skip Tests".to_string(),
                 flag: "-DskipTests".to_string(),
-                description: "Skip running tests".to_string(),
                 enabled: false,
             },
             BuildFlag {
                 name: "Offline".to_string(),
                 flag: "--offline".to_string(),
-                description: "Work offline (don't download dependencies)".to_string(),
                 enabled: false,
             },
             BuildFlag {
                 name: "Fail Fast".to_string(),
                 flag: "--fail-fast".to_string(),
-                description: "Stop at first failure in multi-module build".to_string(),
                 enabled: false,
             },
             BuildFlag {
                 name: "Fail At End".to_string(),
                 flag: "--fail-at-end".to_string(),
-                description: "Fail build at end; allow all non-impacted builds to continue"
-                    .to_string(),
                 enabled: false,
             },
         ];
+
+        // Load recent projects
+        let mut recent_projects_manager = crate::config::RecentProjects::load();
+        recent_projects_manager.remove_invalid();
+        let recent_projects = recent_projects_manager.get_projects();
+
+        let mut projects_list_state = ListState::default();
+        if !recent_projects.is_empty() {
+            projects_list_state.select(Some(0));
+        }
+
+        // Load starters cache for this project
+        let starters_cache = crate::starters::StartersCache::load(&project_root);
+        let mut starters_list_state = ListState::default();
+        if !starters_cache.starters.is_empty() {
+            starters_list_state.select(Some(0));
+        }
+
+        // Load module preferences for this project
+        let module_preferences = crate::config::ProjectPreferences::load(&project_root);
 
         let mut state = Self {
             current_view: CurrentView::Modules,
             focus: Focus::Modules,
             modules,
             profiles: vec![],
-            active_profiles: vec![],
             flags,
             modules_list_state,
             profiles_list_state,
@@ -205,6 +293,17 @@ impl TuiState {
             is_command_running: false,
             command_start_time: None,
             running_process_pid: None,
+            recent_projects,
+            projects_list_state,
+            show_projects_popup: false,
+            switch_to_project: None,
+            starters_cache,
+            show_starter_selector: false,
+            show_starter_manager: false,
+            starter_candidates: vec![],
+            starter_filter: String::new(),
+            starters_list_state,
+            module_preferences,
         };
 
         // Pre-select first flag to ensure alignment
@@ -213,14 +312,43 @@ impl TuiState {
         }
 
         state.sync_selected_module_output();
+
+        // Load preferences for the initially selected module
+        state.load_module_preferences();
+
         state
     }
 
-    pub fn set_profiles(&mut self, profiles: Vec<String>) {
-        self.profiles = profiles;
+    pub fn set_profiles(&mut self, profile_names: Vec<String>) {
+        log::info!("set_profiles: Loading {} profiles", profile_names.len());
+
+        // Get auto-activated profiles
+        let auto_activated = maven::get_active_profiles(&self.project_root).unwrap_or_else(|e| {
+            log::warn!("Failed to get active profiles: {}", e);
+            vec![]
+        });
+
+        log::debug!("Auto-activated profiles: {:?}", auto_activated);
+
+        // Create MavenProfile structs
+        self.profiles = profile_names
+            .into_iter()
+            .map(|name| {
+                let is_auto = auto_activated.contains(&name);
+                log::debug!("Profile '{}' auto-activated: {}", name, is_auto);
+                MavenProfile::new(name, is_auto)
+            })
+            .collect();
+
         if !self.profiles.is_empty() {
             self.profiles_list_state.select(Some(0));
         }
+
+        log::info!(
+            "Loaded {} profiles ({} auto-activated)",
+            self.profiles.len(),
+            auto_activated.len()
+        );
     }
 
     /// Check if enough time has passed since last navigation key
@@ -253,12 +381,18 @@ impl TuiState {
                 if self.modules.is_empty() {
                     return;
                 }
+                // Save current module preferences before switching
+                self.save_module_preferences();
+
                 let i = match self.modules_list_state.selected() {
                     Some(i) => (i + 1) % self.modules.len(),
                     None => 0,
                 };
                 self.modules_list_state.select(Some(i));
                 self.sync_selected_module_output();
+
+                // Load preferences for the new module
+                self.load_module_preferences();
             }
             Focus::Profiles => {
                 if !self.profiles.is_empty() {
@@ -297,6 +431,9 @@ impl TuiState {
                 if self.modules.is_empty() {
                     return;
                 }
+                // Save current module preferences before switching
+                self.save_module_preferences();
+
                 let i = match self.modules_list_state.selected() {
                     Some(i) => {
                         if i == 0 {
@@ -309,6 +446,9 @@ impl TuiState {
                 };
                 self.modules_list_state.select(Some(i));
                 self.sync_selected_module_output();
+
+                // Load preferences for the new module
+                self.load_module_preferences();
             }
             Focus::Profiles => {
                 if !self.profiles.is_empty() {
@@ -351,16 +491,20 @@ impl TuiState {
             return;
         }
         if let Some(selected) = self.profiles_list_state.selected()
-            && let Some(profile) = self.profiles.get(selected)
+            && let Some(profile) = self.profiles.get_mut(selected)
         {
-            if let Some(pos) = self.active_profiles.iter().position(|p| p == profile) {
-                log::info!("Deactivating profile: {}", profile);
-                self.active_profiles.remove(pos);
-            } else {
-                log::info!("Activating profile: {}", profile);
-                self.active_profiles.push(profile.clone());
-            }
-            log::debug!("Active profiles now: {:?}", self.active_profiles);
+            let old_state = profile.state.clone();
+            profile.toggle();
+            log::info!(
+                "Profile '{}': {:?} → {:?} (auto: {})",
+                profile.name,
+                old_state,
+                profile.state,
+                profile.auto_activated
+            );
+
+            // Save preferences after toggling
+            self.save_module_preferences();
         }
     }
 
@@ -378,6 +522,9 @@ impl TuiState {
                 flag.flag,
                 flag.enabled
             );
+
+            // Save preferences after toggling
+            self.save_module_preferences();
         }
     }
 
@@ -392,7 +539,16 @@ impl TuiState {
         self.flags
             .iter()
             .filter(|f| f.enabled)
-            .map(|f| f.name.clone())
+            .map(|f| f.flag.clone()) // Use flag.flag instead of flag.name
+            .collect()
+    }
+
+    /// Get list of active profile names for display
+    pub fn active_profile_names(&self) -> Vec<String> {
+        self.profiles
+            .iter()
+            .filter(|p| p.is_active())
+            .map(|p| p.name.clone())
             .collect()
     }
 
@@ -526,21 +682,6 @@ impl TuiState {
         }
     }
 
-    #[allow(dead_code)]
-    pub fn clear_current_module_output(&mut self) {
-        if let Some(module) = self.selected_module().map(|m| m.to_string()) {
-            self.command_output.clear();
-            self.output_offset = 0;
-            self.module_outputs.insert(module, ModuleOutput::default());
-        } else {
-            self.command_output.clear();
-            self.output_offset = 0;
-        }
-        self.clamp_output_offset();
-        self.output_metrics = None;
-        self.refresh_search_matches();
-    }
-
     // Command execution
     pub fn run_selected_module_command(&mut self, args: &[&str]) {
         log::debug!("run_selected_module_command called with args: {:?}", args);
@@ -569,8 +710,25 @@ impl TuiState {
                 .map(|f| f.name.clone())
                 .collect();
 
+            // Collect profiles that need to be passed to Maven
+            // Only profiles that are not in Default state
+            let profile_args: Vec<String> = self
+                .profiles
+                .iter()
+                .filter_map(|p| p.to_maven_arg())
+                .collect();
+
+            // Get list of active profile names for display
+            let active_profile_names: Vec<String> = self
+                .profiles
+                .iter()
+                .filter(|p| p.is_active())
+                .map(|p| p.name.clone())
+                .collect();
+
             log::debug!("Enabled flags: {:?}", enabled_flag_names);
-            log::debug!("Active profiles: {:?}", self.active_profiles);
+            log::debug!("Profile args for Maven: {:?}", profile_args);
+            log::debug!("Active profiles (display): {:?}", active_profile_names);
 
             // Clear previous output and prepare for new command
             self.command_output = vec![format!("Running: {} ...", args.join(" "))];
@@ -580,7 +738,7 @@ impl TuiState {
                 &self.project_root,
                 Some(&module),
                 args,
-                &self.active_profiles,
+                &profile_args,
                 self.config.maven_settings.as_deref(),
                 &enabled_flags,
             ) {
@@ -595,7 +753,7 @@ impl TuiState {
                         lines: self.command_output.clone(),
                         scroll_offset: self.output_offset,
                         command: Some(args.join(" ")),
-                        profiles: self.active_profiles.clone(),
+                        profiles: active_profile_names,
                         flags: enabled_flag_names,
                     };
                     self.module_outputs.insert(module, module_output);
@@ -1006,6 +1164,393 @@ impl TuiState {
             self.search_error.as_deref(),
             self.search_state.as_ref(),
         )
+    }
+
+    // Recent projects methods
+    pub fn show_recent_projects(&mut self) {
+        log::info!("Showing recent projects popup");
+        self.show_projects_popup = true;
+        if self.focus != Focus::Projects {
+            self.focus = Focus::Projects;
+        }
+    }
+
+    pub fn hide_recent_projects(&mut self) {
+        log::info!("Hiding recent projects popup");
+        self.show_projects_popup = false;
+    }
+
+    pub fn select_current_project(&mut self) {
+        if let Some(idx) = self.projects_list_state.selected()
+            && let Some(project) = self.recent_projects.get(idx)
+        {
+            log::info!("Selected project: {:?}", project);
+            self.switch_to_project = Some(project.clone());
+            self.hide_recent_projects();
+        }
+    }
+
+    pub fn next_project(&mut self) {
+        if self.recent_projects.is_empty() {
+            return;
+        }
+        let i = match self.projects_list_state.selected() {
+            Some(i) => (i + 1) % self.recent_projects.len(),
+            None => 0,
+        };
+        self.projects_list_state.select(Some(i));
+    }
+
+    pub fn previous_project(&mut self) {
+        if self.recent_projects.is_empty() {
+            return;
+        }
+        let i = match self.projects_list_state.selected() {
+            Some(i) => {
+                if i == 0 {
+                    self.recent_projects.len() - 1
+                } else {
+                    i - 1
+                }
+            }
+            None => 0,
+        };
+        self.projects_list_state.select(Some(i));
+    }
+
+    // Spring Boot starter methods
+    pub fn show_starter_selector(&mut self) {
+        log::info!("Showing starter selector");
+
+        // Scan for potential starters if candidates list is empty
+        if self.starter_candidates.is_empty() {
+            self.starter_candidates = crate::starters::find_potential_starters(&self.project_root);
+            log::debug!("Found {} potential starters", self.starter_candidates.len());
+        }
+
+        self.show_starter_selector = true;
+        self.starter_filter.clear();
+
+        if !self.starter_candidates.is_empty() {
+            self.starters_list_state.select(Some(0));
+        }
+    }
+
+    pub fn hide_starter_selector(&mut self) {
+        log::info!("Hiding starter selector");
+        self.show_starter_selector = false;
+        self.starter_filter.clear();
+    }
+
+    pub fn show_starter_manager(&mut self) {
+        log::info!("Showing starter manager");
+        self.show_starter_manager = true;
+
+        if !self.starters_cache.starters.is_empty() {
+            self.starters_list_state.select(Some(0));
+        }
+    }
+
+    pub fn hide_starter_manager(&mut self) {
+        log::info!("Hiding starter manager");
+        self.show_starter_manager = false;
+    }
+
+    pub fn select_and_run_starter(&mut self) {
+        if let Some(idx) = self.starters_list_state.selected() {
+            let filtered = self.get_filtered_starter_candidates();
+
+            if let Some(fqcn) = filtered.get(idx) {
+                log::info!("Selected starter: {}", fqcn);
+
+                // Create a new starter entry if not already cached
+                if !self
+                    .starters_cache
+                    .starters
+                    .iter()
+                    .any(|s| &s.fully_qualified_class_name == fqcn)
+                {
+                    let label = fqcn.split('.').next_back().unwrap_or(fqcn).to_string();
+                    let is_default = self.starters_cache.starters.is_empty();
+                    let starter = crate::starters::Starter::new(fqcn.clone(), label, is_default);
+                    self.starters_cache.add_starter(starter);
+
+                    // Save the cache
+                    if let Err(e) = self.starters_cache.save(&self.project_root) {
+                        log::error!("Failed to save starters cache: {}", e);
+                    }
+                }
+
+                // Update last used
+                self.starters_cache.set_last_used(fqcn.clone());
+                if let Err(e) = self.starters_cache.save(&self.project_root) {
+                    log::error!("Failed to save last used starter: {}", e);
+                }
+
+                // Run the starter
+                self.run_spring_boot_starter(fqcn);
+                self.hide_starter_selector();
+            }
+        }
+    }
+
+    pub fn run_spring_boot_starter(&mut self, fqcn: &str) {
+        log::info!("Running Spring Boot starter: {}", fqcn);
+
+        // Build the Maven command with &str references
+        let spring_run = "spring-boot:run";
+        let main_class_arg = format!("-Dspring-boot.run.mainClass={}", fqcn);
+
+        // Get profile args for Maven (only explicitly set profiles)
+        let profile_args: Vec<String> = self
+            .profiles
+            .iter()
+            .filter_map(|p| p.to_maven_arg())
+            .collect();
+
+        let profile_arg = if !profile_args.is_empty() {
+            Some(format!("-P{}", profile_args.join(",")))
+        } else {
+            None
+        };
+
+        // Collect flag strings
+        let flag_strings: Vec<String> = self
+            .flags
+            .iter()
+            .filter(|f| f.enabled)
+            .map(|f| f.flag.clone())
+            .collect();
+
+        // Build args vector with proper lifetimes
+        let mut args: Vec<&str> = vec![spring_run, &main_class_arg];
+
+        if let Some(ref profile) = profile_arg {
+            args.push(profile.as_str());
+        }
+
+        for flag in &flag_strings {
+            args.push(flag.as_str());
+        }
+
+        self.run_selected_module_command(&args);
+    }
+
+    pub fn run_preferred_starter(&mut self) {
+        if let Some(starter) = self.starters_cache.get_preferred_starter() {
+            log::info!(
+                "Running preferred starter: {}",
+                starter.fully_qualified_class_name
+            );
+            self.run_spring_boot_starter(&starter.fully_qualified_class_name.clone());
+        } else {
+            // No cached starter, show selector
+            log::info!("No preferred starter found, showing selector");
+            self.show_starter_selector();
+        }
+    }
+
+    pub fn get_filtered_starter_candidates(&self) -> Vec<String> {
+        use fuzzy_matcher::FuzzyMatcher;
+
+        if self.starter_filter.is_empty() {
+            return self.starter_candidates.clone();
+        }
+
+        let matcher = fuzzy_matcher::skim::SkimMatcherV2::default();
+        let mut scored: Vec<_> = self
+            .starter_candidates
+            .iter()
+            .filter_map(|candidate| {
+                matcher
+                    .fuzzy_match(candidate, &self.starter_filter)
+                    .map(|score| (candidate.clone(), score))
+            })
+            .collect();
+
+        scored.sort_by(|a, b| b.1.cmp(&a.1));
+        scored.into_iter().map(|(candidate, _)| candidate).collect()
+    }
+
+    pub fn push_starter_filter_char(&mut self, ch: char) {
+        self.starter_filter.push(ch);
+        // Reset selection to first match
+        if !self.get_filtered_starter_candidates().is_empty() {
+            self.starters_list_state.select(Some(0));
+        }
+    }
+
+    pub fn pop_starter_filter_char(&mut self) {
+        self.starter_filter.pop();
+        // Reset selection to first match
+        if !self.get_filtered_starter_candidates().is_empty() {
+            self.starters_list_state.select(Some(0));
+        }
+    }
+
+    pub fn next_starter(&mut self) {
+        let candidates = if self.show_starter_selector {
+            self.get_filtered_starter_candidates()
+        } else {
+            self.starters_cache
+                .starters
+                .iter()
+                .map(|s| s.fully_qualified_class_name.clone())
+                .collect()
+        };
+
+        if candidates.is_empty() {
+            return;
+        }
+
+        let i = match self.starters_list_state.selected() {
+            Some(i) => (i + 1) % candidates.len(),
+            None => 0,
+        };
+        self.starters_list_state.select(Some(i));
+    }
+
+    pub fn previous_starter(&mut self) {
+        let candidates = if self.show_starter_selector {
+            self.get_filtered_starter_candidates()
+        } else {
+            self.starters_cache
+                .starters
+                .iter()
+                .map(|s| s.fully_qualified_class_name.clone())
+                .collect()
+        };
+
+        if candidates.is_empty() {
+            return;
+        }
+
+        let i = match self.starters_list_state.selected() {
+            Some(i) => {
+                if i == 0 {
+                    candidates.len() - 1
+                } else {
+                    i - 1
+                }
+            }
+            None => 0,
+        };
+        self.starters_list_state.select(Some(i));
+    }
+
+    pub fn toggle_starter_default(&mut self) {
+        if let Some(idx) = self.starters_list_state.selected()
+            && let Some(starter) = self.starters_cache.starters.get(idx)
+        {
+            let fqcn = starter.fully_qualified_class_name.clone();
+            self.starters_cache.set_default(&fqcn);
+
+            if let Err(e) = self.starters_cache.save(&self.project_root) {
+                log::error!("Failed to save starters cache: {}", e);
+            }
+        }
+    }
+
+    pub fn remove_selected_starter(&mut self) {
+        if let Some(idx) = self.starters_list_state.selected()
+            && let Some(starter) = self.starters_cache.starters.get(idx)
+        {
+            let fqcn = starter.fully_qualified_class_name.clone();
+            if self.starters_cache.remove_starter(&fqcn) {
+                log::info!("Removed starter: {}", fqcn);
+
+                if let Err(e) = self.starters_cache.save(&self.project_root) {
+                    log::error!("Failed to save starters cache: {}", e);
+                }
+
+                // Adjust selection
+                if self.starters_cache.starters.is_empty() {
+                    self.starters_list_state.select(None);
+                } else if idx >= self.starters_cache.starters.len() {
+                    self.starters_list_state
+                        .select(Some(self.starters_cache.starters.len() - 1));
+                }
+            }
+        }
+    }
+
+    // Module preferences methods
+
+    /// Save current profiles and flags for the selected module
+    pub fn save_module_preferences(&mut self) {
+        if let Some(module) = self.selected_module() {
+            // Save only explicitly set profiles (not Default state)
+            let explicit_profiles: Vec<String> = self
+                .profiles
+                .iter()
+                .filter_map(|p| match p.state {
+                    ProfileState::ExplicitlyEnabled => Some(p.name.clone()),
+                    ProfileState::ExplicitlyDisabled => Some(format!("!{}", p.name)),
+                    ProfileState::Default => None,
+                })
+                .collect();
+
+            let prefs = crate::config::ModulePreferences {
+                active_profiles: explicit_profiles.clone(),
+                enabled_flags: self.enabled_flag_names(),
+            };
+
+            log::info!(
+                "Saving preferences for module '{}': profiles={:?}, flags={:?}",
+                module,
+                prefs.active_profiles,
+                prefs.enabled_flags
+            );
+
+            self.module_preferences
+                .set_module_prefs(module.to_string(), prefs);
+
+            if let Err(e) = self.module_preferences.save(&self.project_root) {
+                log::error!("Failed to save module preferences: {}", e);
+            }
+        }
+    }
+
+    /// Load preferences for the selected module
+    pub fn load_module_preferences(&mut self) {
+        if let Some(module) = self.selected_module() {
+            if let Some(prefs) = self.module_preferences.get_module_prefs(module) {
+                log::info!(
+                    "Loading preferences for module '{}': profiles={:?}, flags={:?}",
+                    module,
+                    prefs.active_profiles,
+                    prefs.enabled_flags
+                );
+
+                // Restore profile states
+                for profile in &mut self.profiles {
+                    // Check if profile is explicitly enabled or disabled
+                    let disabled_name = format!("!{}", profile.name);
+
+                    if prefs.active_profiles.contains(&profile.name) {
+                        profile.state = ProfileState::ExplicitlyEnabled;
+                        log::debug!("Restored profile '{}' as ExplicitlyEnabled", profile.name);
+                    } else if prefs.active_profiles.contains(&disabled_name) {
+                        profile.state = ProfileState::ExplicitlyDisabled;
+                        log::debug!("Restored profile '{}' as ExplicitlyDisabled", profile.name);
+                    } else {
+                        profile.state = ProfileState::Default;
+                        log::debug!("Profile '{}' in Default state", profile.name);
+                    }
+                }
+
+                // Restore enabled flags
+                for flag in &mut self.flags {
+                    flag.enabled = prefs.enabled_flags.contains(&flag.flag);
+                }
+            } else {
+                log::debug!("No saved preferences for module '{}'", module);
+                // Reset all profiles to Default state
+                for profile in &mut self.profiles {
+                    profile.state = ProfileState::Default;
+                }
+            }
+        }
     }
 }
 

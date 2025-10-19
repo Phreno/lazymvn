@@ -15,9 +15,15 @@ impl Theme {
         .bg(Color::LightBlue)
         .add_modifier(Modifier::BOLD);
 
-    /// Style for active profiles (with asterisk)
+    /// Style for active profiles (explicitly enabled)
     pub const ACTIVE_PROFILE_STYLE: Style =
         Style::new().fg(Color::Green).add_modifier(Modifier::BOLD);
+
+    /// Style for auto-activated profiles (default state, auto-enabled)
+    pub const AUTO_PROFILE_STYLE: Style = Style::new().fg(Color::Cyan);
+
+    /// Style for disabled profiles (explicitly disabled)
+    pub const DISABLED_PROFILE_STYLE: Style = Style::new().fg(Color::Red);
 
     /// Style for key hints in footer
     pub const KEY_HINT_STYLE: Style = Style::new().fg(Color::Cyan).add_modifier(Modifier::BOLD);
