@@ -6,6 +6,19 @@
 **LazyMVN** is a **cross-platform terminal UI (TUI)** for interacting with **Maven** projects efficiently without leaving the terminal.
 Inspired by *LazyGit*, it provides a clean, keyboard-driven interface to build, test, and manage Maven projects via a **single Rust binary** with no external dependencies.
 
+## Warning
+
+I built this project mainly for myself, as I spend most of my time working in the terminal and wanted a tool tailored to my workflow.
+I wrote it in Rust mostly for fun — and because my skills are limited, I rely heavily on AI assistance and improvising as I learned.
+
+It’s a personal experiment more than a polished product, but I’m quite happy with how it turned out.
+That said, there is no warranty or guarantee — use it entirely at your own risk.
+
+## Acknowledgment
+
+LazyMVN draws strong inspiration from LazyGit by Jesse Duffield.
+I want to credit both the project and its author for the idea and for shaping how I think about terminal-based interfaces.
+
 ## Features
 
 ### LazyGit-Style Interface
@@ -83,6 +96,7 @@ Inspired by *LazyGit*, it provides a clean, keyboard-driven interface to build, 
 - **Config:** `toml` + `serde` (configuration)
 
 ## Development Environment
+
 
 ### GitHub Codespaces / DevContainer
 
