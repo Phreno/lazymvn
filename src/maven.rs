@@ -401,6 +401,7 @@ pub fn get_profiles(project_root: &Path) -> Result<Vec<String>, std::io::Error> 
     );
     // Try to load config and use settings if available
     let config = crate::config::load_config(project_root);
+    
     // Run without -N flag to include profiles from all modules
     let output = execute_maven_command(
         project_root,
@@ -415,6 +416,7 @@ pub fn get_profiles(project_root: &Path) -> Result<Vec<String>, std::io::Error> 
     // (once per module that inherits or defines them)
     let mut profile_set = std::collections::HashSet::new();
 
+    // Get profiles from Maven command output (POM files)
     for line in output.iter() {
         if line.contains("Profile Id:") {
             let parts: Vec<&str> = line.split("Profile Id:").collect();
@@ -430,9 +432,22 @@ pub fn get_profiles(project_root: &Path) -> Result<Vec<String>, std::io::Error> 
                     .unwrap_or("")
                     .trim();
                 if !profile_name.is_empty() {
-                    log::debug!("Found profile: {}", profile_name);
+                    log::debug!("Found profile from POM: {}", profile_name);
                     profile_set.insert(profile_name.to_string());
                 }
+            }
+        }
+    }
+
+    // Also get profiles from settings.xml (Maven's help:all-profiles doesn't include these)
+    if let Some(settings_path) = config.maven_settings.as_ref() {
+        log::debug!("Checking settings.xml for profiles: {}", settings_path);
+        if let Ok(settings_content) = fs::read_to_string(settings_path)
+            && let Ok(profiles_from_settings) = extract_profiles_from_settings_xml(&settings_content)
+        {
+            for profile_name in profiles_from_settings {
+                log::debug!("Found profile from settings.xml: {}", profile_name);
+                profile_set.insert(profile_name);
             }
         }
     }
@@ -442,6 +457,56 @@ pub fn get_profiles(project_root: &Path) -> Result<Vec<String>, std::io::Error> 
     profiles.sort();
 
     log::info!("Discovered {} unique Maven profiles", profiles.len());
+    Ok(profiles)
+}
+
+/// Extract profile IDs from settings.xml content
+fn extract_profiles_from_settings_xml(xml_content: &str) -> Result<Vec<String>, String> {
+    let mut profiles = Vec::new();
+    let lines: Vec<&str> = xml_content.lines().collect();
+    
+    let mut in_profiles_section = false;
+    let mut in_profile = false;
+    
+    for line in lines {
+        let trimmed = line.trim();
+        
+        // Check if we're entering the <profiles> section
+        if trimmed.starts_with("<profiles>") {
+            in_profiles_section = true;
+            continue;
+        }
+        
+        // Check if we're leaving the <profiles> section
+        if trimmed.starts_with("</profiles>") {
+            in_profiles_section = false;
+            continue;
+        }
+        
+        if in_profiles_section {
+            // Check if we're entering a <profile>
+            if trimmed.starts_with("<profile>") {
+                in_profile = true;
+                continue;
+            }
+            
+            // Check if we're leaving a <profile>
+            if trimmed.starts_with("</profile>") {
+                in_profile = false;
+                continue;
+            }
+            
+            // If we're in a profile, look for <id>
+            if in_profile && trimmed.starts_with("<id>") && trimmed.contains("</id>")
+                && let Some(id_start) = trimmed.find("<id>")
+                && let Some(id_end) = trimmed.find("</id>")
+            {
+                let id = &trimmed[id_start + 4..id_end];
+                profiles.push(id.to_string());
+            }
+        }
+    }
+    
     Ok(profiles)
 }
 
@@ -922,6 +987,39 @@ mod tests {
         
         let (xml, _) = result.unwrap();
         assert!(xml.contains("proxy.corp.com"), "XML should contain proxy settings");
+    }
+
+    #[test]
+    fn test_extract_profiles_from_settings_xml() {
+        let settings_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<settings>
+    <profiles>
+        <profile>
+            <id>development</id>
+            <properties>
+                <env>dev</env>
+            </properties>
+        </profile>
+        <profile>
+            <id>production</id>
+            <properties>
+                <env>prod</env>
+            </properties>
+        </profile>
+        <profile>
+            <id>testing</id>
+            <properties>
+                <env>test</env>
+            </properties>
+        </profile>
+    </profiles>
+</settings>"#;
+        
+        let profiles = extract_profiles_from_settings_xml(settings_xml).unwrap();
+        assert_eq!(profiles.len(), 3, "Should find 3 profiles");
+        assert!(profiles.contains(&"development".to_string()));
+        assert!(profiles.contains(&"production".to_string()));
+        assert!(profiles.contains(&"testing".to_string()));
     }
 
     #[test]
