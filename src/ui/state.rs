@@ -404,6 +404,8 @@ impl TuiState {
                         None => 0,
                     };
                     self.profiles_list_state.select(Some(i));
+                    // Update output to show new profile XML
+                    self.sync_selected_profile_output();
                 }
             }
             Focus::Flags => {
@@ -466,6 +468,8 @@ impl TuiState {
                         None => 0,
                     };
                     self.profiles_list_state.select(Some(i));
+                    // Update output to show new profile XML
+                    self.sync_selected_profile_output();
                 }
             }
             Focus::Flags => {
@@ -583,6 +587,8 @@ impl TuiState {
             self.profiles_list_state.select(Some(0));
         }
         self.focus = Focus::Profiles;
+        // Sync profile XML to output
+        self.sync_selected_profile_output();
     }
 
     pub fn switch_to_flags(&mut self) {
@@ -601,7 +607,18 @@ impl TuiState {
 
     /// Cycle focus to the next pane (right arrow)
     pub fn cycle_focus_right(&mut self) {
+        let old_focus = self.focus;
         self.focus = self.focus.next();
+        
+        // When leaving Profiles focus, restore module output
+        if old_focus == Focus::Profiles && self.focus != Focus::Profiles {
+            self.sync_selected_module_output();
+        }
+        // When entering Profiles focus, show profile XML
+        else if self.focus == Focus::Profiles {
+            self.sync_selected_profile_output();
+        }
+        
         if self.focus == Focus::Output {
             self.ensure_current_match_visible();
         }
@@ -609,7 +626,18 @@ impl TuiState {
 
     /// Cycle focus to the previous pane (left arrow)
     pub fn cycle_focus_left(&mut self) {
+        let old_focus = self.focus;
         self.focus = self.focus.previous();
+        
+        // When leaving Profiles focus, restore module output
+        if old_focus == Focus::Profiles && self.focus != Focus::Profiles {
+            self.sync_selected_module_output();
+        }
+        // When entering Profiles focus, show profile XML
+        else if self.focus == Focus::Profiles {
+            self.sync_selected_profile_output();
+        }
+        
         if self.focus == Focus::Output {
             self.ensure_current_match_visible();
         }
@@ -655,6 +683,51 @@ impl TuiState {
             }
         } else {
             self.command_output.clear();
+            self.output_offset = 0;
+        }
+        self.clamp_output_offset();
+        self.output_metrics = None;
+        self.refresh_search_matches();
+    }
+
+    /// Sync output to show the selected profile's XML
+    pub(crate) fn sync_selected_profile_output(&mut self) {
+        if let Some(selected) = self.profiles_list_state.selected() {
+            if let Some(profile) = self.profiles.get(selected) {
+                if let Some((xml, pom_path)) = crate::maven::get_profile_xml(&self.project_root, &profile.name) {
+                    // Build output with header and XML
+                    let relative_path = pom_path
+                        .strip_prefix(&self.project_root)
+                        .unwrap_or(&pom_path)
+                        .to_string_lossy();
+                    
+                    let mut output = vec![
+                        format!("Profile: {}", profile.name),
+                        format!("From: {}", relative_path),
+                        String::new(),
+                    ];
+                    
+                    // Add XML lines
+                    for line in xml.lines() {
+                        output.push(line.to_string());
+                    }
+                    
+                    self.command_output = output;
+                    self.output_offset = 0;
+                } else {
+                    self.command_output = vec![
+                        format!("Profile: {}", profile.name),
+                        String::new(),
+                        "XML not found in POM files.".to_string(),
+                    ];
+                    self.output_offset = 0;
+                }
+            } else {
+                self.command_output = vec!["No profile selected.".to_string()];
+                self.output_offset = 0;
+            }
+        } else {
+            self.command_output = vec!["No profile selected.".to_string()];
             self.output_offset = 0;
         }
         self.clamp_output_offset();

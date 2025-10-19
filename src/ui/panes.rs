@@ -233,6 +233,9 @@ pub fn render_output_pane(
     let output_lines = if command_output.is_empty() {
         vec![Line::from("Run a command to see Maven output.")]
     } else {
+        // Check if we're displaying XML (profile XML starts with "Profile:")
+        let is_xml_mode = command_output.first().map(|s| s.starts_with("Profile:")).unwrap_or(false);
+        
         command_output
             .iter()
             .enumerate()
@@ -259,6 +262,10 @@ pub fn render_output_pane(
                     } else {
                         Line::from(cleaned)
                     }
+                } else if is_xml_mode && line_index >= 3 {
+                    // XML mode: colorize XML syntax (skip first 3 lines: header)
+                    // Don't use clean_log_line as it may trim - use raw line
+                    crate::utils::colorize_xml_line(line)
                 } else {
                     // Normal mode: use keyword-based coloring
                     let cleaned = crate::utils::clean_log_line(line).unwrap_or_default();
@@ -268,9 +275,12 @@ pub fn render_output_pane(
             .collect()
     };
 
+    // Check if we're in XML mode to disable trim
+    let is_xml_mode = command_output.first().map(|s| s.starts_with("Profile:")).unwrap_or(false);
+    
     let output_paragraph = Paragraph::new(output_lines)
         .block(output_block)
-        .wrap(Wrap { trim: true })
+        .wrap(Wrap { trim: !is_xml_mode })  // Don't trim in XML mode to preserve indentation
         .scroll((output_offset.min(u16::MAX as usize) as u16, 0));
 
     f.render_widget(output_paragraph, area);
