@@ -1,3 +1,4 @@
+use crate::config::LaunchMode;
 use crate::utils;
 use std::{
     fs,
@@ -15,6 +16,141 @@ pub enum CommandUpdate {
     OutputLine(String),
     Completed,
     Error(String),
+}
+
+/// Information about a module's Spring Boot capabilities
+#[derive(Debug, Clone)]
+pub struct SpringBootDetection {
+    pub has_spring_boot_plugin: bool,
+    pub has_exec_plugin: bool,
+    pub main_class: Option<String>,
+    pub packaging: Option<String>,
+}
+
+impl SpringBootDetection {
+    /// Check if spring-boot:run should work
+    pub fn can_use_spring_boot_run(&self) -> bool {
+        self.has_spring_boot_plugin
+            && self
+                .packaging
+                .as_ref()
+                .map(|p| p == "jar" || p == "war")
+                .unwrap_or(true)
+    }
+
+    /// Check if exec:java can be used as fallback
+    pub fn can_use_exec_java(&self) -> bool {
+        self.has_exec_plugin || self.main_class.is_some()
+    }
+}
+
+/// Decide which launch strategy to use
+pub fn decide_launch_strategy(
+    detection: &SpringBootDetection,
+    launch_mode: LaunchMode,
+) -> LaunchStrategy {
+    match launch_mode {
+        LaunchMode::ForceRun => LaunchStrategy::SpringBootRun,
+        LaunchMode::ForceExec => LaunchStrategy::ExecJava,
+        LaunchMode::Auto => {
+            if detection.can_use_spring_boot_run() {
+                log::info!("Auto mode: Spring Boot plugin detected, using spring-boot:run");
+                LaunchStrategy::SpringBootRun
+            } else if detection.can_use_exec_java() {
+                log::info!(
+                    "Auto mode: No Spring Boot plugin or incompatible packaging, using exec:java"
+                );
+                LaunchStrategy::ExecJava
+            } else {
+                log::warn!(
+                    "Auto mode: No viable launch strategy detected, defaulting to spring-boot:run"
+                );
+                LaunchStrategy::SpringBootRun
+            }
+        }
+    }
+}
+
+/// Launch strategy for running applications
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LaunchStrategy {
+    SpringBootRun,
+    ExecJava,
+}
+
+/// Build launch command based on detection and strategy
+pub fn build_launch_command(
+    strategy: LaunchStrategy,
+    main_class: Option<&str>,
+    profiles: &[String],
+    jvm_args: &[String],
+) -> Vec<String> {
+    let mut command_parts = Vec::new();
+
+    match strategy {
+        LaunchStrategy::SpringBootRun => {
+            // Build spring-boot:run command with parameters
+            if !profiles.is_empty() {
+                // Pass profiles as spring-boot.run.profiles
+                let profiles_arg = format!("-Dspring-boot.run.profiles={}", profiles.join(","));
+                command_parts.push(quote_arg_for_platform(&profiles_arg));
+            }
+
+            if !jvm_args.is_empty() {
+                // Pass JVM args as spring-boot.run.jvmArguments
+                let jvm_args_str = jvm_args.join(" ");
+                let jvm_arg = format!("-Dspring-boot.run.jvmArguments={}", jvm_args_str);
+                command_parts.push(quote_arg_for_platform(&jvm_arg));
+            }
+
+            command_parts.push("spring-boot:run".to_string());
+
+            log::info!(
+                "Built spring-boot:run command with {} profile(s) and {} JVM arg(s)",
+                profiles.len(),
+                jvm_args.len()
+            );
+        }
+        LaunchStrategy::ExecJava => {
+            // Build exec:java command with mainClass
+            if let Some(mc) = main_class {
+                let main_class_arg = format!("-Dexec.mainClass={}", mc);
+                command_parts.push(quote_arg_for_platform(&main_class_arg));
+            }
+
+            // Add JVM args as system properties
+            for arg in jvm_args {
+                command_parts.push(quote_arg_for_platform(arg));
+            }
+
+            command_parts.push("exec:java".to_string());
+
+            log::info!(
+                "Built exec:java command with mainClass={:?} and {} JVM arg(s)",
+                main_class,
+                jvm_args.len()
+            );
+        }
+    }
+
+    command_parts
+}
+
+/// Quote arguments appropriately for the platform (especially PowerShell on Windows)
+fn quote_arg_for_platform(arg: &str) -> String {
+    #[cfg(windows)]
+    {
+        // On Windows (PowerShell), quote -D arguments
+        if arg.starts_with("-D") {
+            format!("\"{}\"", arg)
+        } else {
+            arg.to_string()
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        arg.to_string()
+    }
 }
 
 pub fn get_maven_command(project_root: &Path) -> String {
@@ -705,6 +841,163 @@ fn extract_profile_from_xml(xml_content: &str, profile_id: &str) -> Option<Strin
     None
 }
 
+/// Detect Spring Boot configuration for a module by analyzing effective POM
+pub fn detect_spring_boot_capabilities(
+    project_root: &Path,
+    module: Option<&str>,
+) -> Result<SpringBootDetection, std::io::Error> {
+    log::debug!(
+        "Detecting Spring Boot capabilities for module: {:?}",
+        module
+    );
+
+    let config = crate::config::load_config(project_root);
+
+    // Get effective POM for the module
+    let args = vec!["help:effective-pom"];
+
+    let output = execute_maven_command(
+        project_root,
+        module,
+        &args,
+        &[],
+        config.maven_settings.as_deref(),
+        &[],
+    )?;
+
+    let pom_content = output.join("\n");
+
+    let mut detection = SpringBootDetection {
+        has_spring_boot_plugin: false,
+        has_exec_plugin: false,
+        main_class: None,
+        packaging: None,
+    };
+
+    // Parse the effective POM
+    let mut in_plugins = false;
+    let mut in_plugin = false;
+    let mut current_plugin_artifact_id = String::new();
+    let mut in_configuration = false;
+
+    for line in pom_content.lines() {
+        let trimmed = line.trim();
+
+        // Detect packaging
+        if trimmed.starts_with("<packaging>")
+            && trimmed.contains("</packaging>")
+            && let Some(start) = trimmed.find("<packaging>")
+            && let Some(end) = trimmed.find("</packaging>")
+        {
+            let packaging = &trimmed[start + 11..end];
+            detection.packaging = Some(packaging.to_string());
+            log::debug!("Found packaging: {}", packaging);
+        }
+
+        // Track plugin sections
+        if trimmed.starts_with("<plugins>") {
+            in_plugins = true;
+        } else if trimmed.starts_with("</plugins>") {
+            in_plugins = false;
+        }
+
+        if in_plugins {
+            if trimmed.starts_with("<plugin>") {
+                in_plugin = true;
+                current_plugin_artifact_id.clear();
+            } else if trimmed.starts_with("</plugin>") {
+                in_plugin = false;
+                in_configuration = false;
+            }
+
+            if in_plugin {
+                // Check for Spring Boot plugin
+                if trimmed.starts_with("<artifactId>spring-boot-maven-plugin</artifactId>") {
+                    detection.has_spring_boot_plugin = true;
+                    current_plugin_artifact_id = "spring-boot-maven-plugin".to_string();
+                    log::debug!("Found spring-boot-maven-plugin");
+                }
+
+                // Check for exec plugin
+                if trimmed.starts_with("<artifactId>exec-maven-plugin</artifactId>") {
+                    detection.has_exec_plugin = true;
+                    current_plugin_artifact_id = "exec-maven-plugin".to_string();
+                    log::debug!("Found exec-maven-plugin");
+                }
+
+                // Track configuration section
+                if trimmed.starts_with("<configuration>") {
+                    in_configuration = true;
+                } else if trimmed.starts_with("</configuration>") {
+                    in_configuration = false;
+                }
+
+                // Extract mainClass from configuration
+                if in_configuration
+                    && (trimmed.starts_with("<mainClass>") || trimmed.starts_with("<main-class>"))
+                    && (trimmed.contains("</mainClass>") || trimmed.contains("</main-class>"))
+                {
+                    let main_class = if trimmed.contains("</mainClass>") {
+                        extract_tag_content(trimmed, "mainClass")
+                    } else {
+                        extract_tag_content(trimmed, "main-class")
+                    };
+
+                    if let Some(mc) = main_class {
+                        detection.main_class = Some(mc.clone());
+                        log::debug!("Found mainClass '{}' in {}", mc, current_plugin_artifact_id);
+                    }
+                }
+            }
+        }
+
+        // Also check for properties (spring-boot.run.mainClass, start-class, etc.)
+        if trimmed.starts_with("<spring-boot.run.mainClass>")
+            || trimmed.starts_with("<spring-boot.main-class>")
+            || trimmed.starts_with("<start-class>")
+        {
+            let property_name = if trimmed.contains("spring-boot.run.mainClass") {
+                "spring-boot.run.mainClass"
+            } else if trimmed.contains("spring-boot.main-class") {
+                "spring-boot.main-class"
+            } else {
+                "start-class"
+            };
+
+            if let Some(mc) = extract_tag_content(trimmed, property_name)
+                && detection.main_class.is_none()
+            {
+                detection.main_class = Some(mc.clone());
+                log::debug!("Found mainClass '{}' from property {}", mc, property_name);
+            }
+        }
+    }
+
+    log::info!(
+        "Spring Boot detection results: plugin={}, exec={}, mainClass={:?}, packaging={:?}",
+        detection.has_spring_boot_plugin,
+        detection.has_exec_plugin,
+        detection.main_class,
+        detection.packaging
+    );
+
+    Ok(detection)
+}
+
+/// Extract content from an XML tag
+fn extract_tag_content(line: &str, tag_name: &str) -> Option<String> {
+    let open_tag = format!("<{}>", tag_name);
+    let close_tag = format!("</{}>", tag_name);
+
+    if let Some(start) = line.find(&open_tag)
+        && let Some(end) = line.find(&close_tag)
+    {
+        let content = &line[start + open_tag.len()..end];
+        return Some(content.trim().to_string());
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1100,6 +1393,254 @@ mod tests {
         assert_eq!(
             path, maven_settings,
             "Should return maven_settings.xml path"
+        );
+    }
+
+    #[test]
+    fn test_spring_boot_detection_with_plugin() {
+        let detection = SpringBootDetection {
+            has_spring_boot_plugin: true,
+            has_exec_plugin: false,
+            main_class: None,
+            packaging: Some("jar".to_string()),
+        };
+
+        assert!(
+            detection.can_use_spring_boot_run(),
+            "Should be able to use spring-boot:run with plugin and jar packaging"
+        );
+    }
+
+    #[test]
+    fn test_spring_boot_detection_with_war_packaging() {
+        let detection = SpringBootDetection {
+            has_spring_boot_plugin: true,
+            has_exec_plugin: false,
+            main_class: None,
+            packaging: Some("war".to_string()),
+        };
+
+        assert!(
+            detection.can_use_spring_boot_run(),
+            "Should be able to use spring-boot:run with plugin and war packaging"
+        );
+    }
+
+    #[test]
+    fn test_spring_boot_detection_with_pom_packaging() {
+        let detection = SpringBootDetection {
+            has_spring_boot_plugin: true,
+            has_exec_plugin: false,
+            main_class: None,
+            packaging: Some("pom".to_string()),
+        };
+
+        assert!(
+            !detection.can_use_spring_boot_run(),
+            "Should not be able to use spring-boot:run with pom packaging"
+        );
+    }
+
+    #[test]
+    fn test_spring_boot_detection_fallback_to_exec() {
+        let detection = SpringBootDetection {
+            has_spring_boot_plugin: false,
+            has_exec_plugin: true,
+            main_class: Some("com.example.App".to_string()),
+            packaging: Some("jar".to_string()),
+        };
+
+        assert!(
+            !detection.can_use_spring_boot_run(),
+            "Should not use spring-boot:run without plugin"
+        );
+        assert!(
+            detection.can_use_exec_java(),
+            "Should be able to use exec:java with exec plugin"
+        );
+    }
+
+    #[test]
+    fn test_launch_strategy_auto_prefers_spring_boot() {
+        let detection = SpringBootDetection {
+            has_spring_boot_plugin: true,
+            has_exec_plugin: true,
+            main_class: Some("com.example.App".to_string()),
+            packaging: Some("jar".to_string()),
+        };
+
+        let strategy = decide_launch_strategy(&detection, LaunchMode::Auto);
+        assert_eq!(
+            strategy,
+            LaunchStrategy::SpringBootRun,
+            "Auto mode should prefer spring-boot:run when available"
+        );
+    }
+
+    #[test]
+    fn test_launch_strategy_auto_falls_back_to_exec() {
+        let detection = SpringBootDetection {
+            has_spring_boot_plugin: false,
+            has_exec_plugin: true,
+            main_class: Some("com.example.App".to_string()),
+            packaging: Some("jar".to_string()),
+        };
+
+        let strategy = decide_launch_strategy(&detection, LaunchMode::Auto);
+        assert_eq!(
+            strategy,
+            LaunchStrategy::ExecJava,
+            "Auto mode should fall back to exec:java when spring-boot:run not available"
+        );
+    }
+
+    #[test]
+    fn test_launch_strategy_force_run() {
+        let detection = SpringBootDetection {
+            has_spring_boot_plugin: false,
+            has_exec_plugin: true,
+            main_class: Some("com.example.App".to_string()),
+            packaging: Some("jar".to_string()),
+        };
+
+        let strategy = decide_launch_strategy(&detection, LaunchMode::ForceRun);
+        assert_eq!(
+            strategy,
+            LaunchStrategy::SpringBootRun,
+            "ForceRun should always use spring-boot:run"
+        );
+    }
+
+    #[test]
+    fn test_launch_strategy_force_exec() {
+        let detection = SpringBootDetection {
+            has_spring_boot_plugin: true,
+            has_exec_plugin: false,
+            main_class: None,
+            packaging: Some("jar".to_string()),
+        };
+
+        let strategy = decide_launch_strategy(&detection, LaunchMode::ForceExec);
+        assert_eq!(
+            strategy,
+            LaunchStrategy::ExecJava,
+            "ForceExec should always use exec:java"
+        );
+    }
+
+    #[test]
+    fn test_extract_tag_content() {
+        let line = "<mainClass>com.example.Application</mainClass>";
+        let content = extract_tag_content(line, "mainClass");
+        assert_eq!(content, Some("com.example.Application".to_string()));
+
+        let line_with_spaces = "  <packaging>jar</packaging>  ";
+        let content = extract_tag_content(line_with_spaces, "packaging");
+        assert_eq!(content, Some("jar".to_string()));
+
+        let invalid_line = "<mainClass>incomplete";
+        let content = extract_tag_content(invalid_line, "mainClass");
+        assert_eq!(content, None);
+    }
+
+    #[test]
+    fn test_build_launch_command_spring_boot_run() {
+        let profiles = vec!["dev".to_string(), "debug".to_string()];
+        let jvm_args = vec!["-Dfoo=bar".to_string(), "-Xmx512m".to_string()];
+
+        let command =
+            build_launch_command(LaunchStrategy::SpringBootRun, None, &profiles, &jvm_args);
+
+        // Should contain profiles argument
+        assert!(
+            command
+                .iter()
+                .any(|arg| arg.contains("spring-boot.run.profiles=dev,debug")),
+            "Should set profiles: {:?}",
+            command
+        );
+
+        // Should contain JVM arguments
+        assert!(
+            command
+                .iter()
+                .any(|arg| arg.contains("spring-boot.run.jvmArguments")),
+            "Should set jvmArguments: {:?}",
+            command
+        );
+
+        // Should end with the goal
+        assert_eq!(command.last(), Some(&"spring-boot:run".to_string()));
+    }
+
+    #[test]
+    fn test_build_launch_command_exec_java() {
+        let jvm_args = vec!["-Dfoo=bar".to_string()];
+
+        let command = build_launch_command(
+            LaunchStrategy::ExecJava,
+            Some("com.example.Application"),
+            &[],
+            &jvm_args,
+        );
+
+        // Should contain mainClass argument
+        assert!(
+            command
+                .iter()
+                .any(|arg| arg.contains("exec.mainClass=com.example.Application")),
+            "Should set mainClass: {:?}",
+            command
+        );
+
+        // Should contain JVM args
+        assert!(
+            command.contains(&quote_arg_for_platform("-Dfoo=bar")),
+            "Should include JVM args: {:?}",
+            command
+        );
+
+        // Should end with the goal
+        assert_eq!(command.last(), Some(&"exec:java".to_string()));
+    }
+
+    #[test]
+    fn test_build_launch_command_exec_java_without_main_class() {
+        let command = build_launch_command(LaunchStrategy::ExecJava, None, &[], &[]);
+
+        // Should not contain mainClass if not provided
+        assert!(
+            !command.iter().any(|arg| arg.contains("exec.mainClass")),
+            "Should not set mainClass if none provided: {:?}",
+            command
+        );
+
+        // Should still have the goal
+        assert_eq!(command.last(), Some(&"exec:java".to_string()));
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn test_quote_arg_for_platform_windows() {
+        assert_eq!(
+            quote_arg_for_platform("-Dfoo=bar"),
+            "\"-Dfoo=bar\"",
+            "Should quote -D args on Windows"
+        );
+        assert_eq!(
+            quote_arg_for_platform("spring-boot:run"),
+            "spring-boot:run",
+            "Should not quote goals"
+        );
+    }
+
+    #[test]
+    #[cfg(not(windows))]
+    fn test_quote_arg_for_platform_unix() {
+        assert_eq!(
+            quote_arg_for_platform("-Dfoo=bar"),
+            "-Dfoo=bar",
+            "Should not quote on Unix"
         );
     }
 

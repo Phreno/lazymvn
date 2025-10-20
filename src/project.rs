@@ -156,17 +156,6 @@ fn normalize_modules(modules: Vec<String>) -> Vec<String> {
     }
 }
 
-/// Check if a POM file contains the Spring Boot Maven plugin
-pub fn has_spring_boot_plugin(pom_path: &PathBuf) -> bool {
-    if let Ok(content) = fs::read_to_string(pom_path) {
-        // Look for spring-boot-maven-plugin in the POM
-        // This can be in <build><plugins> or <build><pluginManagement><plugins>
-        content.contains("spring-boot-maven-plugin")
-    } else {
-        false
-    }
-}
-
 pub mod cache {
     use serde::{Deserialize, Serialize};
     use serde_json;
@@ -438,56 +427,5 @@ mod tests {
 
         env::set_current_dir(original_dir).unwrap();
         restore_home(original_home);
-    }
-
-    #[test]
-    fn test_has_spring_boot_plugin() {
-        let dir = tempdir().unwrap();
-
-        // Test with Spring Boot plugin present
-        let pom_with_plugin = dir.path().join("pom_with_plugin.xml");
-        {
-            let mut file = File::create(&pom_with_plugin).unwrap();
-            use std::io::Write;
-            file.write_all(
-                b"<project>
-                    <build>
-                        <plugins>
-                            <plugin>
-                                <groupId>org.springframework.boot</groupId>
-                                <artifactId>spring-boot-maven-plugin</artifactId>
-                            </plugin>
-                        </plugins>
-                    </build>
-                </project>",
-            )
-            .unwrap();
-        }
-        assert!(has_spring_boot_plugin(&pom_with_plugin));
-
-        // Test without Spring Boot plugin
-        let pom_without_plugin = dir.path().join("pom_without_plugin.xml");
-        {
-            let mut file = File::create(&pom_without_plugin).unwrap();
-            use std::io::Write;
-            file.write_all(
-                b"<project>
-                    <build>
-                        <plugins>
-                            <plugin>
-                                <groupId>org.apache.maven.plugins</groupId>
-                                <artifactId>maven-compiler-plugin</artifactId>
-                            </plugin>
-                        </plugins>
-                    </build>
-                </project>",
-            )
-            .unwrap();
-        }
-        assert!(!has_spring_boot_plugin(&pom_without_plugin));
-
-        // Test with non-existent file
-        let non_existent = dir.path().join("nonexistent.xml");
-        assert!(!has_spring_boot_plugin(&non_existent));
     }
 }

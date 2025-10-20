@@ -1375,33 +1375,61 @@ impl TuiState {
     pub fn run_spring_boot_starter(&mut self, fqcn: &str) {
         log::info!("Running Spring Boot starter: {}", fqcn);
 
-        // Check if Spring Boot Maven plugin is available
-        let pom_path = self.project_root.join("pom.xml");
-        let has_spring_boot_plugin = crate::project::has_spring_boot_plugin(&pom_path);
+        // Get selected module
+        let module = self.selected_module();
 
-        log::debug!(
-            "Spring Boot plugin detected: {} in {:?}",
-            has_spring_boot_plugin,
-            pom_path
-        );
+        // Detect Spring Boot capabilities for this module
+        match crate::maven::detect_spring_boot_capabilities(&self.project_root, module) {
+            Ok(detection) => {
+                // Decide launch strategy based on detection and config
+                let launch_mode = self
+                    .config
+                    .launch_mode
+                    .unwrap_or(crate::config::LaunchMode::Auto);
+                let strategy = crate::maven::decide_launch_strategy(&detection, launch_mode);
 
-        // Build the Maven command based on plugin availability
-        let (goal, main_class_arg) = if has_spring_boot_plugin {
-            // Use Spring Boot plugin
-            (
-                "spring-boot:run",
-                format!("-Dspring-boot.run.mainClass={}", fqcn),
-            )
-        } else {
-            // Fallback to exec:java
-            log::info!("Spring Boot plugin not found, using exec:java instead");
-            ("exec:java", format!("-Dexec.mainClass={}", fqcn))
-        };
+                log::info!(
+                    "Launch strategy decided: {:?} (mode={:?}, has_sb_plugin={}, packaging={:?})",
+                    strategy,
+                    launch_mode,
+                    detection.has_spring_boot_plugin,
+                    detection.packaging
+                );
 
-        // Build args vector - profiles and flags will be added by run_selected_module_command
-        let args: Vec<&str> = vec![goal, &main_class_arg];
+                // Collect active profile names (those that need to be passed to Maven)
+                let active_profiles: Vec<String> = self
+                    .profiles
+                    .iter()
+                    .filter_map(|p| p.to_maven_arg())
+                    .collect();
 
-        self.run_selected_module_command(&args);
+                // Build launch command with the strategy
+                let command_parts = crate::maven::build_launch_command(
+                    strategy,
+                    Some(fqcn),
+                    &active_profiles,
+                    &[], // JVM args could be added here in the future
+                );
+
+                // Convert to &str references
+                let args: Vec<&str> = command_parts.iter().map(|s| s.as_str()).collect();
+
+                self.run_selected_module_command(&args);
+            }
+            Err(e) => {
+                log::error!("Failed to detect Spring Boot capabilities: {}", e);
+                self.command_output = vec![
+                    format!("Error detecting launch strategy: {}", e),
+                    String::new(),
+                    "Falling back to spring-boot:run...".to_string(),
+                ];
+
+                // Fallback to old behavior
+                let main_class_arg = format!("-Dspring-boot.run.mainClass={}", fqcn);
+                let args = vec!["spring-boot:run", &main_class_arg];
+                self.run_selected_module_command(&args);
+            }
+        }
     }
 
     pub fn run_preferred_starter(&mut self) {

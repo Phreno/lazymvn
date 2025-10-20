@@ -248,6 +248,7 @@ mod tests {
     fn test_cfg() -> crate::config::Config {
         crate::config::Config {
             maven_settings: None,
+            launch_mode: None,
         }
     }
 
@@ -431,11 +432,11 @@ mod tests {
     #[test]
     fn test_flags_initialized() {
         use tempfile::tempdir;
-        
+
         // Use a temporary directory to avoid loading actual cached preferences
         let temp_dir = tempdir().unwrap();
         let project_root = temp_dir.path().to_path_buf();
-        
+
         let modules = vec!["module1".to_string()];
         let state = crate::ui::state::TuiState::new(modules, project_root, test_cfg());
 

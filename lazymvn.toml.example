@@ -8,6 +8,18 @@
 # 3. ~/.m2/settings.xml in user home
 maven_settings = "./settings.xml"
 
+# Launch mode for Spring Boot applications (default: "auto")
+# - "auto": Auto-detect, prefers spring-boot:run if available, falls back to exec:java
+# - "force-run": Always use spring-boot:run
+# - "force-exec": Always use exec:java with mainClass
+# 
+# Auto mode detection criteria (executed before launch, no failures):
+# 1. Checks effective-pom for spring-boot-maven-plugin
+# 2. Validates packaging is jar/war (compatible with spring-boot:run)
+# 3. Looks for mainClass configuration if available
+# 4. Falls back to exec:java if Spring Boot not detected
+launch_mode = "auto"
+
 # Future configuration options (not yet implemented):
 # default_profiles = ["dev"]
 # default_flags = ["--also-make"]
