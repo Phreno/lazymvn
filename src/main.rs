@@ -23,6 +23,14 @@ struct Cli {
     /// Path to the Maven project (defaults to current directory)
     #[arg(short, long)]
     project: Option<String>,
+
+    /// Force spring-boot:run for launching applications (overrides auto-detection)
+    #[arg(long)]
+    force_run: bool,
+
+    /// Force exec:java for launching applications (overrides auto-detection)
+    #[arg(long)]
+    force_exec: bool,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -73,7 +81,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut terminal = Terminal::new(backend)?;
 
     // create app and run it
-    let res = run(&mut terminal);
+    let res = run(&mut terminal, &cli);
 
     // restore terminal
     crossterm::terminal::disable_raw_mode()?;
@@ -96,6 +104,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 fn run<B: ratatui::backend::Backend>(
     terminal: &mut Terminal<B>,
+    cli: &Cli,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Try to load project modules from current directory
     let (modules, project_root) = match project::get_project_modules() {
@@ -153,7 +162,22 @@ fn run<B: ratatui::backend::Backend>(
     let mut recent_projects = config::RecentProjects::load();
     recent_projects.add(project_root.clone());
 
-    let config = config::load_config(&project_root);
+    // Load config and apply CLI overrides for launch mode
+    let mut config = config::load_config(&project_root);
+
+    // CLI flags override config file
+    if cli.force_run {
+        log::info!("CLI override: using force-run mode");
+        config.launch_mode = Some(config::LaunchMode::ForceRun);
+    } else if cli.force_exec {
+        log::info!("CLI override: using force-exec mode");
+        config.launch_mode = Some(config::LaunchMode::ForceExec);
+    }
+    // If neither flag is set, use config value or default to Auto
+    if config.launch_mode.is_none() {
+        config.launch_mode = Some(config::LaunchMode::Auto);
+    }
+
     let mut state = tui::TuiState::new(modules, project_root.clone(), config);
 
     // Load available profiles
@@ -191,8 +215,16 @@ fn run<B: ratatui::backend::Backend>(
                     // Add to recent projects
                     recent_projects.add(new_project_root.clone());
 
-                    // Load config
-                    let new_config = config::load_config(&new_project_root);
+                    // Load config and apply CLI overrides
+                    let mut new_config = config::load_config(&new_project_root);
+                    if cli.force_run {
+                        new_config.launch_mode = Some(config::LaunchMode::ForceRun);
+                    } else if cli.force_exec {
+                        new_config.launch_mode = Some(config::LaunchMode::ForceExec);
+                    }
+                    if new_config.launch_mode.is_none() {
+                        new_config.launch_mode = Some(config::LaunchMode::Auto);
+                    }
 
                     // Create new state
                     state = tui::TuiState::new(new_modules, new_project_root.clone(), new_config);

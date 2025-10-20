@@ -119,6 +119,8 @@ pub struct TuiState {
     pub starters_list_state: ListState,
     // Module preferences
     module_preferences: crate::config::ProjectPreferences,
+    // Clipboard - keep it alive to prevent "dropped too quickly" errors
+    clipboard: Option<arboard::Clipboard>,
 }
 
 /// State of a Maven profile
@@ -304,6 +306,7 @@ impl TuiState {
             starter_filter: String::new(),
             starters_list_state,
             module_preferences,
+            clipboard: None,
         };
 
         // Pre-select first flag to ensure alignment
@@ -897,6 +900,13 @@ impl TuiState {
                     self.running_process_pid = None;
                     self.store_current_module_output();
                     self.output_metrics = None;
+
+                    // Send desktop notification
+                    self.send_notification(
+                        "LazyMVN - Build Complete",
+                        "Maven command completed successfully ✓",
+                        true,
+                    );
                 }
                 maven::CommandUpdate::Error(msg) => {
                     log::error!("Command failed: {}", msg);
@@ -907,6 +917,13 @@ impl TuiState {
                     self.running_process_pid = None;
                     self.store_current_module_output();
                     self.output_metrics = None;
+
+                    // Send desktop notification for error
+                    self.send_notification(
+                        "LazyMVN - Build Failed",
+                        &format!("Maven command failed: {}", msg),
+                        false,
+                    );
                 }
             }
         }
@@ -944,10 +961,218 @@ impl TuiState {
         }
     }
 
+    /// Yank (copy) the output to clipboard
+    pub fn yank_output(&mut self) {
+        if self.command_output.is_empty() {
+            log::info!("No output to copy");
+            self.command_output.push(String::new());
+            self.command_output.push("⚠ No output to copy".to_string());
+            return;
+        }
+
+        let output_text = self.command_output.join("\n");
+        let lines = self.command_output.len();
+
+        // Try to use system clipboard tools first (more reliable for terminal apps)
+        #[cfg(target_os = "linux")]
+        {
+            use std::io::Write;
+            use std::process::{Command, Stdio};
+
+            // Try wl-copy (Wayland) first
+            if let Ok(mut child) = Command::new("wl-copy").stdin(Stdio::piped()).spawn()
+                && let Some(mut stdin) = child.stdin.take()
+                && stdin.write_all(output_text.as_bytes()).is_ok()
+            {
+                drop(stdin);
+                if child.wait().is_ok() {
+                    log::info!("Copied {} lines via wl-copy", lines);
+                    self.command_output.push(String::new());
+                    self.command_output
+                        .push(format!("✓ Copied {} lines to clipboard", lines));
+                    return;
+                }
+            }
+
+            // Try xclip (X11) as fallback
+            if let Ok(mut child) = Command::new("xclip")
+                .arg("-selection")
+                .arg("clipboard")
+                .stdin(Stdio::piped())
+                .spawn()
+                && let Some(mut stdin) = child.stdin.take()
+                && stdin.write_all(output_text.as_bytes()).is_ok()
+            {
+                drop(stdin);
+                if child.wait().is_ok() {
+                    log::info!("Copied {} lines via xclip", lines);
+                    self.command_output.push(String::new());
+                    self.command_output
+                        .push(format!("✓ Copied {} lines to clipboard", lines));
+                    return;
+                }
+            }
+
+            // Try xsel as another X11 fallback
+            if let Ok(mut child) = Command::new("xsel")
+                .arg("--clipboard")
+                .stdin(Stdio::piped())
+                .spawn()
+                && let Some(mut stdin) = child.stdin.take()
+                && stdin.write_all(output_text.as_bytes()).is_ok()
+            {
+                drop(stdin);
+                if child.wait().is_ok() {
+                    log::info!("Copied {} lines via xsel", lines);
+                    self.command_output.push(String::new());
+                    self.command_output
+                        .push(format!("✓ Copied {} lines to clipboard", lines));
+                    return;
+                }
+            }
+        }
+
+        // Windows: Use PowerShell Set-Clipboard
+        #[cfg(target_os = "windows")]
+        {
+            use std::io::Write;
+            use std::process::{Command, Stdio};
+
+            // Try PowerShell Set-Clipboard
+            if let Ok(mut child) = Command::new("powershell")
+                .arg("-Command")
+                .arg("$input | Set-Clipboard")
+                .stdin(Stdio::piped())
+                .spawn()
+            {
+                if let Some(mut stdin) = child.stdin.take() {
+                    if stdin.write_all(output_text.as_bytes()).is_ok() {
+                        drop(stdin);
+                        if child.wait().is_ok() {
+                            log::info!("Copied {} lines via PowerShell Set-Clipboard", lines);
+                            self.command_output.push(String::new());
+                            self.command_output
+                                .push(format!("✓ Copied {} lines to clipboard", lines));
+                            return;
+                        }
+                    }
+                }
+            }
+
+            // Try clip.exe as fallback (built-in Windows command)
+            if let Ok(mut child) = Command::new("clip").stdin(Stdio::piped()).spawn() {
+                if let Some(mut stdin) = child.stdin.take() {
+                    if stdin.write_all(output_text.as_bytes()).is_ok() {
+                        drop(stdin);
+                        if child.wait().is_ok() {
+                            log::info!("Copied {} lines via clip.exe", lines);
+                            self.command_output.push(String::new());
+                            self.command_output
+                                .push(format!("✓ Copied {} lines to clipboard", lines));
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+
+        // macOS: Use pbcopy
+        #[cfg(target_os = "macos")]
+        {
+            use std::io::Write;
+            use std::process::{Command, Stdio};
+
+            if let Ok(mut child) = Command::new("pbcopy").stdin(Stdio::piped()).spawn() {
+                if let Some(mut stdin) = child.stdin.take() {
+                    if stdin.write_all(output_text.as_bytes()).is_ok() {
+                        drop(stdin);
+                        if child.wait().is_ok() {
+                            log::info!("Copied {} lines via pbcopy", lines);
+                            self.command_output.push(String::new());
+                            self.command_output
+                                .push(format!("✓ Copied {} lines to clipboard", lines));
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Fallback to arboard if all system tools failed
+        let clipboard_result = if let Some(ref mut clipboard) = self.clipboard {
+            clipboard.set_text(output_text)
+        } else {
+            match arboard::Clipboard::new() {
+                Ok(mut clipboard) => {
+                    let result = clipboard.set_text(output_text);
+                    self.clipboard = Some(clipboard);
+                    result
+                }
+                Err(e) => {
+                    log::error!("Failed to initialize clipboard: {}", e);
+                    self.command_output.push(String::new());
+                    self.command_output
+                        .push(format!("✗ Clipboard not available: {}", e));
+                    return;
+                }
+            }
+        };
+
+        match clipboard_result {
+            Ok(()) => {
+                log::info!("Copied {} lines to clipboard via arboard", lines);
+                self.command_output.push(String::new());
+                self.command_output
+                    .push(format!("✓ Copied {} lines to clipboard", lines));
+            }
+            Err(e) => {
+                log::error!("Failed to copy to clipboard: {}", e);
+                self.command_output.push(String::new());
+                self.command_output.push(format!("✗ Failed to copy: {}", e));
+            }
+        }
+    }
+
     /// Get elapsed time of current command in seconds
     pub fn command_elapsed_seconds(&self) -> Option<u64> {
         self.command_start_time
             .map(|start| start.elapsed().as_secs())
+    }
+
+    /// Send desktop notification
+    fn send_notification(&self, title: &str, body: &str, success: bool) {
+        // Check if notifications are enabled (default: true)
+        let enabled = self.config.notifications_enabled.unwrap_or(true);
+        if !enabled {
+            log::debug!("Notifications disabled in config, skipping notification");
+            return;
+        }
+
+        use notify_rust::{Notification, Timeout};
+
+        log::debug!("Sending notification: {} - {}", title, body);
+
+        let mut notification = Notification::new();
+        notification
+            .summary(title)
+            .body(body)
+            .timeout(Timeout::Milliseconds(5000)); // 5 seconds
+
+        // Set icon based on success/failure (platform-specific)
+        #[cfg(target_os = "linux")]
+        {
+            if success {
+                notification.icon("dialog-information");
+            } else {
+                notification.icon("dialog-error");
+            }
+        }
+
+        // Try to show the notification
+        if let Err(e) = notification.show() {
+            log::warn!("Failed to send desktop notification: {}", e);
+            // Don't show error to user, notifications are optional
+        }
     }
 
     // Output display and metrics
@@ -1375,33 +1600,61 @@ impl TuiState {
     pub fn run_spring_boot_starter(&mut self, fqcn: &str) {
         log::info!("Running Spring Boot starter: {}", fqcn);
 
-        // Check if Spring Boot Maven plugin is available
-        let pom_path = self.project_root.join("pom.xml");
-        let has_spring_boot_plugin = crate::project::has_spring_boot_plugin(&pom_path);
+        // Get selected module
+        let module = self.selected_module();
 
-        log::debug!(
-            "Spring Boot plugin detected: {} in {:?}",
-            has_spring_boot_plugin,
-            pom_path
-        );
+        // Detect Spring Boot capabilities for this module
+        match crate::maven::detect_spring_boot_capabilities(&self.project_root, module) {
+            Ok(detection) => {
+                // Decide launch strategy based on detection and config
+                let launch_mode = self
+                    .config
+                    .launch_mode
+                    .unwrap_or(crate::config::LaunchMode::Auto);
+                let strategy = crate::maven::decide_launch_strategy(&detection, launch_mode);
 
-        // Build the Maven command based on plugin availability
-        let (goal, main_class_arg) = if has_spring_boot_plugin {
-            // Use Spring Boot plugin
-            (
-                "spring-boot:run",
-                format!("-Dspring-boot.run.mainClass={}", fqcn),
-            )
-        } else {
-            // Fallback to exec:java
-            log::info!("Spring Boot plugin not found, using exec:java instead");
-            ("exec:java", format!("-Dexec.mainClass={}", fqcn))
-        };
+                log::info!(
+                    "Launch strategy decided: {:?} (mode={:?}, has_sb_plugin={}, packaging={:?})",
+                    strategy,
+                    launch_mode,
+                    detection.has_spring_boot_plugin,
+                    detection.packaging
+                );
 
-        // Build args vector - profiles and flags will be added by run_selected_module_command
-        let args: Vec<&str> = vec![goal, &main_class_arg];
+                // Collect active profile names (those that need to be passed to Maven)
+                let active_profiles: Vec<String> = self
+                    .profiles
+                    .iter()
+                    .filter_map(|p| p.to_maven_arg())
+                    .collect();
 
-        self.run_selected_module_command(&args);
+                // Build launch command with the strategy
+                let command_parts = crate::maven::build_launch_command(
+                    strategy,
+                    Some(fqcn),
+                    &active_profiles,
+                    &[], // JVM args could be added here in the future
+                );
+
+                // Convert to &str references
+                let args: Vec<&str> = command_parts.iter().map(|s| s.as_str()).collect();
+
+                self.run_selected_module_command(&args);
+            }
+            Err(e) => {
+                log::error!("Failed to detect Spring Boot capabilities: {}", e);
+                self.command_output = vec![
+                    format!("Error detecting launch strategy: {}", e),
+                    String::new(),
+                    "Falling back to spring-boot:run...".to_string(),
+                ];
+
+                // Fallback to old behavior
+                let main_class_arg = format!("-Dspring-boot.run.mainClass={}", fqcn);
+                let args = vec!["spring-boot:run", &main_class_arg];
+                self.run_selected_module_command(&args);
+            }
+        }
     }
 
     pub fn run_preferred_starter(&mut self) {

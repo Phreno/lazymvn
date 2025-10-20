@@ -50,7 +50,11 @@ I want to credit both the project and its author for the idea and for shaping ho
 - **Cached starters**: Remember your main classes per project
 - **Multiple starters**: Support for API, Admin, Batch, etc.
 - **Manager interface**: `Ctrl+Shift+S` to view, run, and manage cached starters
-- Executes via `mvn spring-boot:run -Dspring-boot.run.mainClass=<FQCN>`
+- **Smart launch strategy**: Auto-detects `spring-boot:run` vs `exec:java` before launching (no failures!)
+  - Analyzes effective POM for Spring Boot plugin and packaging
+  - Falls back to `exec:java` if needed
+  - Configurable modes: `auto` (default), `force-run`, `force-exec`
+  - See [SPRING_BOOT_LAUNCHER.md](SPRING_BOOT_LAUNCHER.md) for details
 
 ### Profiles & Flags
 - Toggle Maven profiles interactively
@@ -140,6 +144,7 @@ I want to credit both the project and its author for the idea and for shaping ho
 | `/` | Start search in output |
 | `n` | Next search match |
 | `N` | Previous search match |
+| `y` | **Yank** (copy) output to clipboard |
 | `Esc` | Exit search mode |
 
 ### General
@@ -161,6 +166,38 @@ Navigate to any Maven project directory and run:
 
 ```bash
 lazymvn
+```
+
+**Command-line Options:**
+
+```bash
+lazymvn [OPTIONS]
+
+Options:
+  -d, --debug              Enable debug logging to lazymvn-debug.log
+  -p, --project <PROJECT>  Path to the Maven project
+      --force-run          Force spring-boot:run for launching (overrides auto)
+      --force-exec         Force exec:java for launching (overrides auto)
+  -h, --help               Print help
+```
+
+**Examples:**
+
+```bash
+# Launch with auto-detection (default)
+lazymvn
+
+# Force spring-boot:run strategy
+lazymvn --force-run
+
+# Force exec:java strategy  
+lazymvn --force-exec
+
+# Open a specific project
+lazymvn --project /path/to/maven/project
+
+# Debug mode with force-run
+lazymvn --debug --force-run
 ```
 
 **Smart Project Detection:**

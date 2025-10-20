@@ -57,7 +57,7 @@ struct ModuleAction {
     suffix: &'static str,
 }
 
-const MODULE_ACTIONS: [ModuleAction; 8] = [
+const MODULE_ACTIONS: [ModuleAction; 9] = [
     ModuleAction {
         key_display: "b",
         prefix: "",
@@ -97,6 +97,11 @@ const MODULE_ACTIONS: [ModuleAction; 8] = [
         key_display: "d",
         prefix: "",
         suffix: "eps",
+    },
+    ModuleAction {
+        key_display: "y",
+        prefix: "",
+        suffix: "ank",
     },
 ];
 
@@ -382,6 +387,10 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
         {
             log::info!("Open starter manager");
             state.show_starter_manager();
+        }
+        KeyCode::Char('y') => {
+            log::info!("Yank (copy) output to clipboard");
+            state.yank_output();
         }
         KeyCode::Esc => {
             log::info!("Kill running process with Escape");
@@ -947,5 +956,38 @@ mod tests {
 
         handle_key_event(d_event, &mut state);
         assert_eq!(state.starters_cache.starters.len(), 0);
+    }
+
+    #[test]
+    fn test_yank_output() {
+        let config = Config::default();
+        let temp_dir = tempfile::tempdir().unwrap();
+        let mut state = TuiState::new(
+            vec!["module1".to_string()],
+            temp_dir.path().to_path_buf(),
+            config,
+        );
+
+        // Add some output
+        state.command_output = vec![
+            "Line 1".to_string(),
+            "Line 2".to_string(),
+            "Line 3".to_string(),
+        ];
+
+        // Press 'y' to yank output
+        let y_event = KeyEvent {
+            code: KeyCode::Char('y'),
+            modifiers: KeyModifiers::NONE,
+            kind: KeyEventKind::Press,
+            state: crossterm::event::KeyEventState::NONE,
+        };
+
+        handle_key_event(y_event, &mut state);
+
+        // Should have added a message about copying
+        // Note: actual clipboard test may fail in CI/headless environments
+        // so we just check that the function was called and output updated
+        assert!(state.command_output.len() > 3);
     }
 }

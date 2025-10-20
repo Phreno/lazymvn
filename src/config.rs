@@ -5,6 +5,21 @@ use std::path::{Path, PathBuf};
 #[derive(Deserialize, Default)]
 pub struct Config {
     pub maven_settings: Option<String>,
+    pub launch_mode: Option<LaunchMode>,
+    pub notifications_enabled: Option<bool>,
+}
+
+/// Strategy for launching Spring Boot applications
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum LaunchMode {
+    /// Auto-detect: use spring-boot:run if available, fallback to exec:java
+    #[default]
+    Auto,
+    /// Always use spring-boot:run
+    ForceRun,
+    /// Always use exec:java
+    ForceExec,
 }
 
 #[derive(Serialize, Deserialize, Default)]
