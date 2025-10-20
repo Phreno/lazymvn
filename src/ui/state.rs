@@ -1373,41 +1373,31 @@ impl TuiState {
     pub fn run_spring_boot_starter(&mut self, fqcn: &str) {
         log::info!("Running Spring Boot starter: {}", fqcn);
 
-        // Build the Maven command with &str references
-        let spring_run = "spring-boot:run";
-        let main_class_arg = format!("-Dspring-boot.run.mainClass={}", fqcn);
+        // Check if Spring Boot Maven plugin is available
+        let pom_path = self.project_root.join("pom.xml");
+        let has_spring_boot_plugin = crate::project::has_spring_boot_plugin(&pom_path);
+        
+        log::debug!(
+            "Spring Boot plugin detected: {} in {:?}",
+            has_spring_boot_plugin,
+            pom_path
+        );
 
-        // Get profile args for Maven (only explicitly set profiles)
-        let profile_args: Vec<String> = self
-            .profiles
-            .iter()
-            .filter_map(|p| p.to_maven_arg())
-            .collect();
-
-        let profile_arg = if !profile_args.is_empty() {
-            Some(format!("-P{}", profile_args.join(",")))
+        // Build the Maven command based on plugin availability
+        let (goal, main_class_arg) = if has_spring_boot_plugin {
+            // Use Spring Boot plugin
+            (
+                "spring-boot:run",
+                format!("-Dspring-boot.run.mainClass={}", fqcn),
+            )
         } else {
-            None
+            // Fallback to exec:java
+            log::info!("Spring Boot plugin not found, using exec:java instead");
+            ("exec:java", format!("-Dexec.mainClass={}", fqcn))
         };
 
-        // Collect flag strings
-        let flag_strings: Vec<String> = self
-            .flags
-            .iter()
-            .filter(|f| f.enabled)
-            .map(|f| f.flag.clone())
-            .collect();
-
-        // Build args vector with proper lifetimes
-        let mut args: Vec<&str> = vec![spring_run, &main_class_arg];
-
-        if let Some(ref profile) = profile_arg {
-            args.push(profile.as_str());
-        }
-
-        for flag in &flag_strings {
-            args.push(flag.as_str());
-        }
+        // Build args vector - profiles and flags will be added by run_selected_module_command
+        let args: Vec<&str> = vec![goal, &main_class_arg];
 
         self.run_selected_module_command(&args);
     }
