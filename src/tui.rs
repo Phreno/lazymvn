@@ -249,6 +249,7 @@ mod tests {
         crate::config::Config {
             maven_settings: None,
             launch_mode: None,
+            notifications_enabled: None,
         }
     }
 

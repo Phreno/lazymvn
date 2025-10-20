@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 pub struct Config {
     pub maven_settings: Option<String>,
     pub launch_mode: Option<LaunchMode>,
+    pub notifications_enabled: Option<bool>,
 }
 
 /// Strategy for launching Spring Boot applications

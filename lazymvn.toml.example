@@ -20,6 +20,11 @@ maven_settings = "./settings.xml"
 # 4. Falls back to exec:java if Spring Boot not detected
 launch_mode = "auto"
 
+# Enable desktop notifications when Maven commands complete (default: true)
+# Set to false to disable all notifications
+# Notifications show when builds complete successfully or fail
+notifications_enabled = true
+
 # Future configuration options (not yet implemented):
 # default_profiles = ["dev"]
 # default_flags = ["--also-make"]

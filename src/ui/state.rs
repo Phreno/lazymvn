@@ -900,6 +900,13 @@ impl TuiState {
                     self.running_process_pid = None;
                     self.store_current_module_output();
                     self.output_metrics = None;
+
+                    // Send desktop notification
+                    self.send_notification(
+                        "LazyMVN - Build Complete",
+                        "Maven command completed successfully ✓",
+                        true,
+                    );
                 }
                 maven::CommandUpdate::Error(msg) => {
                     log::error!("Command failed: {}", msg);
@@ -910,6 +917,13 @@ impl TuiState {
                     self.running_process_pid = None;
                     self.store_current_module_output();
                     self.output_metrics = None;
+
+                    // Send desktop notification for error
+                    self.send_notification(
+                        "LazyMVN - Build Failed",
+                        &format!("Maven command failed: {}", msg),
+                        false,
+                    );
                 }
             }
         }
@@ -966,18 +980,17 @@ impl TuiState {
             use std::process::{Command, Stdio};
 
             // Try wl-copy (Wayland) first
-            if let Ok(mut child) = Command::new("wl-copy").stdin(Stdio::piped()).spawn() {
-                if let Some(mut stdin) = child.stdin.take() {
-                    if stdin.write_all(output_text.as_bytes()).is_ok() {
-                        drop(stdin);
-                        if child.wait().is_ok() {
-                            log::info!("Copied {} lines via wl-copy", lines);
-                            self.command_output.push(String::new());
-                            self.command_output
-                                .push(format!("✓ Copied {} lines to clipboard", lines));
-                            return;
-                        }
-                    }
+            if let Ok(mut child) = Command::new("wl-copy").stdin(Stdio::piped()).spawn()
+                && let Some(mut stdin) = child.stdin.take()
+                && stdin.write_all(output_text.as_bytes()).is_ok()
+            {
+                drop(stdin);
+                if child.wait().is_ok() {
+                    log::info!("Copied {} lines via wl-copy", lines);
+                    self.command_output.push(String::new());
+                    self.command_output
+                        .push(format!("✓ Copied {} lines to clipboard", lines));
+                    return;
                 }
             }
 
@@ -987,18 +1000,16 @@ impl TuiState {
                 .arg("clipboard")
                 .stdin(Stdio::piped())
                 .spawn()
+                && let Some(mut stdin) = child.stdin.take()
+                && stdin.write_all(output_text.as_bytes()).is_ok()
             {
-                if let Some(mut stdin) = child.stdin.take() {
-                    if stdin.write_all(output_text.as_bytes()).is_ok() {
-                        drop(stdin);
-                        if child.wait().is_ok() {
-                            log::info!("Copied {} lines via xclip", lines);
-                            self.command_output.push(String::new());
-                            self.command_output
-                                .push(format!("✓ Copied {} lines to clipboard", lines));
-                            return;
-                        }
-                    }
+                drop(stdin);
+                if child.wait().is_ok() {
+                    log::info!("Copied {} lines via xclip", lines);
+                    self.command_output.push(String::new());
+                    self.command_output
+                        .push(format!("✓ Copied {} lines to clipboard", lines));
+                    return;
                 }
             }
 
@@ -1007,18 +1018,16 @@ impl TuiState {
                 .arg("--clipboard")
                 .stdin(Stdio::piped())
                 .spawn()
+                && let Some(mut stdin) = child.stdin.take()
+                && stdin.write_all(output_text.as_bytes()).is_ok()
             {
-                if let Some(mut stdin) = child.stdin.take() {
-                    if stdin.write_all(output_text.as_bytes()).is_ok() {
-                        drop(stdin);
-                        if child.wait().is_ok() {
-                            log::info!("Copied {} lines via xsel", lines);
-                            self.command_output.push(String::new());
-                            self.command_output
-                                .push(format!("✓ Copied {} lines to clipboard", lines));
-                            return;
-                        }
-                    }
+                drop(stdin);
+                if child.wait().is_ok() {
+                    log::info!("Copied {} lines via xsel", lines);
+                    self.command_output.push(String::new());
+                    self.command_output
+                        .push(format!("✓ Copied {} lines to clipboard", lines));
+                    return;
                 }
             }
         }
@@ -1128,6 +1137,42 @@ impl TuiState {
     pub fn command_elapsed_seconds(&self) -> Option<u64> {
         self.command_start_time
             .map(|start| start.elapsed().as_secs())
+    }
+
+    /// Send desktop notification
+    fn send_notification(&self, title: &str, body: &str, success: bool) {
+        // Check if notifications are enabled (default: true)
+        let enabled = self.config.notifications_enabled.unwrap_or(true);
+        if !enabled {
+            log::debug!("Notifications disabled in config, skipping notification");
+            return;
+        }
+
+        use notify_rust::{Notification, Timeout};
+
+        log::debug!("Sending notification: {} - {}", title, body);
+
+        let mut notification = Notification::new();
+        notification
+            .summary(title)
+            .body(body)
+            .timeout(Timeout::Milliseconds(5000)); // 5 seconds
+
+        // Set icon based on success/failure (platform-specific)
+        #[cfg(target_os = "linux")]
+        {
+            if success {
+                notification.icon("dialog-information");
+            } else {
+                notification.icon("dialog-error");
+            }
+        }
+
+        // Try to show the notification
+        if let Err(e) = notification.show() {
+            log::warn!("Failed to send desktop notification: {}", e);
+            // Don't show error to user, notifications are optional
+        }
     }
 
     // Output display and metrics
