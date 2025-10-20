@@ -119,6 +119,7 @@ pub struct TuiState {
     pub starters_list_state: ListState,
     // Module preferences
     module_preferences: crate::config::ProjectPreferences,
+    starter_execution: Option<StarterExecutionContext>,
 }
 
 /// State of a Maven profile
@@ -193,6 +194,41 @@ pub struct BuildFlag {
     pub name: String,
     pub flag: String,
     pub enabled: bool,
+}
+
+const EXEC_PLUGIN_COORDINATE: &str = "org.codehaus.mojo:exec-maven-plugin:3.3.0:java";
+const EXEC_CLASSPATH_SCOPE: &str = "-Dexec.classpathScope=compile";
+const EXEC_CLEANUP_DAEMON_THREADS: &str = "-Dexec.cleanupDaemonThreads=false";
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum StarterCommandKind {
+    SpringBoot,
+    Exec,
+}
+
+#[derive(Clone, Debug)]
+struct StarterExecutionContext {
+    main_class: String,
+    last_attempt: StarterCommandKind,
+    fallback_performed: bool,
+}
+
+impl StarterExecutionContext {
+    fn new(main_class: &str, last_attempt: StarterCommandKind) -> Self {
+        Self {
+            main_class: main_class.to_string(),
+            last_attempt,
+            fallback_performed: false,
+        }
+    }
+
+    fn fallback(main_class: &str) -> Self {
+        Self {
+            main_class: main_class.to_string(),
+            last_attempt: StarterCommandKind::Exec,
+            fallback_performed: true,
+        }
+    }
 }
 
 impl TuiState {
@@ -304,6 +340,7 @@ impl TuiState {
             starter_filter: String::new(),
             starters_list_state,
             module_preferences,
+            starter_execution: None,
         };
 
         // Pre-select first flag to ensure alignment
@@ -897,6 +934,7 @@ impl TuiState {
                     self.running_process_pid = None;
                     self.store_current_module_output();
                     self.output_metrics = None;
+                    self.starter_execution = None;
                 }
                 maven::CommandUpdate::Error(msg) => {
                     log::error!("Command failed: {}", msg);
@@ -907,6 +945,9 @@ impl TuiState {
                     self.running_process_pid = None;
                     self.store_current_module_output();
                     self.output_metrics = None;
+                    if !self.try_run_spring_boot_fallback() {
+                        self.starter_execution = None;
+                    }
                 }
             }
         }
@@ -1406,23 +1447,74 @@ impl TuiState {
             detected_pom
         );
 
-        // Build the Maven command based on plugin availability
-        let (goal, main_class_arg) = if has_spring_boot_plugin {
-            // Use Spring Boot plugin
-            (
-                "spring-boot:run",
-                format!("-Dspring-boot.run.mainClass={}", fqcn),
-            )
+        if has_spring_boot_plugin {
+            log::info!("Spring Boot plugin detected for starter, using spring-boot:run");
+            self.starter_execution = Some(StarterExecutionContext::new(
+                fqcn,
+                StarterCommandKind::SpringBoot,
+            ));
+            let main_class_arg = format!("-Dspring-boot.run.mainClass={}", fqcn);
+            let args: Vec<&str> = vec!["spring-boot:run", &main_class_arg];
+            self.run_selected_module_command(&args);
         } else {
-            // Fallback to exec:java
-            log::info!("Spring Boot plugin not found, using exec:java instead");
-            ("exec:java", format!("-Dexec.mainClass={}", fqcn))
-        };
+            log::info!(
+                "Spring Boot plugin not found in detected POMs, using exec-maven-plugin fallback"
+            );
+            self.starter_execution = Some(StarterExecutionContext::fallback(fqcn));
+            self.run_exec_starter(fqcn);
+        }
+    }
 
-        // Build args vector - profiles and flags will be added by run_selected_module_command
-        let args: Vec<&str> = vec![goal, &main_class_arg];
+    fn run_exec_starter(&mut self, fqcn: &str) {
+        log::info!("Running starter via exec-maven-plugin for {}", fqcn);
+
+        let owned_args = vec![
+            EXEC_PLUGIN_COORDINATE.to_string(),
+            format!("-Dexec.mainClass={}", fqcn),
+            EXEC_CLASSPATH_SCOPE.to_string(),
+            EXEC_CLEANUP_DAEMON_THREADS.to_string(),
+        ];
+
+        let args: Vec<&str> = owned_args.iter().map(|s| s.as_str()).collect();
 
         self.run_selected_module_command(&args);
+    }
+
+    fn try_run_spring_boot_fallback(&mut self) -> bool {
+        let fallback_main_class = {
+            if let Some(context) = self.starter_execution.as_mut() {
+                if context.last_attempt == StarterCommandKind::SpringBoot
+                    && !context.fallback_performed
+                    && spring_boot_plugin_error_detected(&self.command_output)
+                {
+                    context.fallback_performed = true;
+                    Some(context.main_class.clone())
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        };
+
+        let Some(main_class) = fallback_main_class else {
+            return false;
+        };
+
+        log::info!(
+            "Detected missing Spring Boot plugin in output, retrying starter with exec-maven-plugin"
+        );
+
+        self.starter_execution = Some(StarterExecutionContext::fallback(&main_class));
+        self.run_exec_starter(&main_class);
+        self.command_output.insert(
+            0,
+            "ℹ Spring Boot plugin not available, retrying with exec-maven-plugin".to_string(),
+        );
+        self.command_output.insert(1, String::new());
+        self.store_current_module_output();
+        self.output_metrics = None;
+        true
     }
 
     pub fn run_preferred_starter(&mut self) {
@@ -1670,6 +1762,15 @@ fn spring_boot_plugin_lookup_paths(project_root: &Path, module: Option<&str>) ->
     paths
 }
 
+fn spring_boot_plugin_error_detected(output: &[String]) -> bool {
+    const PREFIX_ERROR: &str = "No plugin found for prefix 'spring-boot'";
+    const GA_ERROR: &str = "org.springframework.boot:spring-boot-maven-plugin";
+
+    output
+        .iter()
+        .any(|line| line.contains(PREFIX_ERROR) || line.contains(GA_ERROR))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1726,6 +1827,23 @@ mod tests {
         let result = spring_boot_plugin_lookup_paths(temp.path(), Some("module-b"));
 
         assert_eq!(result, vec![root_pom]);
+    }
+
+    #[test]
+    fn plugin_error_detection_matches_known_messages() {
+        let output = vec![
+            "[ERROR] No plugin found for prefix 'spring-boot' in the plugin groups".to_string(),
+        ];
+        assert!(spring_boot_plugin_error_detected(&output));
+
+        let other_output = vec![
+            "[ERROR] Plugin org.springframework.boot:spring-boot-maven-plugin not found"
+                .to_string(),
+        ];
+        assert!(spring_boot_plugin_error_detected(&other_output));
+
+        let clean_output = vec!["[INFO] BUILD SUCCESS".to_string()];
+        assert!(!spring_boot_plugin_error_detected(&clean_output));
     }
 }
 
