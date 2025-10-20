@@ -609,7 +609,7 @@ impl TuiState {
     pub fn cycle_focus_right(&mut self) {
         let old_focus = self.focus;
         self.focus = self.focus.next();
-        
+
         // When leaving Profiles focus, restore module output
         if old_focus == Focus::Profiles && self.focus != Focus::Profiles {
             self.sync_selected_module_output();
@@ -618,7 +618,7 @@ impl TuiState {
         else if self.focus == Focus::Profiles {
             self.sync_selected_profile_output();
         }
-        
+
         if self.focus == Focus::Output {
             self.ensure_current_match_visible();
         }
@@ -628,7 +628,7 @@ impl TuiState {
     pub fn cycle_focus_left(&mut self) {
         let old_focus = self.focus;
         self.focus = self.focus.previous();
-        
+
         // When leaving Profiles focus, restore module output
         if old_focus == Focus::Profiles && self.focus != Focus::Profiles {
             self.sync_selected_module_output();
@@ -637,7 +637,7 @@ impl TuiState {
         else if self.focus == Focus::Profiles {
             self.sync_selected_profile_output();
         }
-        
+
         if self.focus == Focus::Output {
             self.ensure_current_match_visible();
         }
@@ -694,24 +694,26 @@ impl TuiState {
     pub(crate) fn sync_selected_profile_output(&mut self) {
         if let Some(selected) = self.profiles_list_state.selected() {
             if let Some(profile) = self.profiles.get(selected) {
-                if let Some((xml, pom_path)) = crate::maven::get_profile_xml(&self.project_root, &profile.name) {
+                if let Some((xml, pom_path)) =
+                    crate::maven::get_profile_xml(&self.project_root, &profile.name)
+                {
                     // Build output with header and XML
                     let relative_path = pom_path
                         .strip_prefix(&self.project_root)
                         .unwrap_or(&pom_path)
                         .to_string_lossy();
-                    
+
                     let mut output = vec![
                         format!("Profile: {}", profile.name),
                         format!("From: {}", relative_path),
                         String::new(),
                     ];
-                    
+
                     // Add XML lines
                     for line in xml.lines() {
                         output.push(line.to_string());
                     }
-                    
+
                     self.command_output = output;
                     self.output_offset = 0;
                 } else {
@@ -1376,7 +1378,7 @@ impl TuiState {
         // Check if Spring Boot Maven plugin is available
         let pom_path = self.project_root.join("pom.xml");
         let has_spring_boot_plugin = crate::project::has_spring_boot_plugin(&pom_path);
-        
+
         log::debug!(
             "Spring Boot plugin detected: {} in {:?}",
             has_spring_boot_plugin,

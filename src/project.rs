@@ -443,7 +443,7 @@ mod tests {
     #[test]
     fn test_has_spring_boot_plugin() {
         let dir = tempdir().unwrap();
-        
+
         // Test with Spring Boot plugin present
         let pom_with_plugin = dir.path().join("pom_with_plugin.xml");
         {
@@ -459,11 +459,12 @@ mod tests {
                             </plugin>
                         </plugins>
                     </build>
-                </project>"
-            ).unwrap();
+                </project>",
+            )
+            .unwrap();
         }
         assert!(has_spring_boot_plugin(&pom_with_plugin));
-        
+
         // Test without Spring Boot plugin
         let pom_without_plugin = dir.path().join("pom_without_plugin.xml");
         {
@@ -479,11 +480,12 @@ mod tests {
                             </plugin>
                         </plugins>
                     </build>
-                </project>"
-            ).unwrap();
+                </project>",
+            )
+            .unwrap();
         }
         assert!(!has_spring_boot_plugin(&pom_without_plugin));
-        
+
         // Test with non-existent file
         let non_existent = dir.path().join("nonexistent.xml");
         assert!(!has_spring_boot_plugin(&non_existent));

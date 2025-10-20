@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.6] - 2025-10-20
+
+### Fixed
+- **Spring Boot Launcher** (#39):
+  - Fixed "No plugin found for prefix 'spring-boot'" error
+  - Automatically detects if `spring-boot-maven-plugin` is configured in POM
+  - Smart command selection: uses `spring-boot:run` when plugin available, falls back to `exec:java -Dexec.mainClass` otherwise
+  - Fixed duplicate profiles and flags in Spring Boot commands (issue where parameters were added twice)
+  - Works with any Maven project (Spring Boot or plain Java)
+  
+- **Profile XML Preview for maven_settings.xml**:
+  - Profile XML preview now correctly uses `maven_settings.xml` when configured
+  - Previously only checked `settings.xml`, ignoring `maven_settings.xml`
+  - Now consistent with profile detection and Maven command execution
+  - Respects `lazymvn.toml` configuration for custom settings file paths
+
+### Technical
+- Added `has_spring_boot_plugin()` function to detect plugin presence
+- Simplified `run_spring_boot_starter()` to avoid duplicate parameter building
+- Updated `get_profile_xml()` to use `config.maven_settings` for consistency
+- Added 2 new tests: `test_has_spring_boot_plugin`, `test_get_profile_xml_with_maven_settings_xml`
+- 86 tests passing (all green)
+- Zero clippy warnings
+
+## [0.3.5] - 2025-10-20
+
+### Fixed
+- Spring Boot starter command building improvements
+- Plugin detection and fallback mechanism
+
 ## [0.3.4] - 2025-10-19
 
 ### Added
