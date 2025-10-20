@@ -144,6 +144,7 @@ I want to credit both the project and its author for the idea and for shaping ho
 | `/` | Start search in output |
 | `n` | Next search match |
 | `N` | Previous search match |
+| `y` | **Yank** (copy) output to clipboard |
 | `Esc` | Exit search mode |
 
 ### General

@@ -119,6 +119,8 @@ pub struct TuiState {
     pub starters_list_state: ListState,
     // Module preferences
     module_preferences: crate::config::ProjectPreferences,
+    // Clipboard - keep it alive to prevent "dropped too quickly" errors
+    clipboard: Option<arboard::Clipboard>,
 }
 
 /// State of a Maven profile
@@ -304,6 +306,7 @@ impl TuiState {
             starter_filter: String::new(),
             starters_list_state,
             module_preferences,
+            clipboard: None,
         };
 
         // Pre-select first flag to ensure alignment
@@ -941,6 +944,183 @@ impl TuiState {
             }
         } else {
             log::warn!("No running process to kill");
+        }
+    }
+
+    /// Yank (copy) the output to clipboard
+    pub fn yank_output(&mut self) {
+        if self.command_output.is_empty() {
+            log::info!("No output to copy");
+            self.command_output.push(String::new());
+            self.command_output.push("⚠ No output to copy".to_string());
+            return;
+        }
+
+        let output_text = self.command_output.join("\n");
+        let lines = self.command_output.len();
+
+        // Try to use system clipboard tools first (more reliable for terminal apps)
+        #[cfg(target_os = "linux")]
+        {
+            use std::io::Write;
+            use std::process::{Command, Stdio};
+
+            // Try wl-copy (Wayland) first
+            if let Ok(mut child) = Command::new("wl-copy").stdin(Stdio::piped()).spawn() {
+                if let Some(mut stdin) = child.stdin.take() {
+                    if stdin.write_all(output_text.as_bytes()).is_ok() {
+                        drop(stdin);
+                        if child.wait().is_ok() {
+                            log::info!("Copied {} lines via wl-copy", lines);
+                            self.command_output.push(String::new());
+                            self.command_output
+                                .push(format!("✓ Copied {} lines to clipboard", lines));
+                            return;
+                        }
+                    }
+                }
+            }
+
+            // Try xclip (X11) as fallback
+            if let Ok(mut child) = Command::new("xclip")
+                .arg("-selection")
+                .arg("clipboard")
+                .stdin(Stdio::piped())
+                .spawn()
+            {
+                if let Some(mut stdin) = child.stdin.take() {
+                    if stdin.write_all(output_text.as_bytes()).is_ok() {
+                        drop(stdin);
+                        if child.wait().is_ok() {
+                            log::info!("Copied {} lines via xclip", lines);
+                            self.command_output.push(String::new());
+                            self.command_output
+                                .push(format!("✓ Copied {} lines to clipboard", lines));
+                            return;
+                        }
+                    }
+                }
+            }
+
+            // Try xsel as another X11 fallback
+            if let Ok(mut child) = Command::new("xsel")
+                .arg("--clipboard")
+                .stdin(Stdio::piped())
+                .spawn()
+            {
+                if let Some(mut stdin) = child.stdin.take() {
+                    if stdin.write_all(output_text.as_bytes()).is_ok() {
+                        drop(stdin);
+                        if child.wait().is_ok() {
+                            log::info!("Copied {} lines via xsel", lines);
+                            self.command_output.push(String::new());
+                            self.command_output
+                                .push(format!("✓ Copied {} lines to clipboard", lines));
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Windows: Use PowerShell Set-Clipboard
+        #[cfg(target_os = "windows")]
+        {
+            use std::io::Write;
+            use std::process::{Command, Stdio};
+
+            // Try PowerShell Set-Clipboard
+            if let Ok(mut child) = Command::new("powershell")
+                .arg("-Command")
+                .arg("$input | Set-Clipboard")
+                .stdin(Stdio::piped())
+                .spawn()
+            {
+                if let Some(mut stdin) = child.stdin.take() {
+                    if stdin.write_all(output_text.as_bytes()).is_ok() {
+                        drop(stdin);
+                        if child.wait().is_ok() {
+                            log::info!("Copied {} lines via PowerShell Set-Clipboard", lines);
+                            self.command_output.push(String::new());
+                            self.command_output
+                                .push(format!("✓ Copied {} lines to clipboard", lines));
+                            return;
+                        }
+                    }
+                }
+            }
+
+            // Try clip.exe as fallback (built-in Windows command)
+            if let Ok(mut child) = Command::new("clip").stdin(Stdio::piped()).spawn() {
+                if let Some(mut stdin) = child.stdin.take() {
+                    if stdin.write_all(output_text.as_bytes()).is_ok() {
+                        drop(stdin);
+                        if child.wait().is_ok() {
+                            log::info!("Copied {} lines via clip.exe", lines);
+                            self.command_output.push(String::new());
+                            self.command_output
+                                .push(format!("✓ Copied {} lines to clipboard", lines));
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+
+        // macOS: Use pbcopy
+        #[cfg(target_os = "macos")]
+        {
+            use std::io::Write;
+            use std::process::{Command, Stdio};
+
+            if let Ok(mut child) = Command::new("pbcopy").stdin(Stdio::piped()).spawn() {
+                if let Some(mut stdin) = child.stdin.take() {
+                    if stdin.write_all(output_text.as_bytes()).is_ok() {
+                        drop(stdin);
+                        if child.wait().is_ok() {
+                            log::info!("Copied {} lines via pbcopy", lines);
+                            self.command_output.push(String::new());
+                            self.command_output
+                                .push(format!("✓ Copied {} lines to clipboard", lines));
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Fallback to arboard if all system tools failed
+        let clipboard_result = if let Some(ref mut clipboard) = self.clipboard {
+            clipboard.set_text(output_text)
+        } else {
+            match arboard::Clipboard::new() {
+                Ok(mut clipboard) => {
+                    let result = clipboard.set_text(output_text);
+                    self.clipboard = Some(clipboard);
+                    result
+                }
+                Err(e) => {
+                    log::error!("Failed to initialize clipboard: {}", e);
+                    self.command_output.push(String::new());
+                    self.command_output
+                        .push(format!("✗ Clipboard not available: {}", e));
+                    return;
+                }
+            }
+        };
+
+        match clipboard_result {
+            Ok(()) => {
+                log::info!("Copied {} lines to clipboard via arboard", lines);
+                self.command_output.push(String::new());
+                self.command_output
+                    .push(format!("✓ Copied {} lines to clipboard", lines));
+            }
+            Err(e) => {
+                log::error!("Failed to copy to clipboard: {}", e);
+                self.command_output.push(String::new());
+                self.command_output.push(format!("✗ Failed to copy: {}", e));
+            }
         }
     }
 
