@@ -557,16 +557,22 @@ pub fn get_profile_xml(project_root: &Path, profile_id: &str) -> Option<(String,
     
     let mut pom_paths = Vec::new();
     
-    // 1. Check settings.xml first (local project settings)
-    let settings_xml = project_root.join("settings.xml");
-    if settings_xml.exists() {
-        pom_paths.push(settings_xml);
+    // Load config to get the maven_settings path (which may be maven_settings.xml or settings.xml)
+    let config = crate::config::load_config(project_root);
+    
+    // 1. If config has maven_settings configured, use that
+    if let Some(ref settings_path) = config.maven_settings {
+        let settings = PathBuf::from(settings_path);
+        if settings.exists() {
+            log::debug!("Using configured Maven settings: {:?}", settings);
+            pom_paths.push(settings);
+        }
     }
     
-    // 2. Check user settings.xml (~/.m2/settings.xml)
+    // 2. Also check user settings.xml (~/.m2/settings.xml) if not already added
     if let Some(home) = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")) {
         let user_settings = PathBuf::from(home).join(".m2").join("settings.xml");
-        if user_settings.exists() {
+        if user_settings.exists() && !pom_paths.contains(&user_settings) {
             pom_paths.push(user_settings);
         }
     }
@@ -987,6 +993,49 @@ mod tests {
         
         let (xml, _) = result.unwrap();
         assert!(xml.contains("proxy.corp.com"), "XML should contain proxy settings");
+    }
+
+    #[test]
+    fn test_get_profile_xml_with_maven_settings_xml() {
+        let dir = tempdir().unwrap();
+        let project_root = dir.path();
+        
+        // Create maven_settings.xml (note: not settings.xml)
+        let maven_settings = project_root.join("maven_settings.xml");
+        fs::write(
+            &maven_settings,
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<settings>
+    <profiles>
+        <profile>
+            <id>custom-profile</id>
+            <properties>
+                <custom.property>custom-value</custom.property>
+            </properties>
+        </profile>
+    </profiles>
+</settings>"#
+        ).unwrap();
+        
+        // Create lazymvn.toml to point to maven_settings.xml
+        let config_file = project_root.join("lazymvn.toml");
+        fs::write(
+            &config_file,
+            format!("maven_settings = \"{}\"", maven_settings.to_str().unwrap())
+        ).unwrap();
+        
+        // Also need a pom.xml so it's a valid Maven project
+        let pom = project_root.join("pom.xml");
+        fs::write(&pom, "<project></project>").unwrap();
+        
+        // Test finding profile from maven_settings.xml
+        let result = get_profile_xml(project_root, "custom-profile");
+        assert!(result.is_some(), "Should find custom-profile from maven_settings.xml");
+        
+        let (xml, path) = result.unwrap();
+        assert!(xml.contains("<id>custom-profile</id>"), "XML should contain profile ID");
+        assert!(xml.contains("custom-value"), "XML should contain custom property");
+        assert_eq!(path, maven_settings, "Should return maven_settings.xml path");
     }
 
     #[test]
