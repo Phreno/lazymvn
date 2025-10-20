@@ -103,7 +103,7 @@ pub fn colorize_xml_line(text: &str) -> Line<'static> {
     let mut spans = Vec::new();
     let mut chars = text.chars().peekable();
     let mut current = String::new();
-    
+
     while let Some(ch) = chars.next() {
         if ch == '<' {
             // Flush any accumulated text as normal
@@ -111,22 +111,22 @@ pub fn colorize_xml_line(text: &str) -> Line<'static> {
                 spans.push(Span::raw(current.clone()));
                 current.clear();
             }
-            
+
             // Start of tag
             current.push(ch);
-            
+
             // Check if it's a closing tag or comment
             let is_closing = chars.peek() == Some(&'/');
             let is_comment = chars.peek() == Some(&'!');
-            
+
             // Consume the tag
             let mut in_quotes = false;
             let mut quote_char = ' ';
-            
+
             while let Some(&next_ch) = chars.peek() {
                 chars.next();
                 current.push(next_ch);
-                
+
                 if next_ch == '"' || next_ch == '\'' {
                     if in_quotes && quote_char == next_ch {
                         in_quotes = false;
@@ -135,12 +135,12 @@ pub fn colorize_xml_line(text: &str) -> Line<'static> {
                         quote_char = next_ch;
                     }
                 }
-                
+
                 if next_ch == '>' && !in_quotes {
                     break;
                 }
             }
-            
+
             // Colorize the tag
             if is_comment {
                 // Comments in dark gray (more subtle)
@@ -157,7 +157,7 @@ pub fn colorize_xml_line(text: &str) -> Line<'static> {
             current.push(ch);
         }
     }
-    
+
     // Flush remaining text
     if !current.is_empty() {
         let trimmed = current.trim();
@@ -169,11 +169,11 @@ pub fn colorize_xml_line(text: &str) -> Line<'static> {
             spans.push(Span::raw(current));
         }
     }
-    
+
     if spans.is_empty() {
         spans.push(Span::raw(text.to_string()));
     }
-    
+
     Line::from(spans)
 }
 
@@ -181,7 +181,7 @@ pub fn colorize_xml_line(text: &str) -> Line<'static> {
 fn colorize_xml_tag(tag: &str, spans: &mut Vec<Span<'static>>, is_closing: bool) {
     // Tag format: <tagname attr="value">
     let content = tag.trim_start_matches('<').trim_end_matches('>');
-    
+
     if content.starts_with('?') {
         // XML declaration: <?xml ... ?> in light purple
         spans.push(Span::styled(
@@ -190,9 +190,9 @@ fn colorize_xml_tag(tag: &str, spans: &mut Vec<Span<'static>>, is_closing: bool)
         ));
         return;
     }
-    
+
     let mut parts = content.split_whitespace();
-    
+
     // Tag name
     if let Some(tag_name) = parts.next() {
         // Opening bracket in dark gray
@@ -200,25 +200,25 @@ fn colorize_xml_tag(tag: &str, spans: &mut Vec<Span<'static>>, is_closing: bool)
             "<".to_string(),
             Style::default().fg(Color::DarkGray),
         ));
-        
+
         // Tag name: light blue for opening, light red for closing
-        let tag_color = if is_closing { 
-            Color::LightRed 
-        } else { 
-            Color::LightBlue 
+        let tag_color = if is_closing {
+            Color::LightRed
+        } else {
+            Color::LightBlue
         };
         spans.push(Span::styled(
             tag_name.to_string(),
             Style::default().fg(tag_color),
         ));
-        
+
         // Attributes
         let remainder: Vec<&str> = parts.collect();
         if !remainder.is_empty() {
             let attrs = remainder.join(" ");
             colorize_xml_attributes(&attrs, spans);
         }
-        
+
         // Closing bracket in dark gray
         spans.push(Span::styled(
             ">".to_string(),
@@ -236,7 +236,7 @@ fn colorize_xml_attributes(attrs: &str, spans: &mut Vec<Span<'static>>) {
     let mut current = String::new();
     let mut in_quotes = false;
     let mut in_value = false;
-    
+
     for ch in chars {
         if ch == '=' && !in_quotes {
             // Attribute name in light yellow
@@ -278,7 +278,7 @@ fn colorize_xml_attributes(attrs: &str, spans: &mut Vec<Span<'static>>) {
             current.push(ch);
         }
     }
-    
+
     if !current.is_empty() {
         spans.push(Span::raw(current));
     }
@@ -311,7 +311,10 @@ mod tests {
         let line = colorize_xml_line("        <profile>");
         assert!(!line.spans.is_empty(), "Should have spans");
         // Should have multiple colored spans for tag parts
-        assert!(line.spans.len() >= 3, "Should have at least 3 spans (bracket, name, bracket)");
+        assert!(
+            line.spans.len() >= 3,
+            "Should have at least 3 spans (bracket, name, bracket)"
+        );
     }
 
     #[test]

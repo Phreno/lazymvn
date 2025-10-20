@@ -234,8 +234,11 @@ pub fn render_output_pane(
         vec![Line::from("Run a command to see Maven output.")]
     } else {
         // Check if we're displaying XML (profile XML starts with "Profile:")
-        let is_xml_mode = command_output.first().map(|s| s.starts_with("Profile:")).unwrap_or(false);
-        
+        let is_xml_mode = command_output
+            .first()
+            .map(|s| s.starts_with("Profile:"))
+            .unwrap_or(false);
+
         command_output
             .iter()
             .enumerate()
@@ -276,11 +279,14 @@ pub fn render_output_pane(
     };
 
     // Check if we're in XML mode to disable trim
-    let is_xml_mode = command_output.first().map(|s| s.starts_with("Profile:")).unwrap_or(false);
-    
+    let is_xml_mode = command_output
+        .first()
+        .map(|s| s.starts_with("Profile:"))
+        .unwrap_or(false);
+
     let output_paragraph = Paragraph::new(output_lines)
         .block(output_block)
-        .wrap(Wrap { trim: !is_xml_mode })  // Don't trim in XML mode to preserve indentation
+        .wrap(Wrap { trim: !is_xml_mode }) // Don't trim in XML mode to preserve indentation
         .scroll((output_offset.min(u16::MAX as usize) as u16, 0));
 
     f.render_widget(output_paragraph, area);
