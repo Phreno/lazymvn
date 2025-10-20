@@ -152,8 +152,8 @@ pub fn handle_mouse_event(
     // We need to calculate this based on terminal size
     // Use default size if terminal size cannot be determined (e.g., in tests)
     let terminal_size = match crossterm::terminal::size() {
-        Ok((cols, rows)) => (cols, rows),
-        Err(_) => (80, 24), // Default terminal size for tests
+        Ok((cols, rows)) if cols > 0 && rows > 0 => (cols, rows),
+        _ => (80, 24), // Default terminal size for tests or non-interactive environments
     };
 
     // Calculate layout areas using same logic as draw function
@@ -431,11 +431,11 @@ mod tests {
     #[test]
     fn test_flags_initialized() {
         use tempfile::tempdir;
-        
+
         // Use a temporary directory to avoid loading actual cached preferences
         let temp_dir = tempdir().unwrap();
         let project_root = temp_dir.path().to_path_buf();
-        
+
         let modules = vec!["module1".to_string()];
         let state = crate::ui::state::TuiState::new(modules, project_root, test_cfg());
 

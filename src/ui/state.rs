@@ -5,7 +5,7 @@ use ratatui::widgets::ListState;
 use regex::Regex;
 use std::{
     collections::HashMap,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::mpsc,
     time::{Duration, Instant},
 };
@@ -1375,14 +1375,35 @@ impl TuiState {
     pub fn run_spring_boot_starter(&mut self, fqcn: &str) {
         log::info!("Running Spring Boot starter: {}", fqcn);
 
-        // Check if Spring Boot Maven plugin is available
-        let pom_path = self.project_root.join("pom.xml");
-        let has_spring_boot_plugin = crate::project::has_spring_boot_plugin(&pom_path);
+        // Check if Spring Boot Maven plugin is available for the selected module first
+        let module = self.selected_module();
+        let pom_candidates = spring_boot_plugin_lookup_paths(&self.project_root, module);
+
+        let mut detected_pom = pom_candidates
+            .first()
+            .cloned()
+            .unwrap_or_else(|| self.project_root.join("pom.xml"));
+        let mut has_spring_boot_plugin = false;
+
+        for candidate in &pom_candidates {
+            let detected = crate::project::has_spring_boot_plugin(candidate);
+            log::debug!(
+                "Checking Spring Boot plugin in {:?}: {}",
+                candidate,
+                detected
+            );
+
+            if detected {
+                detected_pom = candidate.clone();
+                has_spring_boot_plugin = true;
+                break;
+            }
+        }
 
         log::debug!(
             "Spring Boot plugin detected: {} in {:?}",
             has_spring_boot_plugin,
-            pom_path
+            detected_pom
         );
 
         // Build the Maven command based on plugin availability
@@ -1619,6 +1640,92 @@ impl TuiState {
                 }
             }
         }
+    }
+}
+
+fn spring_boot_plugin_lookup_paths(project_root: &Path, module: Option<&str>) -> Vec<PathBuf> {
+    let root_pom = project_root.join("pom.xml");
+    let mut paths = Vec::new();
+
+    match module {
+        None | Some(".") => {
+            paths.push(root_pom.clone());
+        }
+        Some(module_name) => {
+            let module_pom = project_root.join(module_name).join("pom.xml");
+            if module_pom.exists() {
+                paths.push(module_pom);
+            }
+
+            if !paths.iter().any(|path| path == &root_pom) {
+                paths.push(root_pom.clone());
+            }
+        }
+    }
+
+    if paths.is_empty() {
+        paths.push(root_pom);
+    }
+
+    paths
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::tempdir;
+
+    #[test]
+    fn lookup_paths_for_root_module_only_returns_root_pom() {
+        let temp = tempdir().unwrap();
+        let root_pom = temp.path().join("pom.xml");
+        fs::write(&root_pom, "<project />").unwrap();
+
+        let result = spring_boot_plugin_lookup_paths(temp.path(), Some("."));
+
+        assert_eq!(result, vec![root_pom]);
+    }
+
+    #[test]
+    fn lookup_paths_none_module_defaults_to_root_pom() {
+        let temp = tempdir().unwrap();
+        let root_pom = temp.path().join("pom.xml");
+        fs::write(&root_pom, "<project />").unwrap();
+
+        let result = spring_boot_plugin_lookup_paths(temp.path(), None);
+
+        assert_eq!(result, vec![root_pom]);
+    }
+
+    #[test]
+    fn lookup_paths_includes_module_pom_when_present() {
+        let temp = tempdir().unwrap();
+        let root_pom = temp.path().join("pom.xml");
+        fs::write(&root_pom, "<project />").unwrap();
+
+        let module_dir = temp.path().join("module-a");
+        fs::create_dir(&module_dir).unwrap();
+        let module_pom = module_dir.join("pom.xml");
+        fs::write(&module_pom, "<project />").unwrap();
+
+        let result = spring_boot_plugin_lookup_paths(temp.path(), Some("module-a"));
+
+        assert_eq!(result, vec![module_pom, root_pom]);
+    }
+
+    #[test]
+    fn lookup_paths_falls_back_to_root_when_module_pom_missing() {
+        let temp = tempdir().unwrap();
+        let root_pom = temp.path().join("pom.xml");
+        fs::write(&root_pom, "<project />").unwrap();
+
+        let module_dir = temp.path().join("module-b");
+        fs::create_dir(&module_dir).unwrap();
+
+        let result = spring_boot_plugin_lookup_paths(temp.path(), Some("module-b"));
+
+        assert_eq!(result, vec![root_pom]);
     }
 }
 
