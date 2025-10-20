@@ -430,8 +430,13 @@ mod tests {
 
     #[test]
     fn test_flags_initialized() {
+        use tempfile::tempdir;
+        
+        // Use a temporary directory to avoid loading actual cached preferences
+        let temp_dir = tempdir().unwrap();
+        let project_root = temp_dir.path().to_path_buf();
+        
         let modules = vec!["module1".to_string()];
-        let project_root = PathBuf::from("/");
         let state = crate::ui::state::TuiState::new(modules, project_root, test_cfg());
 
         // Check flags are initialized
