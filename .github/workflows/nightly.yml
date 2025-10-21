@@ -1,0 +1,50 @@
+name: Nightly Build
+
+on:
+  push:
+    branches: [ "develop" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-nightly:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            binary_name: lazymvn
+            platform: linux-x86_64
+          - os: windows-latest
+            binary_name: lazymvn.exe
+            platform: windows-x86_64
+
+    permissions:
+      contents: write
+
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+
+    - name: Build release binary
+      run: cargo build --release --verbose
+
+    - name: Rename binary with platform identifier
+      shell: bash
+      run: |
+        if [ "${{ matrix.os }}" = "windows-latest" ]; then
+          mv ./target/release/${{ matrix.binary_name }} ./target/release/lazymvn-${{ matrix.platform }}.exe
+        else
+          mv ./target/release/${{ matrix.binary_name }} ./target/release/lazymvn-${{ matrix.platform }}
+        fi
+
+    - name: Upload to nightly release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: ./target/release/lazymvn-${{ matrix.platform }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}
+        tag_name: nightly
+        prerelease: true
+        generate_release_notes: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
