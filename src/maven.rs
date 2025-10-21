@@ -187,55 +187,37 @@ pub fn get_maven_command(project_root: &Path) -> String {
     }
 }
 
-/// Build the full command string for display
-pub fn build_command_string(
-    maven_command: &str,
-    module: Option<&str>,
-    args: &[&str],
-    profiles: &[String],
-    settings_path: Option<&str>,
-    flags: &[String],
-) -> String {
-    build_command_string_with_options(
-        maven_command,
-        module,
-        args,
-        profiles,
-        settings_path,
-        flags,
-        false,
-        Path::new("."),
-    )
+/// Parameters for building Maven command string
+struct CommandStringOptions<'a> {
+    maven_command: &'a str,
+    module: Option<&'a str>,
+    args: &'a [&'a str],
+    profiles: &'a [String],
+    settings_path: Option<&'a str>,
+    flags: &'a [String],
+    use_file_flag: bool,
+    project_root: &'a Path,
 }
 
 /// Build the full command string for display with option to use -f
-fn build_command_string_with_options(
-    maven_command: &str,
-    module: Option<&str>,
-    args: &[&str],
-    profiles: &[String],
-    settings_path: Option<&str>,
-    flags: &[String],
-    use_file_flag: bool,
-    project_root: &Path,
-) -> String {
-    let mut parts = vec![maven_command.to_string()];
+fn build_command_string_with_options(opts: CommandStringOptions) -> String {
+    let mut parts = vec![opts.maven_command.to_string()];
 
-    if let Some(settings_path) = settings_path {
+    if let Some(settings_path) = opts.settings_path {
         parts.push("--settings".to_string());
         parts.push(settings_path.to_string());
     }
 
-    if !profiles.is_empty() {
+    if !opts.profiles.is_empty() {
         parts.push("-P".to_string());
-        parts.push(profiles.join(","));
+        parts.push(opts.profiles.join(","));
     }
 
-    if let Some(module) = module
+    if let Some(module) = opts.module
         && module != "."
     {
-        if use_file_flag {
-            let module_pom = project_root.join(module).join("pom.xml");
+        if opts.use_file_flag {
+            let module_pom = opts.project_root.join(module).join("pom.xml");
             parts.push("-f".to_string());
             parts.push(module_pom.to_string_lossy().to_string());
         } else {
@@ -244,11 +226,11 @@ fn build_command_string_with_options(
         }
     }
 
-    for flag in flags {
+    for flag in opts.flags {
         parts.push(flag.to_string());
     }
 
-    for arg in args {
+    for arg in opts.args {
         parts.push(arg.to_string());
     }
 
@@ -393,8 +375,8 @@ pub fn execute_maven_command_with_options(
     }
 
     // Build the full command string for display
-    let command_str = build_command_string_with_options(
-        &maven_command,
+    let command_str = build_command_string_with_options(CommandStringOptions {
+        maven_command: &maven_command,
         module,
         args,
         profiles,
@@ -402,7 +384,7 @@ pub fn execute_maven_command_with_options(
         flags,
         use_file_flag,
         project_root,
-    );
+    });
     log::info!("Executing: {}", command_str);
 
     log::info!("Spawning Maven process...");
@@ -473,27 +455,6 @@ pub fn execute_maven_command_with_options(
     Ok(output)
 }
 
-/// Async version that streams output line by line
-/// Returns a receiver that will receive output lines as they arrive
-pub fn execute_maven_command_async(
-    project_root: &Path,
-    module: Option<&str>,
-    args: &[&str],
-    profiles: &[String],
-    settings_path: Option<&str>,
-    flags: &[String],
-) -> Result<mpsc::Receiver<CommandUpdate>, std::io::Error> {
-    execute_maven_command_async_with_options(
-        project_root,
-        module,
-        args,
-        profiles,
-        settings_path,
-        flags,
-        false, // use_file_flag = false for backward compatibility
-    )
-}
-
 /// Async version with option to use -f instead of -pl
 pub fn execute_maven_command_async_with_options(
     project_root: &Path,
@@ -515,8 +476,8 @@ pub fn execute_maven_command_async_with_options(
     log::debug!("  use_file_flag: {}", use_file_flag);
 
     // Build the full command string for display
-    let command_str = build_command_string_with_options(
-        &maven_command,
+    let command_str = build_command_string_with_options(CommandStringOptions {
+        maven_command: &maven_command,
         module,
         args,
         profiles,
@@ -524,7 +485,7 @@ pub fn execute_maven_command_async_with_options(
         flags,
         use_file_flag,
         project_root,
-    );
+    });
     log::info!("Executing: {}", command_str);
 
     let mut command = Command::new(maven_command);
