@@ -264,10 +264,8 @@ fn build_command_string_with_options(
             parts.push("-pl".to_string());
             parts.push(module.to_string());
             
-            // For Spring Boot goals, add --also-make to ensure dependencies
-            if args.contains(&"spring-boot:run") && !flags.iter().any(|f| f.contains("also-make")) {
-                parts.push("--also-make".to_string());
-            }
+            // Note: We don't auto-add --also-make for spring-boot:run because it would
+            // try to execute the goal on all modules in the reactor (including parent POM).
         }
     }
 
@@ -415,11 +413,9 @@ pub fn execute_maven_command_with_options(
                 command.arg("-pl").arg(module);
                 log::debug!("Scoped to module: {}", module);
                 
-                // For Spring Boot goals, add --also-make to ensure dependencies
-                if args.contains(&"spring-boot:run") && !flags.iter().any(|f| f.contains("also-make")) {
-                    command.arg("--also-make");
-                    log::debug!("Auto-adding --also-make for spring-boot:run with -pl flag");
-                }
+                // Note: We don't auto-add --also-make for spring-boot:run because it would
+                // try to execute the goal on all modules in the reactor (including parent POM)
+                // which fails. Dependencies should be built beforehand with a separate build command.
             }
         } else {
             log::debug!("Running on project root, no -pl/-f flag needed");
@@ -592,11 +588,8 @@ pub fn execute_maven_command_async_with_options(
             // Use -pl for reactor build
             command.arg("-pl").arg(module);
             
-            // For Spring Boot goals, add --also-make to ensure dependencies
-            if args.contains(&"spring-boot:run") && !flags.iter().any(|f| f.contains("also-make")) {
-                command.arg("--also-make");
-                log::debug!("Auto-adding --also-make for spring-boot:run with -pl flag");
-            }
+            // Note: We don't auto-add --also-make for spring-boot:run because it would
+            // try to execute the goal on all modules in the reactor (including parent POM).
         }
     }
     for flag in flags {

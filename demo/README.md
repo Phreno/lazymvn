@@ -5,21 +5,38 @@ This folder contains demonstration Maven projects for testing and showcasing `la
 ## Projects
 
 ### 1. multi-module/
-A multi-module Maven project demonstrating how `lazymvn` handles projects with multiple modules.
+A real Spring Boot multi-module Maven project demonstrating how `lazymvn` handles projects with multiple modules.
 
 **Structure:**
 - Parent POM with `<modules>` section
-- `library/` - A shared library module with utility classes
-- `app/` - An application module that depends on the library
+- `library/` - A shared library module with a GreetingService
+- `app/` - A Spring Boot web application that depends on the library
 
 **Features to test:**
 - Module selection (arrow keys to switch between `library` and `app`)
 - Module-scoped builds using `-pl` flag
 - Inter-module dependencies
-- Maven profiles: `dev` and `prod`
+- Spring Boot application start with `s` keybinding
+- Maven profiles: `dev`, `integration-tests`, `fast`, `release`, `quality`, `db-migrate`
 - Custom Maven settings file
 
 **Use Case:** Large projects with shared code and multiple deployable artifacts.
+
+## Running the app:**
+```bash
+cd multi-module
+
+# IMPORTANT: Build dependencies first
+mvn clean install
+
+# Then use lazymvn
+lazymvn
+# Select "app" module with arrow keys
+# Press 's' to start the Spring Boot application
+# App will be available at http://localhost:8080/greet
+```
+
+**Note:** The 's' keybinding runs `mvn -pl app spring-boot:run`, which requires the dependencies (library module) to be already built. Always run `mvn install` first in multi-module projects.
 
 ### 2. single-module/
 A simple single-module Maven project demonstrating how `lazymvn` handles projects without modules.
@@ -42,10 +59,25 @@ A simple single-module Maven project demonstrating how `lazymvn` handles project
 ### Test Multi-Module Project
 ```bash
 cd multi-module
+# Build the project first
+mvn clean install
+
+# Then use lazymvn
 lazymvn
 # Use ↑/↓ to select a module
 # Press 'b' to build selected module
+# Press 's' to start Spring Boot app (on 'app' module)
 # Press 'p' to view/toggle profiles
+```
+
+**Test the running app:**
+```bash
+# In another terminal, while app is running:
+curl http://localhost:8080/greet
+# Should return: {"message":"Howdy from the dev profile!"}
+
+curl http://localhost:8080/greet?name=LazyMVN
+# Should return: {"message":"Howdy LazyMVN!"}
 ```
 
 ### Test Single-Module Project
@@ -74,6 +106,16 @@ Test these commands in both projects:
 
 ### 3. Profiles (press `p`)
 Both projects have profiles:
+
+**Multi-module profiles:**
+- `dev` - Development environment (auto-activated)
+- `integration-tests` - Run integration tests
+- `fast` - Fast build (skips tests and checks)
+- `release` - Production build with sources and javadoc
+- `quality` - Code quality checks (JaCoCo, Checkstyle)
+- `db-migrate` - Database migration with Flyway
+
+**Single-module profiles:**
 - `dev` - Development environment settings
 - `prod` - Production environment settings
 
@@ -124,7 +166,9 @@ The multi-module project includes a `settings.xml` file. LazyMVN should automati
 
 ## Mock Maven Wrappers
 
-Both projects include mock `mvnw` scripts that simulate Maven output without requiring actual Maven or Java. This makes the demos work immediately without dependencies.
+The single-module project includes a mock `mvnw` script that simulates Maven output without requiring actual Maven or Java.
+
+The multi-module project is a **real Spring Boot application** that requires Java 21+ and Maven. Use it to test actual application startup with the `s` keybinding.
 
 The mock scripts simulate:
 - Build lifecycle phases
