@@ -260,3 +260,8 @@ fn run<B: ratatui::backend::Backend>(
     }
     Ok(())
 }
+
+// Maven tests are kept separate to avoid visibility issues
+#[cfg(test)]
+#[path = "maven_tests.rs"]
+mod maven_tests;
