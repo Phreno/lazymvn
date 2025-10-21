@@ -3,7 +3,7 @@
 use crate::utils;
 use std::{
     io::{BufRead, BufReader},
-    path::{Path, PathBuf},
+    path::Path,
     process::{Command, Stdio},
     sync::mpsc,
     thread,
@@ -46,6 +46,8 @@ pub fn get_maven_command(project_root: &Path) -> String {
 }
 
 /// Build the full command string for display
+/// Build Maven command string for display purposes
+#[allow(dead_code)]
 pub fn build_command_string(
     maven_command: &str,
     module: Option<&str>,
@@ -67,6 +69,7 @@ pub fn build_command_string(
 }
 
 /// Build the full command string for display with option to use -f
+#[allow(clippy::too_many_arguments)]
 pub fn build_command_string_with_options(
     maven_command: &str,
     module: Option<&str>,
@@ -122,45 +125,6 @@ pub fn build_command_string_with_options(
 }
 
 /// Kill a running process by PID
-pub fn kill_process(pid: u32) -> Result<(), String> {
-    #[cfg(unix)]
-    {
-        use std::process::Command;
-        let output = Command::new("kill")
-            .arg("-TERM")
-            .arg(pid.to_string())
-            .output()
-            .map_err(|e| format!("Failed to kill process: {}", e))?;
-
-        if output.status.success() {
-            log::info!("Successfully sent SIGTERM to process {}", pid);
-            Ok(())
-        } else {
-            let error = String::from_utf8_lossy(&output.stderr);
-            Err(format!("Failed to kill process {}: {}", pid, error))
-        }
-    }
-
-    #[cfg(windows)]
-    {
-        use std::process::Command;
-        let output = Command::new("taskkill")
-            .arg("/PID")
-            .arg(pid.to_string())
-            .arg("/F")
-            .output()
-            .map_err(|e| format!("Failed to kill process: {}", e))?;
-
-        if output.status.success() {
-            log::info!("Successfully killed process {}", pid);
-            Ok(())
-        } else {
-            let error = String::from_utf8_lossy(&output.stderr);
-            Err(format!("Failed to kill process {}: {}", pid, error))
-        }
-    }
-}
-
 pub fn check_maven_availability(project_root: &Path) -> Result<String, std::io::Error> {
     let maven_command = get_maven_command(project_root);
 
@@ -351,6 +315,7 @@ pub fn execute_maven_command_with_options(
 
 /// Async version that streams output line by line
 /// Returns a receiver that will receive output lines as they arrive
+#[allow(dead_code)]
 pub fn execute_maven_command_async(
     project_root: &Path,
     module: Option<&str>,

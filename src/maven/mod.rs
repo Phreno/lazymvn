@@ -11,15 +11,13 @@ pub(crate) mod profiles;
 // Re-export public APIs
 pub use process::{CommandUpdate, kill_process};
 pub use detection::{
-    SpringBootDetection, LaunchStrategy,
+    LaunchStrategy,
     detect_spring_boot_capabilities, decide_launch_strategy,
     build_launch_command,
 };
 pub use command::{
-    get_maven_command, check_maven_availability,
-    execute_maven_command, execute_maven_command_with_options,
+    check_maven_availability,
     execute_maven_command_async_with_options,
-    build_command_string_with_options,
 };
 pub use profiles::{
     get_profiles, get_active_profiles, get_profile_xml,

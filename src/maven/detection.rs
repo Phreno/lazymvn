@@ -42,6 +42,7 @@ impl SpringBootDetection {
 pub enum LaunchStrategy {
     SpringBootRun,
     ExecJava,
+    #[allow(dead_code)]
     VSCodeJava, // Use VS Code Java extension to launch
 }
 

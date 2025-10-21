@@ -1,6 +1,7 @@
 // Maven module tests
 use crate::maven::*;
-use crate::maven::detection::{extract_tag_content, quote_arg_for_platform};
+use crate::maven::command::{get_maven_command, execute_maven_command, execute_maven_command_with_options};
+use crate::maven::detection::{SpringBootDetection, extract_tag_content, quote_arg_for_platform};
 use crate::maven::profiles::extract_profiles_from_settings_xml;
 use crate::config::LaunchMode;
 use crate::utils;
