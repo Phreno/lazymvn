@@ -1,33 +1,20 @@
 # LazyMVN Development Container
 
-Ce répertoire contient la configuration pour un environnement de développement GitHub Codespaces/DevContainer automatisé pour LazyMVN.
+Configuration minimaliste pour GitHub Codespaces.
 
-## Fonctionnalités
+## Configuration
 
-### Langages et Outils Installés
-- **Rust** (dernière version stable)
-  - `cargo`, `rustc`, `rustfmt`, `clippy`
-  - Outils additionnels : `cargo-watch`, `cargo-edit`, `cargo-audit`, etc.
-- **Java 21** (Microsoft OpenJDK)
-- **Maven** (intégré avec Java)
-- **Git** avec Git Flow
-- **Zsh** avec Oh My Zsh
+- **Image de base** : `mcr.microsoft.com/devcontainers/rust:1-1-bookworm`
+- **Java 21** avec Maven
+- **Extensions VS Code** : rust-analyzer, lldb, crates, toml
 
-### Extensions VS Code
-- `rust-analyzer` - Support Rust avancé
-- `vscode-lldb` - Débogage Rust
-- `crates` - Gestion des dépendances Cargo
-- `even-better-toml` - Support TOML amélioré
-- `vscode-java-pack` - Suite complète Java
-- `vscode-maven` - Support Maven
+## Utilisation
 
-### Aliases Utiles
-```bash
-# Rust
-cb          # cargo build
-ct          # cargo test  
-cc          # cargo check
-cf          # cargo fmt
+1. Ouvrir le repo dans GitHub Codespaces
+2. L'environnement se configure automatiquement en ~30 secondes
+3. Commencer à développer avec `cargo build`, `cargo test`, etc.
+
+Pas de configuration supplémentaire nécessaire - tout est inclus dans l'image de base Rust.
 ccl         # cargo clippy
 cw          # cargo watch -x check -x test
 

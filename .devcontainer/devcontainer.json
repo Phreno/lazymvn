@@ -1,30 +1,13 @@
 {
   "name": "LazyMVN Development Environment",
-  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "image": "mcr.microsoft.com/devcontainers/rust:1-1-bookworm",
   
   "features": {
-    "ghcr.io/devcontainers/features/rust:1": {
-      "version": "latest",
-      "profile": "default"
-    },
     "ghcr.io/devcontainers/features/java:1": {
       "version": "21",
       "jdkDistro": "ms",
       "installMaven": true,
       "installGradle": false
-    },
-    "ghcr.io/devcontainers/features/git:1": {
-      "ppa": true,
-      "version": "latest"
-    },
-    "ghcr.io/devcontainers/features/common-utils:2": {
-      "installZsh": true,
-      "configureZshAsDefaultShell": true,
-      "installOhMyZsh": true,
-      "upgradePackages": true,
-      "username": "automatic",
-      "uid": "automatic",
-      "gid": "automatic"
     }
   },
 
@@ -34,23 +17,11 @@
         "rust-lang.rust-analyzer",
         "vadimcn.vscode-lldb",
         "serayuzgur.crates",
-        "tamasfe.even-better-toml",
-        "redhat.java",
-        "vscjava.vscode-java-pack",
-        "vscjava.vscode-maven",
-        "ms-vscode.vscode-json",
-        "ms-vscode.hexdump",
-        "github.vscode-github-actions"
+        "tamasfe.even-better-toml"
       ],
       "settings": {
         "rust-analyzer.check.command": "clippy",
         "rust-analyzer.cargo.allFeatures": true,
-        "rust-analyzer.completion.autoimport.enable": true,
-        "rust-analyzer.inlayHints.enable": true,
-        "rust-analyzer.lens.enable": true,
-        "java.configuration.updateBuildConfiguration": "automatic",
-        "java.compile.nullAnalysis.mode": "automatic",
-        "java.format.settings.url": "https://raw.githubusercontent.com/google/styleguide/gh-pages/eclipse-java-google-style.xml",
         "files.watcherExclude": {
           "**/target/**": true,
           "**/.git/**": true
@@ -63,19 +34,14 @@
     }
   },
 
-  "postCreateCommand": ".devcontainer/setup.sh",
-
-  "forwardPorts": [8080, 3000],
+  "postCreateCommand": "rustup component add clippy rustfmt && cargo fetch",
 
   "containerEnv": {
-    "CARGO_HOME": "/home/vscode/.cargo",
-    "RUSTUP_HOME": "/home/vscode/.rustup"
+    "CARGO_HOME": "/usr/local/cargo",
+    "RUSTUP_HOME": "/usr/local/rustup"
   },
 
   "mounts": [
-    "source=lazymvn_cargo_cache,target=/home/vscode/.cargo/registry,type=volume",
-    "source=lazymvn_rustup_cache,target=/home/vscode/.rustup,type=volume"
-  ],
-
-  "remoteUser": "vscode"
+    "source=lazymvn_cargo_cache,target=/usr/local/cargo/registry,type=volume"
+  ]
 }
