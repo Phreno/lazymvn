@@ -12,9 +12,17 @@ use crossterm::event;
 use ratatui::{Terminal, backend::CrosstermBackend};
 use std::io;
 
+// Build version string at compile time
+const VERSION_INFO: &str = concat!(
+    env!("CARGO_PKG_VERSION"),
+    " (commit: ", env!("GIT_HASH"), 
+    ", built: ", env!("BUILD_DATE"), ")"
+);
+
 #[derive(Parser)]
 #[command(name = "lazymvn")]
 #[command(about = "A terminal UI for Maven projects")]
+#[command(version = VERSION_INFO)]
 struct Cli {
     /// Enable debug logging to lazymvn-debug.log
     #[arg(short, long)]
