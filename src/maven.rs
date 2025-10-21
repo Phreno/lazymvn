@@ -196,6 +196,29 @@ pub fn build_command_string(
     settings_path: Option<&str>,
     flags: &[String],
 ) -> String {
+    build_command_string_with_options(
+        maven_command,
+        module,
+        args,
+        profiles,
+        settings_path,
+        flags,
+        false,
+        Path::new("."),
+    )
+}
+
+/// Build the full command string for display with option to use -f
+fn build_command_string_with_options(
+    maven_command: &str,
+    module: Option<&str>,
+    args: &[&str],
+    profiles: &[String],
+    settings_path: Option<&str>,
+    flags: &[String],
+    use_file_flag: bool,
+    project_root: &Path,
+) -> String {
     let mut parts = vec![maven_command.to_string()];
 
     if let Some(settings_path) = settings_path {
@@ -211,8 +234,14 @@ pub fn build_command_string(
     if let Some(module) = module
         && module != "."
     {
-        parts.push("-pl".to_string());
-        parts.push(module.to_string());
+        if use_file_flag {
+            let module_pom = project_root.join(module).join("pom.xml");
+            parts.push("-f".to_string());
+            parts.push(module_pom.to_string_lossy().to_string());
+        } else {
+            parts.push("-pl".to_string());
+            parts.push(module.to_string());
+        }
     }
 
     for flag in flags {
@@ -299,6 +328,27 @@ pub fn execute_maven_command(
     settings_path: Option<&str>,
     flags: &[String],
 ) -> Result<Vec<String>, std::io::Error> {
+    execute_maven_command_with_options(
+        project_root,
+        module,
+        args,
+        profiles,
+        settings_path,
+        flags,
+        false, // use_file_flag = false for backward compatibility
+    )
+}
+
+/// Execute Maven command with option to use -f instead of -pl
+pub fn execute_maven_command_with_options(
+    project_root: &Path,
+    module: Option<&str>,
+    args: &[&str],
+    profiles: &[String],
+    settings_path: Option<&str>,
+    flags: &[String],
+    use_file_flag: bool,
+) -> Result<Vec<String>, std::io::Error> {
     let maven_command = get_maven_command(project_root);
     log::debug!("execute_maven_command: Using command: {}", maven_command);
     log::debug!("  project_root: {:?}", project_root);
@@ -307,6 +357,7 @@ pub fn execute_maven_command(
     log::debug!("  profiles: {:?}", profiles);
     log::debug!("  settings_path: {:?}", settings_path);
     log::debug!("  flags: {:?}", flags);
+    log::debug!("  use_file_flag: {}", use_file_flag);
 
     let mut command = Command::new(&maven_command);
     if let Some(settings_path) = settings_path {
@@ -321,10 +372,18 @@ pub fn execute_maven_command(
     if let Some(module) = module {
         // Only use -pl flag if module is not "." (project root)
         if module != "." {
-            command.arg("-pl").arg(module);
-            log::debug!("Scoped to module: {}", module);
+            if use_file_flag {
+                // Use -f to target the module's POM directly
+                let module_pom = project_root.join(module).join("pom.xml");
+                command.arg("-f").arg(&module_pom);
+                log::debug!("Using -f flag with POM: {:?}", module_pom);
+            } else {
+                // Use -pl for reactor build
+                command.arg("-pl").arg(module);
+                log::debug!("Scoped to module: {}", module);
+            }
         } else {
-            log::debug!("Running on project root, no -pl flag needed");
+            log::debug!("Running on project root, no -pl/-f flag needed");
         }
     }
     // Add build flags
@@ -334,8 +393,16 @@ pub fn execute_maven_command(
     }
 
     // Build the full command string for display
-    let command_str =
-        build_command_string(&maven_command, module, args, profiles, settings_path, flags);
+    let command_str = build_command_string_with_options(
+        &maven_command,
+        module,
+        args,
+        profiles,
+        settings_path,
+        flags,
+        use_file_flag,
+        project_root,
+    );
     log::info!("Executing: {}", command_str);
 
     log::info!("Spawning Maven process...");
@@ -416,6 +483,27 @@ pub fn execute_maven_command_async(
     settings_path: Option<&str>,
     flags: &[String],
 ) -> Result<mpsc::Receiver<CommandUpdate>, std::io::Error> {
+    execute_maven_command_async_with_options(
+        project_root,
+        module,
+        args,
+        profiles,
+        settings_path,
+        flags,
+        false, // use_file_flag = false for backward compatibility
+    )
+}
+
+/// Async version with option to use -f instead of -pl
+pub fn execute_maven_command_async_with_options(
+    project_root: &Path,
+    module: Option<&str>,
+    args: &[&str],
+    profiles: &[String],
+    settings_path: Option<&str>,
+    flags: &[String],
+    use_file_flag: bool,
+) -> Result<mpsc::Receiver<CommandUpdate>, std::io::Error> {
     let maven_command = get_maven_command(project_root);
     log::debug!(
         "execute_maven_command_async: Using command: {}",
@@ -424,10 +512,19 @@ pub fn execute_maven_command_async(
     log::debug!("  project_root: {:?}", project_root);
     log::debug!("  module: {:?}", module);
     log::debug!("  args: {:?}", args);
+    log::debug!("  use_file_flag: {}", use_file_flag);
 
     // Build the full command string for display
-    let command_str =
-        build_command_string(&maven_command, module, args, profiles, settings_path, flags);
+    let command_str = build_command_string_with_options(
+        &maven_command,
+        module,
+        args,
+        profiles,
+        settings_path,
+        flags,
+        use_file_flag,
+        project_root,
+    );
     log::info!("Executing: {}", command_str);
 
     let mut command = Command::new(maven_command);
@@ -441,7 +538,15 @@ pub fn execute_maven_command_async(
     if let Some(module) = module
         && module != "."
     {
-        command.arg("-pl").arg(module);
+        if use_file_flag {
+            // Use -f to target the module's POM directly
+            let module_pom = project_root.join(module).join("pom.xml");
+            command.arg("-f").arg(&module_pom);
+            log::debug!("Using -f flag with POM: {:?}", module_pom);
+        } else {
+            // Use -pl for reactor build
+            command.arg("-pl").arg(module);
+        }
     }
     for flag in flags {
         command.arg(flag);

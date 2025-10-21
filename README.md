@@ -389,5 +389,16 @@ cargo clippy -- -D warnings
 ```
 
 ## License
+```
+
+## Dépannage
+
+- Problèmes courants et solutions de contournement sont documentés dans le dossier `docs/`.
+- Spécifiquement, si vous rencontrez une erreur avec `exec:java` lorsque vous lancez un module (classe principale introuvable), voir :
+
+- `docs/exec-plugin-troubleshooting.md` — explications et solution (utiliser `-f` au lieu de `-pl`).
+
+
+## License
 
 MIT License

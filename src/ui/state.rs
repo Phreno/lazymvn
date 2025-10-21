@@ -765,7 +765,20 @@ impl TuiState {
 
     // Command execution
     pub fn run_selected_module_command(&mut self, args: &[&str]) {
-        log::debug!("run_selected_module_command called with args: {:?}", args);
+        self.run_selected_module_command_with_options(args, false);
+    }
+
+    /// Run command with option to use -f instead of -pl
+    pub fn run_selected_module_command_with_options(
+        &mut self,
+        args: &[&str],
+        use_file_flag: bool,
+    ) {
+        log::debug!(
+            "run_selected_module_command called with args: {:?}, use_file_flag: {}",
+            args,
+            use_file_flag
+        );
 
         // Don't start a new command if one is already running
         if self.is_command_running {
@@ -815,13 +828,14 @@ impl TuiState {
             self.command_output = vec![format!("Running: {} ...", args.join(" "))];
             self.output_offset = 0;
 
-            match maven::execute_maven_command_async(
+            match maven::execute_maven_command_async_with_options(
                 &self.project_root,
                 Some(&module),
                 args,
                 &profile_args,
                 self.config.maven_settings.as_deref(),
                 &enabled_flags,
+                use_file_flag,
             ) {
                 Ok(receiver) => {
                     log::info!("Async command started successfully");
@@ -1639,7 +1653,8 @@ impl TuiState {
                 // Convert to &str references
                 let args: Vec<&str> = command_parts.iter().map(|s| s.as_str()).collect();
 
-                self.run_selected_module_command(&args);
+                // Use -f flag for starter commands to avoid executing on parent
+                self.run_selected_module_command_with_options(&args, true);
             }
             Err(e) => {
                 log::error!("Failed to detect Spring Boot capabilities: {}", e);
@@ -1652,7 +1667,8 @@ impl TuiState {
                 // Fallback to old behavior
                 let main_class_arg = format!("-Dspring-boot.run.mainClass={}", fqcn);
                 let args = vec!["spring-boot:run", &main_class_arg];
-                self.run_selected_module_command(&args);
+                // Use -f flag for starter commands to avoid executing on parent
+                self.run_selected_module_command_with_options(&args, true);
             }
         }
     }
