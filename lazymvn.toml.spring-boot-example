@@ -1,0 +1,13 @@
+# Configuration LazyMVN pour forcer spring-boot:run
+# Copiez ce fichier vers lazymvn.toml à la racine de votre projet
+launch_mode = "force-run"  # Force toujours spring-boot:run
+
+# Autres options disponibles :
+# launch_mode = "auto"       # Détection automatique (défaut)
+# launch_mode = "force-exec" # Force toujours exec:java
+
+# Configuration Maven (optionnel)
+# maven_settings = "maven_settings.xml"
+
+# Profils par défaut (optionnel)
+# default_profiles = ["dev", "!out-eclipse"]

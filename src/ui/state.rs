@@ -1653,8 +1653,10 @@ impl TuiState {
                 // Convert to &str references
                 let args: Vec<&str> = command_parts.iter().map(|s| s.as_str()).collect();
 
-                // Use -f flag for starter commands to avoid executing on parent
-                self.run_selected_module_command_with_options(&args, true);
+                // For Spring Boot projects, use -pl instead of -f to inherit parent plugin config
+                // but add --also-make to ensure dependencies are built
+                let use_file_flag = strategy == crate::maven::LaunchStrategy::ExecJava;
+                self.run_selected_module_command_with_options(&args, use_file_flag);
             }
             Err(e) => {
                 log::error!("Failed to detect Spring Boot capabilities: {}", e);
@@ -1667,8 +1669,8 @@ impl TuiState {
                 // Fallback to old behavior
                 let main_class_arg = format!("-Dspring-boot.run.mainClass={}", fqcn);
                 let args = vec!["spring-boot:run", &main_class_arg];
-                // Use -f flag for starter commands to avoid executing on parent
-                self.run_selected_module_command_with_options(&args, true);
+                // Use -pl for spring-boot:run to inherit parent plugin config
+                self.run_selected_module_command_with_options(&args, false);
             }
         }
     }

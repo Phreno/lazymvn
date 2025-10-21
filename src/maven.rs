@@ -38,6 +38,14 @@ impl SpringBootDetection {
                 .unwrap_or(true)
     }
 
+    /// Check if this looks like a Spring Boot web application that should prefer spring-boot:run
+    pub fn should_prefer_spring_boot_run(&self) -> bool {
+        // For war packaging with Spring Boot plugin, prefer spring-boot:run
+        // to avoid servlet classpath issues with exec:java
+        self.has_spring_boot_plugin && 
+        self.packaging.as_ref().map(|p| p == "war").unwrap_or(false)
+    }
+
     /// Check if exec:java can be used as fallback
     pub fn can_use_exec_java(&self) -> bool {
         self.has_exec_plugin || self.main_class.is_some()
@@ -53,7 +61,10 @@ pub fn decide_launch_strategy(
         LaunchMode::ForceRun => LaunchStrategy::SpringBootRun,
         LaunchMode::ForceExec => LaunchStrategy::ExecJava,
         LaunchMode::Auto => {
-            if detection.can_use_spring_boot_run() {
+            if detection.should_prefer_spring_boot_run() {
+                log::info!("Auto mode: Spring Boot web app detected (war packaging), strongly preferring spring-boot:run");
+                LaunchStrategy::SpringBootRun
+            } else if detection.can_use_spring_boot_run() {
                 log::info!("Auto mode: Spring Boot plugin detected, using spring-boot:run");
                 LaunchStrategy::SpringBootRun
             } else if detection.can_use_exec_java() {
@@ -76,6 +87,7 @@ pub fn decide_launch_strategy(
 pub enum LaunchStrategy {
     SpringBootRun,
     ExecJava,
+    VSCodeJava, // Use VS Code Java extension to launch
 }
 
 /// Build launch command based on detection and strategy
@@ -130,6 +142,11 @@ pub fn build_launch_command(
                 main_class,
                 jvm_args.len()
             );
+        }
+        LaunchStrategy::VSCodeJava => {
+            // This is a placeholder - actual VS Code integration would be different
+            command_parts.push("# VS Code Java launch not implemented yet".to_string());
+            log::info!("VS Code Java launch strategy selected (not implemented)");
         }
     }
 
@@ -238,9 +255,19 @@ fn build_command_string_with_options(
             let module_pom = project_root.join(module).join("pom.xml");
             parts.push("-f".to_string());
             parts.push(module_pom.to_string_lossy().to_string());
+            
+            // Auto-add --also-make for exec:java to ensure dependencies are built
+            if args.contains(&"exec:java") && !flags.iter().any(|f| f.contains("also-make")) {
+                parts.push("--also-make".to_string());
+            }
         } else {
             parts.push("-pl".to_string());
             parts.push(module.to_string());
+            
+            // For Spring Boot goals, add --also-make to ensure dependencies
+            if args.contains(&"spring-boot:run") && !flags.iter().any(|f| f.contains("also-make")) {
+                parts.push("--also-make".to_string());
+            }
         }
     }
 
@@ -377,10 +404,22 @@ pub fn execute_maven_command_with_options(
                 let module_pom = project_root.join(module).join("pom.xml");
                 command.arg("-f").arg(&module_pom);
                 log::debug!("Using -f flag with POM: {:?}", module_pom);
+                
+                // Auto-add --also-make for exec:java to ensure dependencies are built
+                if args.contains(&"exec:java") && !flags.iter().any(|f| f.contains("also-make")) {
+                    command.arg("--also-make");
+                    log::debug!("Auto-adding --also-make for exec:java with -f flag");
+                }
             } else {
                 // Use -pl for reactor build
                 command.arg("-pl").arg(module);
                 log::debug!("Scoped to module: {}", module);
+                
+                // For Spring Boot goals, add --also-make to ensure dependencies
+                if args.contains(&"spring-boot:run") && !flags.iter().any(|f| f.contains("also-make")) {
+                    command.arg("--also-make");
+                    log::debug!("Auto-adding --also-make for spring-boot:run with -pl flag");
+                }
             }
         } else {
             log::debug!("Running on project root, no -pl/-f flag needed");
@@ -543,9 +582,21 @@ pub fn execute_maven_command_async_with_options(
             let module_pom = project_root.join(module).join("pom.xml");
             command.arg("-f").arg(&module_pom);
             log::debug!("Using -f flag with POM: {:?}", module_pom);
+            
+            // Auto-add --also-make for exec:java to ensure dependencies are built
+            if args.contains(&"exec:java") && !flags.iter().any(|f| f.contains("also-make")) {
+                command.arg("--also-make");
+                log::debug!("Auto-adding --also-make for exec:java with -f flag");
+            }
         } else {
             // Use -pl for reactor build
             command.arg("-pl").arg(module);
+            
+            // For Spring Boot goals, add --also-make to ensure dependencies
+            if args.contains(&"spring-boot:run") && !flags.iter().any(|f| f.contains("also-make")) {
+                command.arg("--also-make");
+                log::debug!("Auto-adding --also-make for spring-boot:run with -pl flag");
+            }
         }
     }
     for flag in flags {
@@ -1832,6 +1883,83 @@ mod tests {
             .cloned()
             .collect();
         assert_eq!(maven_output, vec!["test"]);
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_exec_java_with_file_flag_adds_also_make() {
+        let _guard = test_lock().lock().unwrap();
+        let dir = tempdir().unwrap();
+        let project_root = dir.path();
+
+        let mvnw_path = project_root.join("mvnw");
+        write_script(&mvnw_path, "#!/bin/sh\necho $@\n");
+
+        let output: Vec<String> = execute_maven_command_with_options(
+            project_root,
+            Some("my-module"),
+            &["exec:java"],
+            &[],
+            None,
+            &[],
+            true, // use_file_flag = true
+        )
+        .unwrap()
+        .iter()
+        .filter_map(|line| utils::clean_log_line(line))
+        .collect();
+
+        // Skip command line header
+        let maven_output: Vec<String> = output
+            .iter()
+            .skip_while(|line| line.starts_with("$ "))
+            .cloned()
+            .collect();
+
+        // Should contain -f flag, --also-make, and exec:java
+        let command_output = maven_output.join(" ");
+        assert!(command_output.contains("-f"));
+        assert!(command_output.contains("--also-make"));
+        assert!(command_output.contains("exec:java"));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_exec_java_with_file_flag_preserves_existing_also_make() {
+        let _guard = test_lock().lock().unwrap();
+        let dir = tempdir().unwrap();
+        let project_root = dir.path();
+
+        let mvnw_path = project_root.join("mvnw");
+        write_script(&mvnw_path, "#!/bin/sh\necho $@\n");
+
+        let flags = vec!["--also-make-dependents".to_string()];
+        let output: Vec<String> = execute_maven_command_with_options(
+            project_root,
+            Some("my-module"),
+            &["exec:java"],
+            &[],
+            None,
+            &flags,
+            true, // use_file_flag = true
+        )
+        .unwrap()
+        .iter()
+        .filter_map(|line| utils::clean_log_line(line))
+        .collect();
+
+        // Skip command line header
+        let maven_output: Vec<String> = output
+            .iter()
+            .skip_while(|line| line.starts_with("$ "))
+            .cloned()
+            .collect();
+
+        let command_output = maven_output.join(" ");
+        // Should contain existing flag but not auto-add --also-make
+        assert!(command_output.contains("--also-make-dependents"));
+        // Should have only one occurrence of "also-make" (from the existing flag)
+        assert_eq!(command_output.matches("also-make").count(), 1);
     }
 
     #[test]
