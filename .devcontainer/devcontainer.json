@@ -34,14 +34,16 @@
     }
   },
 
-  "postCreateCommand": "rustup component add clippy rustfmt && cargo fetch",
+  "postCreateCommand": ".devcontainer/setup.sh",
 
   "containerEnv": {
-    "CARGO_HOME": "/usr/local/cargo",
-    "RUSTUP_HOME": "/usr/local/rustup"
+    "CARGO_HOME": "/home/vscode/.cargo",
+    "RUSTUP_HOME": "/home/vscode/.rustup"
   },
 
   "mounts": [
-    "source=lazymvn_cargo_cache,target=/usr/local/cargo/registry,type=volume"
-  ]
+    "source=lazymvn_cargo_cache,target=/home/vscode/.cargo/registry,type=volume"
+  ],
+
+  "remoteUser": "vscode"
 }
