@@ -1,6 +1,7 @@
 use log::{LevelFilter, Metadata, Record, SetLoggerError};
 use std::fs::{File, OpenOptions};
 use std::io::Write;
+use std::path::PathBuf;
 use std::sync::Mutex;
 
 static LOGGER: Logger = Logger {
@@ -51,18 +52,49 @@ impl log::Log for Logger {
     }
 }
 
+/// Get the system log directory for LazyMVN
+fn get_log_dir() -> Result<PathBuf, std::io::Error> {
+    let dirs = directories::ProjectDirs::from("com", "lazymvn", "lazymvn")
+        .ok_or_else(|| std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "Could not determine home directory",
+        ))?;
+
+    let log_dir = dirs.data_local_dir().join("logs");
+    
+    // Create the log directory if it doesn't exist
+    std::fs::create_dir_all(&log_dir)?;
+    
+    Ok(log_dir)
+}
+
+/// Get the path to the debug log file
+pub fn get_debug_log_path() -> Option<PathBuf> {
+    get_log_dir().ok().map(|dir| dir.join("debug.log"))
+}
+
+/// Get the path to the error log file
+pub fn get_error_log_path() -> Option<PathBuf> {
+    get_log_dir().ok().map(|dir| dir.join("error.log"))
+}
+
 pub fn init(debug: bool) -> Result<(), SetLoggerError> {
     if debug {
+        let log_dir = get_log_dir().expect("Failed to get log directory");
+        
+        let debug_log_path = log_dir.join("debug.log");
+        let error_log_path = log_dir.join("error.log");
+
         let file = OpenOptions::new()
             .create(true)
             .append(true)
-            .open("lazymvn-debug.log")
+            .open(&debug_log_path)
             .expect("Failed to open log file");
 
         let error_file = OpenOptions::new()
             .create(true)
             .append(true)
-            .open("lazymvn-error.log")
+            .open(&error_log_path)
             .expect("Failed to open error log file");
 
         *LOGGER.file.lock().unwrap() = Some(file);
@@ -72,7 +104,9 @@ pub fn init(debug: bool) -> Result<(), SetLoggerError> {
         log::set_max_level(LevelFilter::Debug);
 
         log::info!("Debug logging enabled");
-        log::info!("Error logging enabled - check lazymvn-error.log");
+        log::info!("Log directory: {}", log_dir.display());
+        log::info!("Debug log: {}", debug_log_path.display());
+        log::info!("Error log: {}", error_log_path.display());
     } else {
         log::set_max_level(LevelFilter::Off);
     }

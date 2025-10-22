@@ -42,6 +42,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         eprintln!("Failed to initialize logger: {}", e);
     }
 
+    // Show log location if debug is enabled
+    if cli.debug {
+        if let Some(debug_log) = logger::get_debug_log_path() {
+            eprintln!("📝 Debug logs: {}", debug_log.display());
+        }
+        if let Some(error_log) = logger::get_error_log_path() {
+            eprintln!("❌ Error logs: {}", error_log.display());
+        }
+    }
+
     log::info!("Starting lazymvn");
 
     // Change to project directory if specified
