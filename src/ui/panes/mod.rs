@@ -632,9 +632,8 @@ pub fn render_starter_selector_popup(
         height: popup_height,
     };
 
-    // Clear the area behind the popup
-    let clear_block = Block::default().style(Style::default().bg(ratatui::style::Color::Black));
-    f.render_widget(clear_block, popup_area);
+    // Clear the area behind the popup with solid background
+    f.render_widget(ratatui::widgets::Clear, popup_area);
 
     // Split popup into filter input, list, and help sections
     let popup_chunks = Layout::default()
@@ -747,9 +746,8 @@ pub fn render_starter_manager_popup(
         height: popup_height,
     };
 
-    // Clear the area behind the popup
-    let clear_block = Block::default().style(Style::default().bg(ratatui::style::Color::Black));
-    f.render_widget(clear_block, popup_area);
+    // Clear the area behind the popup with solid background
+    f.render_widget(ratatui::widgets::Clear, popup_area);
 
     // Split popup into list and help sections
     let popup_chunks = Layout::default()
@@ -850,9 +848,8 @@ pub fn render_projects_popup(
         height: popup_height,
     };
 
-    // Clear the area behind the popup
-    let clear_block = Block::default().style(Style::default().bg(ratatui::style::Color::Black));
-    f.render_widget(clear_block, popup_area);
+    // Clear the area behind the popup with solid background
+    f.render_widget(ratatui::widgets::Clear, popup_area);
 
     // Create the popup block with rounded borders
     let block = Block::default()
@@ -1004,9 +1001,8 @@ pub fn render_history_popup(
         height: popup_height,
     };
 
-    // Clear the area behind the popup
-    let clear_block = Block::default().style(Style::default().bg(ratatui::style::Color::Black));
-    f.render_widget(clear_block, popup_area);
+    // Clear the area behind the popup with solid background
+    f.render_widget(ratatui::widgets::Clear, popup_area);
 
     // Split popup into title, list, preview, and help sections
     let popup_chunks = Layout::default()
