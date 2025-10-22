@@ -138,6 +138,8 @@ pub struct TuiState {
     file_watcher: Option<crate::watcher::FileWatcher>,
     last_command: Option<Vec<String>>,
     watch_enabled: bool,
+    // Git branch
+    pub git_branch: Option<String>,
 }
 
 /// Status of profile loading
@@ -293,6 +295,9 @@ impl TuiState {
         // Load module preferences for this project
         let module_preferences = crate::config::ProjectPreferences::load(&project_root);
 
+        // Get Git branch
+        let git_branch = crate::utils::get_git_branch(&project_root);
+
         let mut state = Self {
             current_view: CurrentView::Modules,
             focus: Focus::Modules,
@@ -342,6 +347,7 @@ impl TuiState {
             file_watcher: None,
             last_command: None,
             watch_enabled: false,
+            git_branch,
         };
 
         // Initialize file watcher if configured

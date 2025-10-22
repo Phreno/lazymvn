@@ -8,8 +8,14 @@ use ratatui::{
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
 };
 
-/// Render the projects pane (placeholder showing project root name)
-pub fn render_projects_pane(f: &mut Frame, area: Rect, project_root: &str, is_focused: bool) {
+/// Render the projects pane (shows project root name and Git branch if available)
+pub fn render_projects_pane(
+    f: &mut Frame,
+    area: Rect,
+    project_root: &str,
+    git_branch: Option<&str>,
+    is_focused: bool,
+) {
     let block = Block::default()
         .title("[1] Projects")
         .borders(Borders::ALL)
@@ -20,7 +26,26 @@ pub fn render_projects_pane(f: &mut Frame, area: Rect, project_root: &str, is_fo
             Theme::DEFAULT_STYLE
         });
 
-    let text = Line::from(project_root);
+    // Build display text with branch on same line if available
+    let text = if let Some(branch) = git_branch {
+        Line::from(vec![
+            Span::styled(project_root, Style::default()),
+            Span::styled("  ", Style::default()),
+            Span::styled(
+                "",
+                Style::default().fg(ratatui::style::Color::Green),
+            ),
+            Span::styled(
+                format!(" {}", branch),
+                Style::default()
+                    .fg(ratatui::style::Color::Green)
+                    .add_modifier(ratatui::style::Modifier::ITALIC),
+            ),
+        ])
+    } else {
+        Line::from(project_root)
+    };
+
     let paragraph = Paragraph::new(text).block(block);
     f.render_widget(paragraph, area);
 }

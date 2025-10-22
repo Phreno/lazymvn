@@ -40,6 +40,7 @@ pub fn draw<B: Backend>(
             f,
             projects_area,
             project_name,
+            state.git_branch.as_deref(),
             state.focus == Focus::Projects,
         );
 
