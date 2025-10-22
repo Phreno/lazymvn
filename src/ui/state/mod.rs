@@ -933,9 +933,7 @@ impl TuiState {
                 maven::CommandUpdate::OutputLine(line) => {
                     self.command_output.push(line);
                     // Auto-scroll to bottom while command is running
-                    if self.focus == Focus::Output {
-                        self.output_offset = self.command_output.len().saturating_sub(1);
-                    }
+                    self.scroll_output_to_end();
                     self.store_current_module_output();
                 }
                 maven::CommandUpdate::Completed => {
