@@ -415,6 +415,15 @@ pub fn execute_maven_command_async_with_options(
     thread::spawn(move || {
         let result = (|| -> Result<(), std::io::Error> {
             log::info!("Spawning Maven process asynchronously...");
+            
+            // Configure command to create a new process group
+            // This allows us to kill all child processes (like Spring Boot) when needed
+            #[cfg(unix)]
+            {
+                use std::os::unix::process::CommandExt;
+                command.process_group(0); // Create new process group
+            }
+            
             let mut child = command
                 .args(&args)
                 .current_dir(&project_root)
