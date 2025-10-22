@@ -462,30 +462,11 @@ pub(crate) fn build_navigation_line() -> Line<'static> {
 
 pub(crate) fn simplified_footer_title(
     view: CurrentView,
-    module_name: Option<&str>,
-    active_profiles: &[String],
-    enabled_flags: &[String],
+    _module_name: Option<&str>,
+    _active_profiles: &[String],
+    _enabled_flags: &[String],
 ) -> Span<'static> {
-    let mut parts = Vec::new();
-
-    if let Some(name) = module_name {
-        let display_name = if name == "." { "(root project)" } else { name };
-        parts.push(display_name.to_string());
-    }
-
-    if !active_profiles.is_empty() {
-        parts.push(active_profiles.join(", "));
-    }
-
-    if !enabled_flags.is_empty() {
-        parts.push(enabled_flags.join(", "));
-    }
-
-    let text = if parts.is_empty() {
-        "Commands".to_string()
-    } else {
-        format!("Commands: {}", parts.join(" • "))
-    };
+    let text = "Commands".to_string();
 
     let style = match view {
         CurrentView::Projects | CurrentView::Modules => Theme::FOOTER_SECTION_STYLE,
