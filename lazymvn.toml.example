@@ -29,3 +29,27 @@ notifications_enabled = true
 # default_profiles = ["dev"]
 # default_flags = ["--also-make"]
 # log_level = "info"
+
+# File watching configuration for auto-reload
+[watch]
+# Enable file watching (default: false)
+enabled = false
+
+# Commands that should trigger auto-reload when files change
+# Default: ["test", "start"]
+commands = ["test", "start", "compile"]
+
+# File patterns to watch (glob syntax)
+# Default: ["src/**/*.java", "src/**/*.properties", "src/**/*.xml"]
+patterns = [
+    "src/**/*.java",
+    "src/**/*.kt",
+    "src/**/*.properties",
+    "src/**/*.yaml",
+    "src/**/*.yml",
+    "src/**/*.xml"
+]
+
+# Debounce delay in milliseconds (wait time before triggering reload)
+# Default: 500
+debounce_ms = 500

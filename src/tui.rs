@@ -250,6 +250,7 @@ mod tests {
             maven_settings: None,
             launch_mode: None,
             notifications_enabled: None,
+            watch: None,
         }
     }
 

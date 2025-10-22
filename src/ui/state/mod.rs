@@ -129,6 +129,10 @@ pub struct TuiState {
     module_preferences: crate::config::ProjectPreferences,
     // Clipboard - keep it alive to prevent "dropped too quickly" errors
     clipboard: Option<arboard::Clipboard>,
+    // File watcher for auto-reload
+    file_watcher: Option<crate::watcher::FileWatcher>,
+    last_command: Option<Vec<String>>,
+    watch_enabled: bool,
 }
 
 /// State of a Maven profile
@@ -315,7 +319,26 @@ impl TuiState {
             starters_list_state,
             module_preferences,
             clipboard: None,
+            file_watcher: None,
+            last_command: None,
+            watch_enabled: false,
         };
+
+        // Initialize file watcher if configured
+        if let Some(watch_config) = &state.config.watch {
+            if watch_config.enabled {
+                match crate::watcher::FileWatcher::new(&state.project_root, watch_config.debounce_ms) {
+                    Ok(watcher) => {
+                        state.file_watcher = Some(watcher);
+                        state.watch_enabled = true;
+                        log::info!("File watcher enabled with {} patterns", watch_config.patterns.len());
+                    }
+                    Err(e) => {
+                        log::error!("Failed to initialize file watcher: {}", e);
+                    }
+                }
+            }
+        }
 
         // Pre-select first flag to ensure alignment
         if !state.flags.is_empty() {
@@ -851,6 +874,9 @@ impl TuiState {
                     self.is_command_running = true;
                     self.command_start_time = Some(Instant::now());
 
+                    // Save last command for watch mode
+                    self.last_command = Some(args.iter().map(|s| s.to_string()).collect());
+
                     // Store metadata about this command execution
                     let module_output = ModuleOutput {
                         lines: self.command_output.clone(),
@@ -980,6 +1006,43 @@ impl TuiState {
             }
         } else {
             log::warn!("No running process to kill");
+        }
+    }
+
+    /// Check file watcher and re-run command if files changed
+    pub fn check_file_watcher(&mut self) {
+        if !self.watch_enabled || self.is_command_running {
+            return;
+        }
+
+        if let Some(watcher) = &mut self.file_watcher {
+            if watcher.check_changes() {
+                log::info!("File changes detected, checking if should re-run command");
+                
+                // Clone last command to avoid borrow issues
+                let last_cmd = self.last_command.clone();
+                
+                // Check if last command is watchable
+                if let Some(last_cmd) = last_cmd {
+                    let watch_config = self.config.watch.as_ref().unwrap();
+                    
+                    // Check if this command should trigger auto-reload
+                    let should_rerun = last_cmd.iter().any(|arg| {
+                        watch_config.commands.iter().any(|cmd| arg.contains(cmd))
+                    });
+                    
+                    if should_rerun {
+                        self.command_output.push(String::new());
+                        self.command_output.push("🔄 Files changed, reloading...".to_string());
+                        self.command_output.push(String::new());
+                        
+                        // Re-run the last command
+                        log::info!("Re-running command due to file changes");
+                        let args: Vec<&str> = last_cmd.iter().map(|s| s.as_str()).collect();
+                        self.run_selected_module_command(&args);
+                    }
+                }
+            }
         }
     }
 

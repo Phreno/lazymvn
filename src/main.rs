@@ -7,6 +7,7 @@ mod starters;
 mod tui;
 mod ui;
 mod utils;
+mod watcher;
 
 use clap::Parser;
 use crossterm::event;
@@ -221,6 +222,9 @@ fn run<B: ratatui::backend::Backend>(
     loop {
         // Poll for command updates first
         state.poll_command_updates();
+        
+        // Check file watcher for auto-reload
+        state.check_file_watcher();
 
         tui::draw(terminal, &mut state)?;
 

@@ -7,6 +7,56 @@ pub struct Config {
     pub maven_settings: Option<String>,
     pub launch_mode: Option<LaunchMode>,
     pub notifications_enabled: Option<bool>,
+    pub watch: Option<WatchConfig>,
+}
+
+/// File watching configuration
+#[derive(Deserialize, Clone, Debug)]
+pub struct WatchConfig {
+    /// Enable file watching (default: false)
+    #[serde(default)]
+    pub enabled: bool,
+    
+    /// Commands that should trigger auto-reload on file changes
+    /// Default: ["test", "start"]
+    #[serde(default = "default_watch_commands")]
+    pub commands: Vec<String>,
+    
+    /// File patterns to watch (glob patterns)
+    /// Default: ["src/**/*.java", "src/**/*.properties", "src/**/*.xml"]
+    #[serde(default = "default_watch_patterns")]
+    pub patterns: Vec<String>,
+    
+    /// Debounce delay in milliseconds (default: 500ms)
+    #[serde(default = "default_debounce_ms")]
+    pub debounce_ms: u64,
+}
+
+fn default_watch_commands() -> Vec<String> {
+    vec!["test".to_string(), "start".to_string()]
+}
+
+fn default_watch_patterns() -> Vec<String> {
+    vec![
+        "src/**/*.java".to_string(),
+        "src/**/*.properties".to_string(),
+        "src/**/*.xml".to_string(),
+    ]
+}
+
+fn default_debounce_ms() -> u64 {
+    500
+}
+
+impl Default for WatchConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            commands: default_watch_commands(),
+            patterns: default_watch_patterns(),
+            debounce_ms: default_debounce_ms(),
+        }
+    }
 }
 
 /// Strategy for launching Spring Boot applications

@@ -20,6 +20,7 @@ fuzzy-matcher = "0.3"
 glob = "0.3"
 log = "0.4"
 md5 = "0.7"
+notify = "8.2.0"
 notify-rust = "4.11"
 quick-xml = { version = "0.38", features = ["serialize"] }
 ratatui = "0.29"
