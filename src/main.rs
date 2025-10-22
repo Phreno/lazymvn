@@ -1,4 +1,5 @@
 mod config;
+mod loading;
 mod logger;
 mod maven;
 mod project;
@@ -106,6 +107,12 @@ fn run<B: ratatui::backend::Backend>(
     terminal: &mut Terminal<B>,
     cli: &Cli,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    // Initialize loading progress with 5 steps
+    let mut progress = loading::LoadingProgress::new(5);
+    
+    // Step 1: Loading project structure
+    loading_step!(progress, terminal, 1, 5, "Searching for Maven project...");
+    
     // Try to load project modules from current directory
     let (modules, project_root) = match project::get_project_modules() {
         Ok(result) => {
@@ -158,6 +165,9 @@ fn run<B: ratatui::backend::Backend>(
         }
     };
 
+    // Step 2: Loading configuration
+    loading_step!(progress, terminal, 2, 5, "Loading configuration...");
+    
     // Add current project to recent projects
     let mut recent_projects = config::RecentProjects::load();
     recent_projects.add(project_root.clone());
@@ -178,13 +188,25 @@ fn run<B: ratatui::backend::Backend>(
         config.launch_mode = Some(config::LaunchMode::Auto);
     }
 
+    // Step 3: Initializing UI state
+    loading_step!(progress, terminal, 3, 5, "Initializing UI state...");
+    
     let mut state = tui::TuiState::new(modules, project_root.clone(), config);
 
+    // Step 4: Discovering Maven profiles
+    loading_step!(progress, terminal, 4, 5, "Discovering Maven profiles...");
+    
     // Load available profiles
     if let Ok(profiles) = maven::get_profiles(&project_root) {
         log::debug!("Found {} Maven profiles", profiles.len());
         state.set_profiles(profiles);
     }
+
+    // Step 5: Ready!
+    loading_step!(progress, terminal, 5, 5, "Starting LazyMVN...");
+    
+    // Small delay to show completion
+    std::thread::sleep(std::time::Duration::from_millis(300));
 
     loop {
         // Poll for command updates first
