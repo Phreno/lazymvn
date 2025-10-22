@@ -276,6 +276,7 @@ mod tests {
             notifications_enabled: None,
             watch: None,
             output: None,
+            logging: None,
         }
     }
 

@@ -1,0 +1,32 @@
+# LazyMVN Configuration Example - Log Control
+# This example shows how to reduce noisy logging in Spring Boot applications
+
+maven_settings = "./settings.xml"
+launch_mode = "auto"
+notifications_enabled = true
+
+# Control log verbosity without modifying source code
+[logging]
+packages = [
+    # Reduce Spring Framework verbosity
+    { name = "org.springframework.web", level = "WARN" },
+    { name = "org.springframework.security", level = "WARN" },
+    { name = "org.springframework.boot.actuate", level = "WARN" },
+    { name = "org.springframework.boot.autoconfigure", level = "WARN" },
+    
+    # Reduce Hibernate SQL logging
+    { name = "org.hibernate", level = "WARN" },
+    { name = "org.hibernate.SQL", level = "WARN" },
+    
+    # Reduce embedded server verbosity
+    { name = "org.apache.catalina", level = "WARN" },
+    { name = "org.apache.tomcat", level = "WARN" },
+    { name = "org.apache.coyote", level = "WARN" },
+    
+    # Keep your application code verbose for debugging
+    { name = "com.mycompany", level = "DEBUG" },
+]
+
+[output]
+max_lines = 10000
+max_updates_per_poll = 100

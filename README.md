@@ -402,3 +402,26 @@ cargo clippy -- -D warnings
 ## License
 
 MIT License
+
+## Logging Configuration
+
+LazyMVN allows you to control log verbosity without modifying your source code. Add a `[logging]` section to your `lazymvn.toml`:
+
+```toml
+[logging]
+packages = [
+    { name = "org.springframework", level = "WARN" },
+    { name = "org.hibernate", level = "ERROR" },
+    { name = "com.mycompany", level = "DEBUG" },
+]
+```
+
+**Benefits:**
+- 🎯 No source code changes required
+- 🔧 Per-developer preferences
+- 🔄 Instantly reversible
+- 📦 Works across all modules
+- ✨ Compatible with Log4j, Logback, SLF4J, and Spring Boot
+
+See [LOGGING_CONFIG.md](LOGGING_CONFIG.md) for detailed documentation and examples.
+

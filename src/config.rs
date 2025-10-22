@@ -9,6 +9,24 @@ pub struct Config {
     pub notifications_enabled: Option<bool>,
     pub watch: Option<WatchConfig>,
     pub output: Option<OutputConfig>,
+    pub logging: Option<LoggingConfig>,
+}
+
+/// Logging configuration for controlling log verbosity via JVM arguments
+#[derive(Deserialize, Clone, Debug, Default)]
+pub struct LoggingConfig {
+    /// List of packages with custom log levels
+    #[serde(default)]
+    pub packages: Vec<PackageLogLevel>,
+}
+
+/// Package-specific log level configuration
+#[derive(Deserialize, Clone, Debug)]
+pub struct PackageLogLevel {
+    /// Package name (e.g., "com.mycompany.api.service")
+    pub name: String,
+    /// Log level (e.g., "ERROR", "WARN", "INFO", "DEBUG", "TRACE")
+    pub level: String,
 }
 
 /// Output buffer configuration
@@ -516,6 +534,50 @@ impl ProjectPreferences {
 mod module_prefs_tests {
     use super::*;
     use tempfile::tempdir;
+
+    #[test]
+    fn test_logging_config_deserialization() {
+        let toml_str = r#"
+[logging]
+packages = [
+    { name = "com.example.test", level = "ERROR" },
+    { name = "org.springframework", level = "WARN" },
+]
+"#;
+        let config: Config = toml::from_str(toml_str).unwrap();
+        
+        assert!(config.logging.is_some());
+        let logging = config.logging.unwrap();
+        assert_eq!(logging.packages.len(), 2);
+        assert_eq!(logging.packages[0].name, "com.example.test");
+        assert_eq!(logging.packages[0].level, "ERROR");
+        assert_eq!(logging.packages[1].name, "org.springframework");
+        assert_eq!(logging.packages[1].level, "WARN");
+    }
+
+    #[test]
+    fn test_logging_config_optional() {
+        let toml_str = r#"
+maven_settings = "/path/to/settings.xml"
+"#;
+        let config: Config = toml::from_str(toml_str).unwrap();
+        
+        assert!(config.logging.is_none());
+        assert_eq!(config.maven_settings, Some("/path/to/settings.xml".to_string()));
+    }
+
+    #[test]
+    fn test_logging_config_empty_packages() {
+        let toml_str = r#"
+[logging]
+packages = []
+"#;
+        let config: Config = toml::from_str(toml_str).unwrap();
+        
+        assert!(config.logging.is_some());
+        let logging = config.logging.unwrap();
+        assert_eq!(logging.packages.len(), 0);
+    }
 
     #[test]
     fn test_module_preferences_save_and_load() {

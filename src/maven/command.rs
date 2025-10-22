@@ -1,6 +1,7 @@
 //! Maven command building and execution
 
 use crate::utils;
+use crate::config::LoggingConfig;
 use std::{
     io::{BufRead, BufReader},
     path::Path,
@@ -10,6 +11,19 @@ use std::{
 };
 
 use super::process::CommandUpdate;
+
+/// Extract logging overrides from config
+fn get_logging_overrides(logging_config: Option<&LoggingConfig>) -> Vec<(String, String)> {
+    logging_config
+        .map(|config| {
+            config
+                .packages
+                .iter()
+                .map(|pkg| (pkg.name.clone(), pkg.level.clone()))
+                .collect()
+        })
+        .unwrap_or_default()
+}
 
 pub fn get_maven_command(project_root: &Path) -> String {
     // On Unix, check for mvnw
@@ -45,7 +59,6 @@ pub fn get_maven_command(project_root: &Path) -> String {
     }
 }
 
-/// Build the full command string for display
 /// Build Maven command string for display purposes
 #[allow(dead_code)]
 pub fn build_command_string(
@@ -65,6 +78,7 @@ pub fn build_command_string(
         flags,
         false,
         Path::new("."),
+        &[], // No logging overrides for backward compatibility
     )
 }
 
@@ -79,6 +93,7 @@ pub fn build_command_string_with_options(
     flags: &[String],
     use_file_flag: bool,
     project_root: &Path,
+    logging_overrides: &[(String, String)],
 ) -> String {
     let mut parts = vec![maven_command.to_string()];
 
@@ -115,6 +130,13 @@ pub fn build_command_string_with_options(
 
     for flag in flags {
         parts.push(flag.to_string());
+    }
+
+    // Add logging overrides as JVM arguments
+    for (package, level) in logging_overrides {
+        // Support multiple logging frameworks
+        parts.push(format!("-Dlog4j.logger.{}={}", package, level));
+        parts.push(format!("-Dlogging.level.{}={}", package, level));
     }
 
     for arg in args {
@@ -166,10 +188,12 @@ pub fn execute_maven_command(
         settings_path,
         flags,
         false, // use_file_flag = false for backward compatibility
+        None,  // No logging config for backward compatibility
     )
 }
 
 /// Execute Maven command with option to use -f instead of -pl
+#[allow(clippy::too_many_arguments)]
 pub fn execute_maven_command_with_options(
     project_root: &Path,
     module: Option<&str>,
@@ -178,6 +202,7 @@ pub fn execute_maven_command_with_options(
     settings_path: Option<&str>,
     flags: &[String],
     use_file_flag: bool,
+    logging_config: Option<&LoggingConfig>,
 ) -> Result<Vec<String>, std::io::Error> {
     let maven_command = get_maven_command(project_root);
     log::debug!("execute_maven_command: Using command: {}", maven_command);
@@ -188,6 +213,11 @@ pub fn execute_maven_command_with_options(
     log::debug!("  settings_path: {:?}", settings_path);
     log::debug!("  flags: {:?}", flags);
     log::debug!("  use_file_flag: {}", use_file_flag);
+
+    let logging_overrides = get_logging_overrides(logging_config);
+    if !logging_overrides.is_empty() {
+        log::debug!("  logging_overrides: {:?}", logging_overrides);
+    }
 
     let mut command = Command::new(&maven_command);
     if let Some(settings_path) = settings_path {
@@ -232,6 +262,13 @@ pub fn execute_maven_command_with_options(
         log::debug!("Added flag: {}", flag);
     }
 
+    // Add logging overrides
+    for (package, level) in &logging_overrides {
+        command.arg(format!("-Dlog4j.logger.{}={}", package, level));
+        command.arg(format!("-Dlogging.level.{}={}", package, level));
+        log::debug!("Added logging override: {} = {}", package, level);
+    }
+
     // Build the full command string for display
     let command_str = build_command_string_with_options(
         &maven_command,
@@ -242,6 +279,7 @@ pub fn execute_maven_command_with_options(
         flags,
         use_file_flag,
         project_root,
+        &logging_overrides,
     );
     log::info!("Executing: {}", command_str);
 
@@ -332,10 +370,12 @@ pub fn execute_maven_command_async(
         settings_path,
         flags,
         false, // use_file_flag = false for backward compatibility
+        None,  // No logging config for backward compatibility
     )
 }
 
 /// Async version with option to use -f instead of -pl
+#[allow(clippy::too_many_arguments)]
 pub fn execute_maven_command_async_with_options(
     project_root: &Path,
     module: Option<&str>,
@@ -344,6 +384,7 @@ pub fn execute_maven_command_async_with_options(
     settings_path: Option<&str>,
     flags: &[String],
     use_file_flag: bool,
+    logging_config: Option<&LoggingConfig>,
 ) -> Result<mpsc::Receiver<CommandUpdate>, std::io::Error> {
     let maven_command = get_maven_command(project_root);
     log::debug!(
@@ -355,6 +396,11 @@ pub fn execute_maven_command_async_with_options(
     log::debug!("  args: {:?}", args);
     log::debug!("  use_file_flag: {}", use_file_flag);
 
+    let logging_overrides = get_logging_overrides(logging_config);
+    if !logging_overrides.is_empty() {
+        log::debug!("  logging_overrides: {:?}", logging_overrides);
+    }
+
     // Build the full command string for display
     let command_str = build_command_string_with_options(
         &maven_command,
@@ -365,6 +411,7 @@ pub fn execute_maven_command_async_with_options(
         flags,
         use_file_flag,
         project_root,
+        &logging_overrides,
     );
     log::info!("Executing: {}", command_str);
 
@@ -400,6 +447,13 @@ pub fn execute_maven_command_async_with_options(
     }
     for flag in flags {
         command.arg(flag);
+    }
+
+    // Add logging overrides
+    for (package, level) in &logging_overrides {
+        command.arg(format!("-Dlog4j.logger.{}={}", package, level));
+        command.arg(format!("-Dlogging.level.{}={}", package, level));
+        log::debug!("Added logging override: {} = {}", package, level);
     }
 
     let project_root = project_root.to_path_buf();

@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Logging Configuration** (#TBD):
+  - Control log verbosity via `lazymvn.toml` configuration
+  - Package-level log level overrides using JVM arguments
+  - Automatically injects `-Dlog4j.logger.{package}={level}` and `-Dlogging.level.{package}={level}`
+  - No source code modifications required
+  - Per-developer preferences (doesn't modify project files)
+  - Works with Log4j, Logback, SLF4J, and Spring Boot logging
+  - See `LOGGING_CONFIG.md` for detailed documentation
+  - Example configuration in `lazymvn.toml.example`
 - **Asynchronous Profile Loading** (#TBD):
   - Profile discovery now happens asynchronously in a background thread
   - UI remains responsive during profile loading (no blocking)

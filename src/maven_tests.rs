@@ -828,6 +828,7 @@ fn test_exec_java_with_file_flag_adds_also_make() {
         None,
         &[],
         true, // use_file_flag = true
+        None, // no logging config
     )
     .unwrap()
     .iter()
@@ -867,6 +868,7 @@ fn test_exec_java_with_file_flag_preserves_existing_also_make() {
         None,
         &flags,
         true, // use_file_flag = true
+        None, // no logging config
     )
     .unwrap()
     .iter()

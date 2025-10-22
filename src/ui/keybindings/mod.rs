@@ -143,11 +143,11 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
             }
             KeyCode::Enter => {
                 log::info!("Execute favorite");
-                if let Some(selected) = state.favorites_list_state.selected() {
-                    if let Some(fav) = state.favorites.list().get(selected).cloned() {
-                        state.apply_favorite(&fav);
-                        state.show_favorites_popup = false;
-                    }
+                if let Some(selected) = state.favorites_list_state.selected()
+                    && let Some(fav) = state.favorites.list().get(selected).cloned()
+                {
+                    state.apply_favorite(&fav);
+                    state.show_favorites_popup = false;
                 }
             }
             KeyCode::Delete | KeyCode::Char('d') => {
@@ -202,12 +202,12 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
             }
             KeyCode::Enter => {
                 log::info!("Execute command from history");
-                if let Some(selected) = state.history_list_state.selected() {
-                    if let Some(entry) = state.command_history.entries().get(selected) {
-                        // Apply the command's configuration
-                        state.apply_history_entry(entry.clone());
-                        state.show_history_popup = false;
-                    }
+                if let Some(selected) = state.history_list_state.selected()
+                    && let Some(entry) = state.command_history.entries().get(selected)
+                {
+                    // Apply the command's configuration
+                    state.apply_history_entry(entry.clone());
+                    state.show_history_popup = false;
                 }
             }
             KeyCode::Char('s')
@@ -216,13 +216,13 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
                     .contains(crossterm::event::KeyModifiers::CONTROL) =>
             {
                 log::info!("Save selected history entry as favorite");
-                if let Some(selected) = state.history_list_state.selected() {
-                    if let Some(entry) = state.command_history.entries().get(selected).cloned() {
-                        state.pending_favorite = Some(entry);
-                        state.show_history_popup = false;
-                        state.show_save_favorite_popup = true;
-                        state.favorite_name_input.clear();
-                    }
+                if let Some(selected) = state.history_list_state.selected()
+                    && let Some(entry) = state.command_history.entries().get(selected).cloned()
+                {
+                    state.pending_favorite = Some(entry);
+                    state.show_history_popup = false;
+                    state.show_save_favorite_popup = true;
+                    state.favorite_name_input.clear();
                 }
             }
             KeyCode::Esc | KeyCode::Char('q') => {

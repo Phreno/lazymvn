@@ -938,6 +938,7 @@ impl TuiState {
                 self.config.maven_settings.as_deref(),
                 &enabled_flags,
                 use_file_flag,
+                self.config.logging.as_ref(),
             ) {
                 Ok(receiver) => {
                     log::info!("Async command started successfully");
@@ -1940,12 +1941,10 @@ impl TuiState {
                 if !profile.is_active() {
                     profile.state = crate::ui::state::ProfileState::ExplicitlyEnabled;
                 }
+            } else if profile.auto_activated {
+                profile.state = crate::ui::state::ProfileState::ExplicitlyDisabled;
             } else {
-                if profile.auto_activated {
-                    profile.state = crate::ui::state::ProfileState::ExplicitlyDisabled;
-                } else {
-                    profile.state = crate::ui::state::ProfileState::Default;
-                }
+                profile.state = crate::ui::state::ProfileState::Default;
             }
         }
 
@@ -1966,17 +1965,17 @@ impl TuiState {
 
     /// Delete the selected favorite
     pub fn delete_selected_favorite(&mut self) {
-        if let Some(selected) = self.favorites_list_state.selected() {
-            if let Some(removed) = self.favorites.remove(selected) {
-                log::info!("Deleted favorite: {}", removed.name);
-                
-                // Adjust selection
-                let new_len = self.favorites.list().len();
-                if new_len == 0 {
-                    self.favorites_list_state.select(None);
-                } else if selected >= new_len {
-                    self.favorites_list_state.select(Some(new_len - 1));
-                }
+        if let Some(selected) = self.favorites_list_state.selected()
+            && let Some(removed) = self.favorites.remove(selected)
+        {
+            log::info!("Deleted favorite: {}", removed.name);
+            
+            // Adjust selection
+            let new_len = self.favorites.list().len();
+            if new_len == 0 {
+                self.favorites_list_state.select(None);
+            } else if selected >= new_len {
+                self.favorites_list_state.select(Some(new_len - 1));
             }
         }
     }
