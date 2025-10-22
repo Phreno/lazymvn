@@ -26,9 +26,6 @@ mod profile_loading_tests {
         assert_eq!(timeout.as_secs(), 30, "Timeout should be 30 seconds");
         assert!(timeout > Duration::from_secs(0), "Timeout should be positive");
         assert!(timeout < Duration::from_secs(60), "Timeout should be less than 1 minute");
-        
-        // This is validated through manual testing and logging
-        assert!(true, "Profile loading timeout is implemented with 30s threshold");
     }
 
     #[test]
@@ -36,11 +33,10 @@ mod profile_loading_tests {
         // Spinner uses 8 frames that cycle continuously
         const SPINNER_FRAMES: [&str; 8] = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧"];
         
-        // Verify all frames are unique
-        for i in 0..SPINNER_FRAMES.len() {
-            for j in (i+1)..SPINNER_FRAMES.len() {
-                assert_ne!(SPINNER_FRAMES[i], SPINNER_FRAMES[j], 
-                    "Spinner frames should be unique");
+        // Verify all frames are unique using iterators
+        for (i, frame_i) in SPINNER_FRAMES.iter().enumerate() {
+            for frame_j in SPINNER_FRAMES.iter().skip(i + 1) {
+                assert_ne!(frame_i, frame_j, "Spinner frames should be unique");
             }
         }
         
@@ -60,18 +56,15 @@ mod profile_loading_tests {
         const SPINNER_FRAMES: [&str; 8] = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧"];
         
         // Simulate frame counter cycling
-        for i in 0..24 {  // Test 3 full cycles (8 * 3 = 24)
-            let frame_index = i % SPINNER_FRAMES.len();
-            let frame = SPINNER_FRAMES[frame_index];
-            
+        for (i, frame) in SPINNER_FRAMES.iter().cycle().take(24).enumerate() {
             // Verify frame is valid
             assert!(!frame.is_empty(), "Frame at index {} should not be empty", i);
             
             // Verify cycling: frames should repeat every 8 iterations
             if i >= 8 {
-                let previous_cycle_index = (i - 8) % SPINNER_FRAMES.len();
-                let previous_cycle_frame = SPINNER_FRAMES[previous_cycle_index];
-                assert_eq!(frame, previous_cycle_frame, 
+                let frame_index = i % SPINNER_FRAMES.len();
+                let expected_frame = SPINNER_FRAMES[frame_index];
+                assert_eq!(frame, &expected_frame, 
                     "Frame should repeat after 8 iterations");
             }
         }

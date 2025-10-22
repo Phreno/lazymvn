@@ -1009,16 +1009,16 @@ impl TuiState {
         }
 
         // Check for timeout (30 seconds)
-        if let Some(start_time) = self.profile_loading_start_time {
-            if start_time.elapsed() > Duration::from_secs(30) {
-                log::warn!("Profile loading timed out after 30 seconds");
-                self.profile_loading_status = ProfileLoadingStatus::Error(
-                    "Timeout: Profile loading took too long (>30s)".to_string()
-                );
-                self.profiles_receiver = None;
-                self.profile_loading_start_time = None;
-                return;
-            }
+        if let Some(start_time) = self.profile_loading_start_time
+            && start_time.elapsed() > Duration::from_secs(30)
+        {
+            log::warn!("Profile loading timed out after 30 seconds");
+            self.profile_loading_status = ProfileLoadingStatus::Error(
+                "Timeout: Profile loading took too long (>30s)".to_string()
+            );
+            self.profiles_receiver = None;
+            self.profile_loading_start_time = None;
+            return;
         }
 
         if let Some(receiver) = self.profiles_receiver.as_ref() {
