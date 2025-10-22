@@ -33,10 +33,19 @@ struct Cli {
     /// Force exec:java for launching applications (overrides auto-detection)
     #[arg(long)]
     force_exec: bool,
+
+    /// Generate a lazymvn.toml configuration file in the current directory
+    #[arg(long)]
+    setup: bool,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
+
+    // Handle --setup flag
+    if cli.setup {
+        return setup_config();
+    }
 
     // Initialize logger based on debug flag
     if let Err(e) = logger::init(cli.debug) {
@@ -294,6 +303,118 @@ fn run<B: ratatui::backend::Backend>(
             }
         }
     }
+    Ok(())
+}
+
+/// Generate a lazymvn.toml configuration file in the current directory
+fn setup_config() -> Result<(), Box<dyn std::error::Error>> {
+    use std::fs;
+    use std::path::Path;
+
+    let config_path = Path::new("lazymvn.toml");
+
+    // Check if file already exists
+    if config_path.exists() {
+        eprintln!("⚠️  lazymvn.toml already exists in current directory");
+        eprint!("   Overwrite? [y/N]: ");
+        use std::io::{self, Write};
+        io::stdout().flush()?;
+
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+        
+        if !input.trim().eq_ignore_ascii_case("y") {
+            eprintln!("❌ Setup cancelled");
+            return Ok(());
+        }
+    }
+
+    let config_template = r#"# LazyMVN Configuration File
+# Generated with: lazymvn --setup
+
+# Maven settings file path (optional)
+# Uncomment to use a custom settings.xml
+# maven_settings = "settings.xml"
+
+# Launch mode for Spring Boot applications
+# Options:
+#   "auto"       - Auto-detect: use spring-boot:run if available, fallback to exec:java
+#   "force-run"  - Always use spring-boot:run
+#   "force-exec" - Always use exec:java
+# Default: "auto"
+launch_mode = "auto"
+
+# Enable desktop notifications (optional)
+# notifications_enabled = true
+
+# File watching configuration for auto-reload
+[watch]
+# Enable file watching (set to true to activate)
+# When enabled, LazyMVN will automatically re-run certain commands
+# when source files change
+enabled = false
+
+# Commands that should trigger auto-reload when files change
+# Common values: ["test", "start", "compile", "package"]
+# When you run these commands, any matching file change will re-run the command
+commands = ["test", "start"]
+
+# File patterns to watch (glob syntax)
+# Patterns support:
+#   *.ext         - Any file with extension .ext
+#   path/*.ext    - Files in specific path (not subdirs)
+#   path/**/*.ext - Files in path and all subdirectories
+#   **/name.ext   - Files anywhere with specific name
+patterns = [
+    "src/**/*.java",           # Java source files
+    "src/**/*.kt",             # Kotlin source files
+    "src/**/*.properties",     # Properties files
+    "src/**/*.yaml",           # YAML configuration
+    "src/**/*.yml",            # YAML configuration
+    "src/**/*.xml",            # XML files (excluding pom.xml)
+]
+
+# Debounce delay in milliseconds
+# Waits this long after the last file change before triggering reload
+# Prevents multiple reloads when saving multiple files at once
+# Recommended: 500-1000ms
+debounce_ms = 500
+
+# Example: Enable watch mode for TDD workflow
+# [watch]
+# enabled = true
+# commands = ["test"]
+# patterns = ["src/**/*.java", "src/**/*.properties"]
+# debounce_ms = 500
+
+# Example: Enable watch mode for Spring Boot development
+# [watch]
+# enabled = true
+# commands = ["start"]
+# patterns = ["src/**/*.java", "src/**/*.properties", "src/**/*.yaml"]
+# debounce_ms = 1000
+"#;
+
+    fs::write(config_path, config_template)?;
+
+    println!("✅ Successfully created lazymvn.toml");
+    println!();
+    println!("📁 Location: {}", config_path.canonicalize()?.display());
+    println!();
+    println!("🎯 Next steps:");
+    println!("   1. Edit lazymvn.toml to customize your settings");
+    println!("   2. Enable watch mode if you want auto-reload");
+    println!("   3. Run 'lazymvn' to start");
+    println!();
+    println!("📖 Configuration options:");
+    println!("   • maven_settings    - Path to custom settings.xml");
+    println!("   • launch_mode       - How to launch Spring Boot apps");
+    println!("   • watch.enabled     - Enable file watching for auto-reload");
+    println!("   • watch.commands    - Commands that trigger auto-reload");
+    println!("   • watch.patterns    - File patterns to watch");
+    println!();
+    println!("💡 Tip: Use 'lazymvn --debug' to see detailed logs");
+
     Ok(())
 }
 
