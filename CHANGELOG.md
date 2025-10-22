@@ -17,6 +17,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Improved startup experience - application starts faster and feels more dynamic
   - Profile loading state management with `ProfileLoadingStatus` enum (Loading, Loaded, Error)
 
+### Fixed
+- **WAR Module `exec:java` Support** (#TBD):
+  - Fixed `NoClassDefFoundError: javax/servlet/Filter` when running WAR modules with `exec:java`
+  - Automatically adds `-Dexec.classpathScope=compile` for WAR packaging to include provided dependencies
+  - Servlet API and other `provided` scope dependencies now available at runtime
+  - Also adds `-Dexec.cleanupDaemonThreads=false` for better shutdown behavior
+  - Works automatically without POM modifications - detects packaging type and adjusts classpath scope
+
 ### Changed
 - **Startup Performance**:
   - Profiles are now loaded in parallel with UI initialization
@@ -32,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added 2 integration tests for timeout behavior and spinner frames
 - Profile loading now uses mpsc channels for thread communication
 - Timeout mechanism prevents indefinite hangs if Maven is unresponsive
+- Enhanced `build_launch_command()` to accept packaging type and adjust classpath scope accordingly
+- Added 2 new tests for WAR and JAR packaging classpath behavior
 
 ## [0.3.6] - 2025-10-20
 

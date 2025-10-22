@@ -1815,6 +1815,7 @@ impl TuiState {
                     Some(fqcn),
                     &active_profiles,
                     &[], // JVM args could be added here in the future
+                    detection.packaging.as_deref(),
                 );
 
                 // Convert to &str references

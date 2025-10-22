@@ -553,7 +553,7 @@ fn test_build_launch_command_spring_boot_run() {
     let jvm_args = vec!["-Dfoo=bar".to_string(), "-Xmx512m".to_string()];
 
     let command =
-        build_launch_command(LaunchStrategy::SpringBootRun, None, &profiles, &jvm_args);
+        build_launch_command(LaunchStrategy::SpringBootRun, None, &profiles, &jvm_args, None);
 
     // Should contain profiles argument
     assert!(
@@ -586,6 +586,7 @@ fn test_build_launch_command_exec_java() {
         Some("com.example.Application"),
         &[],
         &jvm_args,
+        None,
     );
 
     // Should contain mainClass argument
@@ -603,6 +604,13 @@ fn test_build_launch_command_exec_java() {
         "Should include JVM args: {:?}",
         command
     );
+    
+    // Should contain cleanup daemon threads flag
+    assert!(
+        command.iter().any(|arg| arg.contains("exec.cleanupDaemonThreads=false")),
+        "Should include cleanupDaemonThreads flag: {:?}",
+        command
+    );
 
     // Should end with the goal
     assert_eq!(command.last(), Some(&"exec:java".to_string()));
@@ -610,7 +618,7 @@ fn test_build_launch_command_exec_java() {
 
 #[test]
 fn test_build_launch_command_exec_java_without_main_class() {
-    let command = build_launch_command(LaunchStrategy::ExecJava, None, &[], &[]);
+    let command = build_launch_command(LaunchStrategy::ExecJava, None, &[], &[], None);
 
     // Should not contain mainClass if not provided
     assert!(
@@ -620,6 +628,75 @@ fn test_build_launch_command_exec_java_without_main_class() {
     );
 
     // Should still have the goal
+    assert_eq!(command.last(), Some(&"exec:java".to_string()));
+}
+
+#[test]
+fn test_build_launch_command_exec_java_war_packaging() {
+    // Test that WAR packaging adds classpathScope=compile
+    let command = build_launch_command(
+        LaunchStrategy::ExecJava,
+        Some("com.example.WarApplication"),
+        &[],
+        &[],
+        Some("war"),
+    );
+
+    // Should contain mainClass argument
+    assert!(
+        command
+            .iter()
+            .any(|arg| arg.contains("exec.mainClass=com.example.WarApplication")),
+        "Should set mainClass: {:?}",
+        command
+    );
+
+    // Should contain classpathScope=compile for WAR packaging
+    assert!(
+        command.iter().any(|arg| arg.contains("exec.classpathScope=compile")),
+        "Should include classpathScope=compile for WAR packaging: {:?}",
+        command
+    );
+    
+    // Should contain cleanup daemon threads flag
+    assert!(
+        command.iter().any(|arg| arg.contains("exec.cleanupDaemonThreads=false")),
+        "Should include cleanupDaemonThreads flag: {:?}",
+        command
+    );
+
+    // Should end with the goal
+    assert_eq!(command.last(), Some(&"exec:java".to_string()));
+}
+
+#[test]
+fn test_build_launch_command_exec_java_jar_packaging() {
+    // Test that JAR packaging does NOT add classpathScope=compile
+    let command = build_launch_command(
+        LaunchStrategy::ExecJava,
+        Some("com.example.JarApplication"),
+        &[],
+        &[],
+        Some("jar"),
+    );
+
+    // Should contain mainClass argument
+    assert!(
+        command
+            .iter()
+            .any(|arg| arg.contains("exec.mainClass=com.example.JarApplication")),
+        "Should set mainClass: {:?}",
+        command
+    );
+
+    // Should NOT contain classpathScope for JAR packaging
+    assert!(
+        !command.iter().any(|arg| arg.contains("exec.classpathScope")),
+        "Should NOT include classpathScope for JAR packaging: {:?}",
+        command
+    );
+
+    // Should end with the goal
     assert_eq!(command.last(), Some(&"exec:java".to_string()));
 }
 

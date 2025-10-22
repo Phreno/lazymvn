@@ -82,6 +82,7 @@ pub fn build_launch_command(
     main_class: Option<&str>,
     profiles: &[String],
     jvm_args: &[String],
+    packaging: Option<&str>,
 ) -> Vec<String> {
     let mut command_parts = Vec::new();
 
@@ -116,6 +117,16 @@ pub fn build_launch_command(
                 command_parts.push(quote_arg_for_platform(&main_class_arg));
             }
 
+            // For WAR packaging, use compile scope to include provided dependencies (servlet-api, etc.)
+            // This fixes javax.servlet.Filter NoClassDefFoundError issues
+            if packaging == Some("war") {
+                command_parts.push(quote_arg_for_platform("-Dexec.classpathScope=compile"));
+                log::info!("WAR packaging detected: adding -Dexec.classpathScope=compile to include provided dependencies");
+            }
+
+            // Add cleanup daemon threads flag for better shutdown behavior
+            command_parts.push(quote_arg_for_platform("-Dexec.cleanupDaemonThreads=false"));
+
             // Add JVM args as system properties
             for arg in jvm_args {
                 command_parts.push(quote_arg_for_platform(arg));
@@ -124,8 +135,9 @@ pub fn build_launch_command(
             command_parts.push("exec:java".to_string());
 
             log::info!(
-                "Built exec:java command with mainClass={:?} and {} JVM arg(s)",
+                "Built exec:java command with mainClass={:?}, packaging={:?}, and {} JVM arg(s)",
                 main_class,
+                packaging,
                 jvm_args.len()
             );
         }
