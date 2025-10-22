@@ -1,12 +1,12 @@
 //! Loading screen with progress indicator and animated ASCII art logo
 
 use ratatui::{
+    Frame, Terminal,
     backend::Backend,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Gauge, Paragraph},
-    Frame, Terminal,
 };
 use std::io;
 
@@ -71,7 +71,7 @@ impl LoadingProgress {
     pub fn render<B: Backend>(&self, terminal: &mut Terminal<B>) -> io::Result<()> {
         terminal.draw(|f| {
             let area = f.area();
-            
+
             // Center the loading screen
             let vertical = Layout::default()
                 .direction(Direction::Vertical)
@@ -114,9 +114,11 @@ impl LoadingProgress {
             .split(area);
 
         // Block border
-        let block = Block::default()
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD));
+        let block = Block::default().borders(Borders::ALL).border_style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        );
 
         f.render_widget(block, area);
 

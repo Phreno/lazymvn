@@ -27,8 +27,7 @@ impl SpringBootDetection {
     pub fn should_prefer_spring_boot_run(&self) -> bool {
         // For war packaging with Spring Boot plugin, prefer spring-boot:run
         // to avoid servlet classpath issues with exec:java
-        self.has_spring_boot_plugin && 
-        self.packaging.as_ref().map(|p| p == "war").unwrap_or(false)
+        self.has_spring_boot_plugin && self.packaging.as_ref().map(|p| p == "war").unwrap_or(false)
     }
 
     /// Check if exec:java can be used as fallback
@@ -56,7 +55,9 @@ pub fn decide_launch_strategy(
         LaunchMode::ForceExec => LaunchStrategy::ExecJava,
         LaunchMode::Auto => {
             if detection.should_prefer_spring_boot_run() {
-                log::info!("Auto mode: Spring Boot web app detected (war packaging), strongly preferring spring-boot:run");
+                log::info!(
+                    "Auto mode: Spring Boot web app detected (war packaging), strongly preferring spring-boot:run"
+                );
                 LaunchStrategy::SpringBootRun
             } else if detection.can_use_spring_boot_run() {
                 log::info!("Auto mode: Spring Boot plugin detected, using spring-boot:run");
@@ -121,7 +122,9 @@ pub fn build_launch_command(
             // This fixes javax.servlet.Filter NoClassDefFoundError issues
             if packaging == Some("war") {
                 command_parts.push(quote_arg_for_platform("-Dexec.classpathScope=compile"));
-                log::info!("WAR packaging detected: adding -Dexec.classpathScope=compile to include provided dependencies");
+                log::info!(
+                    "WAR packaging detected: adding -Dexec.classpathScope=compile to include provided dependencies"
+                );
             }
 
             // Add cleanup daemon threads flag for better shutdown behavior

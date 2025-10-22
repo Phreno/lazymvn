@@ -54,17 +54,18 @@ impl log::Log for Logger {
 
 /// Get the system log directory for LazyMVN
 fn get_log_dir() -> Result<PathBuf, std::io::Error> {
-    let dirs = directories::ProjectDirs::from("com", "lazymvn", "lazymvn")
-        .ok_or_else(|| std::io::Error::new(
+    let dirs = directories::ProjectDirs::from("com", "lazymvn", "lazymvn").ok_or_else(|| {
+        std::io::Error::new(
             std::io::ErrorKind::NotFound,
             "Could not determine home directory",
-        ))?;
+        )
+    })?;
 
     let log_dir = dirs.data_local_dir().join("logs");
-    
+
     // Create the log directory if it doesn't exist
     std::fs::create_dir_all(&log_dir)?;
-    
+
     Ok(log_dir)
 }
 
@@ -81,7 +82,7 @@ pub fn get_error_log_path() -> Option<PathBuf> {
 pub fn init(debug: bool) -> Result<(), SetLoggerError> {
     if debug {
         let log_dir = get_log_dir().expect("Failed to get log directory");
-        
+
         let debug_log_path = log_dir.join("debug.log");
         let error_log_path = log_dir.join("error.log");
 

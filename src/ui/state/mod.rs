@@ -3,7 +3,6 @@
 //! This module manages the state of the terminal UI including module selection,
 //! profiles, flags, command execution, and output display.
 
-
 // Re-export types
 
 use crate::maven;
@@ -151,6 +150,8 @@ pub struct TuiState {
     pub show_save_favorite_popup: bool,
     pub favorite_name_input: String,
     pub pending_favorite: Option<crate::history::HistoryEntry>,
+    // Editor command to execute
+    pub editor_command: Option<(String, String)>,
 }
 
 /// Status of profile loading
@@ -382,6 +383,7 @@ impl TuiState {
             show_save_favorite_popup: false,
             favorite_name_input: String::new(),
             pending_favorite: None,
+            editor_command: None,
         };
 
         // Initialize file watcher if configured
@@ -392,7 +394,10 @@ impl TuiState {
                 Ok(watcher) => {
                     state.file_watcher = Some(watcher);
                     state.watch_enabled = true;
-                    log::info!("File watcher enabled with {} patterns", watch_config.patterns.len());
+                    log::info!(
+                        "File watcher enabled with {} patterns",
+                        watch_config.patterns.len()
+                    );
                 }
                 Err(e) => {
                     log::error!("Failed to initialize file watcher: {}", e);
@@ -871,11 +876,7 @@ impl TuiState {
     }
 
     /// Run command with option to use -f instead of -pl
-    pub fn run_selected_module_command_with_options(
-        &mut self,
-        args: &[&str],
-        use_file_flag: bool,
-    ) {
+    pub fn run_selected_module_command_with_options(&mut self, args: &[&str], use_file_flag: bool) {
         log::debug!(
             "run_selected_module_command called with args: {:?}, use_file_flag: {}",
             args,
@@ -1032,12 +1033,16 @@ impl TuiState {
                 maven::CommandUpdate::OutputLine(line) => {
                     self.command_output.push(line);
                     had_output_lines = true;
-                    
+
                     // Trim buffer if it exceeds max size
                     if self.command_output.len() > max_output_lines {
                         let excess = self.command_output.len() - max_output_lines;
                         self.command_output.drain(0..excess);
-                        log::debug!("Trimmed {} lines from output buffer (max: {})", excess, max_output_lines);
+                        log::debug!(
+                            "Trimmed {} lines from output buffer (max: {})",
+                            excess,
+                            max_output_lines
+                        );
                     }
                 }
                 maven::CommandUpdate::Completed => {
@@ -1109,7 +1114,7 @@ impl TuiState {
         {
             log::warn!("Profile loading timed out after 30 seconds");
             self.profile_loading_status = ProfileLoadingStatus::Error(
-                "Timeout: Profile loading took too long (>30s)".to_string()
+                "Timeout: Profile loading took too long (>30s)".to_string(),
             );
             self.profiles_receiver = None;
             self.profile_loading_start_time = None;
@@ -1119,7 +1124,10 @@ impl TuiState {
         if let Some(receiver) = self.profiles_receiver.as_ref() {
             match receiver.try_recv() {
                 Ok(Ok(profile_names)) => {
-                    log::info!("Profiles loaded asynchronously: {} profiles", profile_names.len());
+                    log::info!(
+                        "Profiles loaded asynchronously: {} profiles",
+                        profile_names.len()
+                    );
                     self.set_profiles(profile_names);
                     self.profile_loading_status = ProfileLoadingStatus::Loaded;
                     self.profiles_receiver = None;
@@ -1137,7 +1145,7 @@ impl TuiState {
                 Err(mpsc::TryRecvError::Disconnected) => {
                     log::warn!("Profiles channel disconnected unexpectedly");
                     self.profile_loading_status = ProfileLoadingStatus::Error(
-                        "Profile loading channel disconnected".to_string()
+                        "Profile loading channel disconnected".to_string(),
                     );
                     self.profiles_receiver = None;
                     self.profile_loading_start_time = None;
@@ -1162,9 +1170,8 @@ impl TuiState {
 
         let project_root = self.project_root.clone();
         std::thread::spawn(move || {
-            let result = maven::get_profiles(&project_root)
-                .map_err(|e| e.to_string());
-            
+            let result = maven::get_profiles(&project_root).map_err(|e| e.to_string());
+
             if let Err(e) = tx.send(result) {
                 log::error!("Failed to send profiles result: {}", e);
             }
@@ -1210,24 +1217,25 @@ impl TuiState {
             && watcher.check_changes()
         {
             log::info!("File changes detected, checking if should re-run command");
-            
+
             // Clone last command to avoid borrow issues
             let last_cmd = self.last_command.clone();
-            
+
             // Check if last command is watchable
             if let Some(last_cmd) = last_cmd {
                 let watch_config = self.config.watch.as_ref().unwrap();
-                
+
                 // Check if this command should trigger auto-reload
-                let should_rerun = last_cmd.iter().any(|arg| {
-                    watch_config.commands.iter().any(|cmd| arg.contains(cmd))
-                });
-                
+                let should_rerun = last_cmd
+                    .iter()
+                    .any(|arg| watch_config.commands.iter().any(|cmd| arg.contains(cmd)));
+
                 if should_rerun {
                     self.command_output.push(String::new());
-                    self.command_output.push("🔄 Files changed, reloading...".to_string());
+                    self.command_output
+                        .push("🔄 Files changed, reloading...".to_string());
                     self.command_output.push(String::new());
-                    
+
                     // Re-run the last command
                     log::info!("Re-running command due to file changes");
                     let args: Vec<&str> = last_cmd.iter().map(|s| s.as_str()).collect();
@@ -1797,16 +1805,107 @@ impl TuiState {
         self.projects_list_state.select(Some(i));
     }
 
+    /// Edit the project configuration file in the system editor
+    pub fn edit_config(&mut self) {
+        let config_path = self.project_root.join("lazymvn.toml");
+
+        // Generate config if it doesn't exist
+        if !config_path.exists() {
+            log::info!("Configuration file not found, creating: {:?}", config_path);
+            if let Err(e) = self.generate_config_file(&config_path) {
+                log::error!("Failed to generate config file: {}", e);
+                self.command_output = vec![
+                    format!("❌ Failed to generate config file: {}", e),
+                    String::new(),
+                    "Please create the file manually or check permissions.".to_string(),
+                ];
+                return;
+            }
+        }
+
+        // Get system editor
+        let editor = std::env::var("EDITOR")
+            .or_else(|_| std::env::var("VISUAL"))
+            .unwrap_or_else(|_| {
+                // Platform-specific defaults
+                if cfg!(target_os = "windows") {
+                    "notepad".to_string()
+                } else {
+                    "vi".to_string()
+                }
+            });
+
+        log::info!("Opening config with editor: {}", editor);
+        self.command_output = vec![
+            format!("📝 Opening configuration with {}...", editor),
+            format!("   File: {}", config_path.display()),
+            String::new(),
+            "The TUI will resume after you close the editor.".to_string(),
+        ];
+
+        // We need to exit raw mode before opening the editor
+        self.editor_command = Some((editor, config_path.to_string_lossy().to_string()));
+    }
+
+    fn generate_config_file(&self, config_path: &std::path::Path) -> Result<(), std::io::Error> {
+        use std::fs;
+
+        let config_template = r#"# LazyMVN Configuration File
+# Generated automatically
+
+# Maven settings file path (optional)
+# Uncomment to use a custom settings.xml
+# maven_settings = "settings.xml"
+
+# Launch mode for Spring Boot applications
+# Options:
+#   "auto"       - Auto-detect: use spring-boot:run if available, fallback to exec:java
+#   "force-run"  - Always use spring-boot:run
+#   "force-exec" - Always use exec:java
+# Default: "auto"
+launch_mode = "auto"
+
+# Enable desktop notifications (optional)
+# notifications_enabled = true
+
+# File watching configuration for auto-reload
+[watch]
+# Enable file watching (set to true to activate)
+enabled = false
+
+# Commands that should trigger auto-reload when files change
+commands = ["test", "start"]
+
+# File patterns to watch (glob syntax)
+patterns = [
+    "src/**/*.java",
+    "src/**/*.kt",
+    "src/**/*.properties",
+    "src/**/*.yaml",
+    "src/**/*.yml",
+    "src/**/*.xml",
+]
+
+# Debounce delay in milliseconds
+debounce_ms = 500
+
+# Output buffer configuration
+[output]
+max_lines = 10000
+max_updates_per_poll = 100
+"#;
+
+        fs::write(config_path, config_template)?;
+        log::info!("Generated config file: {:?}", config_path);
+        Ok(())
+    }
+
     /// Apply a history entry: select module, set profiles, flags, and run command
     pub fn apply_history_entry(&mut self, entry: crate::history::HistoryEntry) {
         log::info!("Applying history entry for module: {}", entry.module);
 
         // Find and select the module
-        if let Some(module_idx) = self
-            .modules
-            .iter()
-            .position(|m| m == &entry.module)
-        {
+        if let Some(module_idx) = self.modules.iter().position(|m| m == &entry.module) {
             self.modules_list_state.select(Some(module_idx));
             log::debug!("Selected module at index {}", module_idx);
         } else {
@@ -1890,7 +1989,7 @@ impl TuiState {
     pub fn save_pending_favorite(&mut self, goal: String) {
         if let Some(mut entry) = self.pending_favorite.take() {
             entry.goal = goal;
-            
+
             let favorite = crate::favorites::Favorite::new(
                 self.favorite_name_input.clone(),
                 entry.module,
@@ -1898,7 +1997,7 @@ impl TuiState {
                 entry.profiles,
                 entry.flags,
             );
-            
+
             self.favorites.add(favorite);
             self.show_save_favorite_popup = false;
             self.favorite_name_input.clear();
@@ -1919,11 +2018,7 @@ impl TuiState {
         log::info!("Applying favorite: {}", favorite.name);
 
         // Find and select the module
-        if let Some(module_idx) = self
-            .modules
-            .iter()
-            .position(|m| m == &favorite.module)
-        {
+        if let Some(module_idx) = self.modules.iter().position(|m| m == &favorite.module) {
             self.modules_list_state.select(Some(module_idx));
             log::debug!("Selected module at index {}", module_idx);
         } else {
@@ -1969,7 +2064,7 @@ impl TuiState {
             && let Some(removed) = self.favorites.remove(selected)
         {
             log::info!("Deleted favorite: {}", removed.name);
-            
+
             // Adjust selection
             let new_len = self.favorites.list().len();
             if new_len == 0 {
@@ -1979,7 +2074,6 @@ impl TuiState {
             }
         }
     }
-
 
     // Spring Boot starter methods
     pub fn show_starter_selector(&mut self) {
@@ -2373,9 +2467,12 @@ mod tests {
             PathBuf::from("/tmp/test"),
             config,
         );
-        
+
         // Initially, profiles should be in Loading state
-        assert!(matches!(state.profile_loading_status, ProfileLoadingStatus::Loading));
+        assert!(matches!(
+            state.profile_loading_status,
+            ProfileLoadingStatus::Loading
+        ));
         assert_eq!(state.profiles.len(), 0);
     }
 
@@ -2387,18 +2484,18 @@ mod tests {
             PathBuf::from("/tmp/test"),
             config,
         );
-        
+
         // Test spinner cycles through frames
         let frame1 = state.profile_loading_spinner();
         state.profile_spinner_frame = 1;
         let frame2 = state.profile_loading_spinner();
         state.profile_spinner_frame = 7;
         let frame3 = state.profile_loading_spinner();
-        
+
         // Should have different frames
         assert_ne!(frame1, frame2);
         assert_ne!(frame2, frame3);
-        
+
         // Should cycle back after 8 frames
         state.profile_spinner_frame = 8;
         let frame_cycled = state.profile_loading_spinner();
@@ -2408,16 +2505,16 @@ mod tests {
     #[test]
     fn test_profile_state_transitions() {
         let mut profile = MavenProfile::new("test-profile".to_string(), false);
-        
+
         // Default state for non-auto profile
         assert_eq!(profile.state, ProfileState::Default);
         assert!(!profile.is_active());
-        
+
         // Toggle should enable
         profile.toggle();
         assert_eq!(profile.state, ProfileState::ExplicitlyEnabled);
         assert!(profile.is_active());
-        
+
         // Toggle again should return to default
         profile.toggle();
         assert_eq!(profile.state, ProfileState::Default);
@@ -2427,16 +2524,16 @@ mod tests {
     #[test]
     fn test_auto_activated_profile_state_transitions() {
         let mut profile = MavenProfile::new("auto-profile".to_string(), true);
-        
+
         // Default state for auto-activated profile
         assert_eq!(profile.state, ProfileState::Default);
         assert!(profile.is_active()); // Auto-activated, so active by default
-        
+
         // Toggle should disable
         profile.toggle();
         assert_eq!(profile.state, ProfileState::ExplicitlyDisabled);
         assert!(!profile.is_active());
-        
+
         // Toggle again should return to default (auto-activated)
         profile.toggle();
         assert_eq!(profile.state, ProfileState::Default);
@@ -2446,14 +2543,14 @@ mod tests {
     #[test]
     fn test_profile_maven_arg_generation() {
         let mut profile = MavenProfile::new("test".to_string(), false);
-        
+
         // Default state: no arg
         assert_eq!(profile.to_maven_arg(), None);
-        
+
         // Explicitly enabled: returns profile name
         profile.state = ProfileState::ExplicitlyEnabled;
         assert_eq!(profile.to_maven_arg(), Some("test".to_string()));
-        
+
         // Explicitly disabled: returns !profile
         profile.state = ProfileState::ExplicitlyDisabled;
         assert_eq!(profile.to_maven_arg(), Some("!test".to_string()));

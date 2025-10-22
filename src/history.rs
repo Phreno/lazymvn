@@ -17,12 +17,7 @@ pub struct HistoryEntry {
 
 impl HistoryEntry {
     /// Create a new history entry
-    pub fn new(
-        module: String,
-        goal: String,
-        profiles: Vec<String>,
-        flags: Vec<String>,
-    ) -> Self {
+    pub fn new(module: String, goal: String, profiles: Vec<String>, flags: Vec<String>) -> Self {
         Self {
             timestamp: chrono::Utc::now().timestamp(),
             module,
@@ -35,19 +30,19 @@ impl HistoryEntry {
     /// Format the entry for display
     pub fn format_command(&self) -> String {
         let mut parts = vec![self.goal.clone()];
-        
+
         if !self.profiles.is_empty() {
             parts.push(format!("-P {}", self.profiles.join(",")));
         }
-        
+
         parts.extend(self.flags.clone());
-        
+
         let module_display = if self.module == "." {
             "(root)".to_string()
         } else {
             self.module.clone()
         };
-        
+
         format!("[{}] {}", module_display, parts.join(" "))
     }
 
@@ -71,15 +66,13 @@ impl CommandHistory {
     /// Load command history from disk
     pub fn load() -> Self {
         let file_path = Self::get_history_file_path();
-        
+
         let entries = if file_path.exists() {
             match fs::read_to_string(&file_path) {
-                Ok(contents) => {
-                    serde_json::from_str(&contents).unwrap_or_else(|e| {
-                        log::warn!("Failed to parse command history: {}", e);
-                        Vec::new()
-                    })
-                }
+                Ok(contents) => serde_json::from_str(&contents).unwrap_or_else(|e| {
+                    log::warn!("Failed to parse command history: {}", e);
+                    Vec::new()
+                }),
                 Err(e) => {
                     log::warn!("Failed to read command history: {}", e);
                     Vec::new()
@@ -96,12 +89,12 @@ impl CommandHistory {
     pub fn add(&mut self, entry: HistoryEntry) {
         // Add to beginning (most recent first)
         self.entries.insert(0, entry);
-        
+
         // Trim to max size
         if self.entries.len() > MAX_HISTORY_SIZE {
             self.entries.truncate(MAX_HISTORY_SIZE);
         }
-        
+
         // Save to disk
         self.save();
     }
@@ -169,12 +162,7 @@ mod tests {
 
     #[test]
     fn history_entry_format_command_root_module() {
-        let entry = HistoryEntry::new(
-            ".".to_string(),
-            "package".to_string(),
-            vec![],
-            vec![],
-        );
+        let entry = HistoryEntry::new(".".to_string(), "package".to_string(), vec![], vec![]);
 
         let formatted = entry.format_command();
         assert!(formatted.contains("(root)"));
@@ -184,14 +172,14 @@ mod tests {
     #[test]
     fn command_history_add_maintains_order() {
         let mut history = CommandHistory::default();
-        
+
         history.add(HistoryEntry::new(
             "module1".to_string(),
             "goal1".to_string(),
             vec![],
             vec![],
         ));
-        
+
         history.add(HistoryEntry::new(
             "module2".to_string(),
             "goal2".to_string(),
@@ -208,7 +196,7 @@ mod tests {
     #[test]
     fn command_history_respects_max_size() {
         let mut history = CommandHistory::default();
-        
+
         for i in 0..150 {
             history.add(HistoryEntry::new(
                 format!("module{}", i),

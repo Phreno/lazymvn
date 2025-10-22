@@ -70,7 +70,7 @@ impl FileWatcher {
 /// Check if the event is relevant (modify, create, remove)
 fn is_relevant_event(event: &Event) -> bool {
     use notify::EventKind;
-    
+
     matches!(
         event.kind,
         EventKind::Modify(_) | EventKind::Create(_) | EventKind::Remove(_)
@@ -81,13 +81,13 @@ fn is_relevant_event(event: &Event) -> bool {
 #[allow(dead_code)]
 pub fn matches_patterns(path: &Path, patterns: &[String]) -> bool {
     let path_str = path.to_string_lossy();
-    
+
     for pattern in patterns {
         if matches_glob(&path_str, pattern) {
             return true;
         }
     }
-    
+
     false
 }
 
@@ -101,7 +101,7 @@ fn matches_glob(path: &str, pattern: &str) -> bool {
         if parts.len() == 2 {
             let prefix = parts[0];
             let suffix = parts[1].trim_start_matches('/');
-            
+
             if let Some(remaining) = path.strip_prefix(prefix) {
                 return matches_glob(remaining, suffix);
             }
@@ -123,7 +123,7 @@ fn matches_glob(path: &str, pattern: &str) -> bool {
         // Exact match
         return path == pattern;
     }
-    
+
     false
 }
 
@@ -136,9 +136,12 @@ mod tests {
         assert!(matches_glob("test.java", "*.java"));
         assert!(matches_glob("src/main/Test.java", "*.java"));
         assert!(!matches_glob("test.rs", "*.java"));
-        
+
         assert!(matches_glob("src/main/java/Test.java", "src/**/*.java"));
-        assert!(matches_glob("src/test/resources/app.properties", "src/**/*.properties"));
+        assert!(matches_glob(
+            "src/test/resources/app.properties",
+            "src/**/*.properties"
+        ));
         assert!(!matches_glob("target/test.java", "src/**/*.java"));
     }
 }

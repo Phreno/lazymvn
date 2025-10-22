@@ -131,10 +131,10 @@ fn run<B: ratatui::backend::Backend>(
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Initialize loading progress with 5 steps
     let mut progress = loading::LoadingProgress::new(5);
-    
+
     // Step 1: Loading project structure
     loading_step!(progress, terminal, 1, 5, "Searching for Maven project...");
-    
+
     // Try to load project modules from current directory
     let (modules, project_root) = match project::get_project_modules() {
         Ok(result) => {
@@ -189,7 +189,7 @@ fn run<B: ratatui::backend::Backend>(
 
     // Step 2: Loading configuration
     loading_step!(progress, terminal, 2, 5, "Loading configuration...");
-    
+
     // Add current project to recent projects
     let mut recent_projects = config::RecentProjects::load();
     recent_projects.add(project_root.clone());
@@ -212,18 +212,18 @@ fn run<B: ratatui::backend::Backend>(
 
     // Step 3: Initializing UI state
     loading_step!(progress, terminal, 3, 5, "Initializing UI state...");
-    
+
     let mut state = tui::TuiState::new(modules, project_root.clone(), config);
 
     // Step 4: Discovering Maven profiles (asynchronous)
     loading_step!(progress, terminal, 4, 5, "Starting profile discovery...");
-    
+
     // Start loading profiles asynchronously
     state.start_loading_profiles();
 
     // Step 5: Ready!
     loading_step!(progress, terminal, 5, 5, "Starting LazyMVN...");
-    
+
     // Small delay to show completion
     std::thread::sleep(std::time::Duration::from_millis(300));
 
@@ -286,6 +286,51 @@ fn run<B: ratatui::backend::Backend>(
             }
         }
 
+        // Check if we need to open an editor
+        if let Some((editor, file_path)) = state.editor_command.take() {
+            log::info!("Opening editor: {} {}", editor, file_path);
+
+            // Exit raw mode and alternate screen
+            crossterm::terminal::disable_raw_mode()?;
+            crossterm::execute!(io::stdout(), crossterm::terminal::LeaveAlternateScreen)?;
+
+            // Execute the editor
+            let status = std::process::Command::new(&editor).arg(&file_path).status();
+
+            // Restore terminal state
+            crossterm::terminal::enable_raw_mode()?;
+            crossterm::execute!(io::stdout(), crossterm::terminal::EnterAlternateScreen)?;
+
+            match status {
+                Ok(exit_status) => {
+                    if exit_status.success() {
+                        log::info!("Editor closed successfully");
+                        state.command_output = vec![
+                            "✅ Configuration file saved.".to_string(),
+                            String::new(),
+                            "⚠️  Note: You need to restart LazyMVN to apply changes.".to_string(),
+                        ];
+                    } else {
+                        log::warn!("Editor exited with non-zero status: {:?}", exit_status);
+                        state.command_output =
+                            vec![format!("⚠️  Editor exited with status: {:?}", exit_status)];
+                    }
+                }
+                Err(e) => {
+                    log::error!("Failed to launch editor: {}", e);
+                    state.command_output = vec![
+                        format!("❌ Failed to launch editor '{}': {}", editor, e),
+                        String::new(),
+                        "Please check that the EDITOR environment variable is set correctly."
+                            .to_string(),
+                    ];
+                }
+            }
+
+            // Clear the terminal to refresh the display
+            terminal.clear()?;
+        }
+
         if event::poll(std::time::Duration::from_millis(50))? {
             match event::read()? {
                 event::Event::Key(key) => {
@@ -321,7 +366,7 @@ fn setup_config() -> Result<(), Box<dyn std::error::Error>> {
 
         let mut input = String::new();
         io::stdin().read_line(&mut input)?;
-        
+
         if !input.trim().eq_ignore_ascii_case("y") {
             eprintln!("❌ Setup cancelled");
             return Ok(());

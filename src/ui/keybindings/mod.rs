@@ -10,7 +10,6 @@ use crate::ui::theme::Theme;
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
 use ratatui::text::{Line, Span};
 
-
 struct ModuleAction {
     key_display: &'static str,
     prefix: &'static str,
@@ -457,6 +456,14 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
             log::info!("Show recent projects");
             state.show_recent_projects();
         }
+        KeyCode::Char('e')
+            if key
+                .modifiers
+                .contains(crossterm::event::KeyModifiers::CONTROL) =>
+        {
+            log::info!("Edit configuration");
+            state.edit_config();
+        }
         KeyCode::Left => {
             log::debug!("Cycle focus left");
             state.cycle_focus_left();
@@ -650,6 +657,8 @@ pub(crate) fn build_navigation_line() -> Vec<Line<'static>> {
             Span::raw(" History  "),
             key_token("Ctrl+R"),
             Span::raw(" Recent  "),
+            key_token("Ctrl+E"),
+            Span::raw(" Edit  "),
             key_token("Esc"),
             Span::raw(" Kill"),
         ]),

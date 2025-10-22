@@ -1,9 +1,11 @@
 // Maven module tests
-use crate::maven::*;
-use crate::maven::command::{get_maven_command, execute_maven_command, execute_maven_command_with_options};
+use crate::config::LaunchMode;
+use crate::maven::command::{
+    execute_maven_command, execute_maven_command_with_options, get_maven_command,
+};
 use crate::maven::detection::{SpringBootDetection, extract_tag_content, quote_arg_for_platform};
 use crate::maven::profiles::extract_profiles_from_settings_xml;
-use crate::config::LaunchMode;
+use crate::maven::*;
 use crate::utils;
 use std::fs;
 use std::path::Path;
@@ -82,12 +84,11 @@ fn execute_maven_command_captures_output() {
     let mvnw_path = project_root.join("mvnw");
     write_script(&mvnw_path, "#!/bin/sh\necho 'line 1'\necho 'line 2'\n");
 
-    let output: Vec<String> =
-        execute_maven_command(project_root, None, &["test"], &[], None, &[])
-            .unwrap()
-            .iter()
-            .filter_map(|line| utils::clean_log_line(line))
-            .collect();
+    let output: Vec<String> = execute_maven_command(project_root, None, &["test"], &[], None, &[])
+        .unwrap()
+        .iter()
+        .filter_map(|line| utils::clean_log_line(line))
+        .collect();
 
     // Output now includes command line at the start
     // Skip the command line to check actual Maven output
@@ -112,12 +113,11 @@ fn execute_maven_command_captures_stderr() {
         "#!/bin/sh\necho 'line 1'\n>&2 echo 'warn message'\n",
     );
 
-    let output: Vec<String> =
-        execute_maven_command(project_root, None, &["test"], &[], None, &[])
-            .unwrap()
-            .iter()
-            .filter_map(|line| utils::clean_log_line(line))
-            .collect();
+    let output: Vec<String> = execute_maven_command(project_root, None, &["test"], &[], None, &[])
+        .unwrap()
+        .iter()
+        .filter_map(|line| utils::clean_log_line(line))
+        .collect();
 
     // Skip command line header
     let maven_output: Vec<String> = output
@@ -552,8 +552,13 @@ fn test_build_launch_command_spring_boot_run() {
     let profiles = vec!["dev".to_string(), "debug".to_string()];
     let jvm_args = vec!["-Dfoo=bar".to_string(), "-Xmx512m".to_string()];
 
-    let command =
-        build_launch_command(LaunchStrategy::SpringBootRun, None, &profiles, &jvm_args, None);
+    let command = build_launch_command(
+        LaunchStrategy::SpringBootRun,
+        None,
+        &profiles,
+        &jvm_args,
+        None,
+    );
 
     // Should contain profiles argument
     assert!(
@@ -604,10 +609,12 @@ fn test_build_launch_command_exec_java() {
         "Should include JVM args: {:?}",
         command
     );
-    
+
     // Should contain cleanup daemon threads flag
     assert!(
-        command.iter().any(|arg| arg.contains("exec.cleanupDaemonThreads=false")),
+        command
+            .iter()
+            .any(|arg| arg.contains("exec.cleanupDaemonThreads=false")),
         "Should include cleanupDaemonThreads flag: {:?}",
         command
     );
@@ -653,14 +660,18 @@ fn test_build_launch_command_exec_java_war_packaging() {
 
     // Should contain classpathScope=compile for WAR packaging
     assert!(
-        command.iter().any(|arg| arg.contains("exec.classpathScope=compile")),
+        command
+            .iter()
+            .any(|arg| arg.contains("exec.classpathScope=compile")),
         "Should include classpathScope=compile for WAR packaging: {:?}",
         command
     );
-    
+
     // Should contain cleanup daemon threads flag
     assert!(
-        command.iter().any(|arg| arg.contains("exec.cleanupDaemonThreads=false")),
+        command
+            .iter()
+            .any(|arg| arg.contains("exec.cleanupDaemonThreads=false")),
         "Should include cleanupDaemonThreads flag: {:?}",
         command
     );
@@ -691,7 +702,9 @@ fn test_build_launch_command_exec_java_jar_packaging() {
 
     // Should NOT contain classpathScope for JAR packaging
     assert!(
-        !command.iter().any(|arg| arg.contains("exec.classpathScope")),
+        !command
+            .iter()
+            .any(|arg| arg.contains("exec.classpathScope")),
         "Should NOT include classpathScope for JAR packaging: {:?}",
         command
     );

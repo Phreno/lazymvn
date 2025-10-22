@@ -31,10 +31,7 @@ pub fn render_projects_pane(
         Line::from(vec![
             Span::styled(project_root, Style::default()),
             Span::styled("  ", Style::default()),
-            Span::styled(
-                "",
-                Style::default().fg(ratatui::style::Color::Green),
-            ),
+            Span::styled("", Style::default().fg(ratatui::style::Color::Green)),
             Span::styled(
                 format!(" {}", branch),
                 Style::default()
@@ -1053,7 +1050,10 @@ pub fn render_history_popup(
         if let Some(entry) = history.get(selected) {
             let mut lines = vec![
                 Line::from(vec![
-                    Span::styled("Module: ", Style::default().fg(ratatui::style::Color::Yellow)),
+                    Span::styled(
+                        "Module: ",
+                        Style::default().fg(ratatui::style::Color::Yellow),
+                    ),
                     Span::raw(&entry.module),
                 ]),
                 Line::from(vec![
@@ -1074,7 +1074,10 @@ pub fn render_history_popup(
 
             if !entry.flags.is_empty() {
                 lines.push(Line::from(vec![
-                    Span::styled("Flags: ", Style::default().fg(ratatui::style::Color::Yellow)),
+                    Span::styled(
+                        "Flags: ",
+                        Style::default().fg(ratatui::style::Color::Yellow),
+                    ),
                     Span::raw(entry.flags.join(", ")),
                 ]));
             }
@@ -1198,7 +1201,10 @@ pub fn render_favorites_popup(
                     Span::raw(&fav.name),
                 ]),
                 Line::from(vec![
-                    Span::styled("Module: ", Style::default().fg(ratatui::style::Color::Yellow)),
+                    Span::styled(
+                        "Module: ",
+                        Style::default().fg(ratatui::style::Color::Yellow),
+                    ),
                     Span::raw(&fav.module),
                 ]),
                 Line::from(vec![
@@ -1219,7 +1225,10 @@ pub fn render_favorites_popup(
 
             if !fav.flags.is_empty() {
                 lines.push(Line::from(vec![
-                    Span::styled("Flags: ", Style::default().fg(ratatui::style::Color::Yellow)),
+                    Span::styled(
+                        "Flags: ",
+                        Style::default().fg(ratatui::style::Color::Yellow),
+                    ),
                     Span::raw(fav.flags.join(", ")),
                 ]));
             }

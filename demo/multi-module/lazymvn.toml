@@ -1,0 +1,43 @@
+# LazyMVN Configuration File
+# Generated automatically
+
+# Maven settings file path (optional)
+# Uncomment to use a custom settings.xml
+# maven_settings = "settings.xml"
+
+# Launch mode for Spring Boot applications
+# Options:
+#   "auto"       - Auto-detect: use spring-boot:run if available, fallback to exec:java
+#   "force-run"  - Always use spring-boot:run
+#   "force-exec" - Always use exec:java
+# Default: "auto"
+launch_mode = "auto"
+
+# Enable desktop notifications (optional)
+# notifications_enabled = true
+
+# File watching configuration for auto-reload
+[watch]
+# Enable file watching (set to true to activate)
+enabled = false
+
+# Commands that should trigger auto-reload when files change
+commands = ["test", "start"]
+
+# File patterns to watch (glob syntax)
+patterns = [
+    "src/**/*.java",
+    "src/**/*.kt",
+    "src/**/*.properties",
+    "src/**/*.yaml",
+    "src/**/*.yml",
+    "src/**/*.xml",
+]
+
+# Debounce delay in milliseconds
+debounce_ms = 500
+
+# Output buffer configuration
+[output]
+max_lines = 10000
+max_updates_per_poll = 100

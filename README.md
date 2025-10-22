@@ -107,6 +107,7 @@ I want to credit both the project and its author for the idea and for shaping ho
 | `Page Up` / `Page Down` | Scroll output by pages |
 | `Home` / `End` | Jump to start/end of output |
 | `Ctrl+R` | Show recent projects and switch to a different project |
+| `Ctrl+E` | Edit configuration file (lazymvn.toml) in system editor |
 | **Mouse** | Click on pane to focus it, click on item to select it |
 
 ### Views
@@ -136,6 +137,13 @@ I want to credit both the project and its author for the idea and for shaping ho
 |-----|--------|
 | `s` | Run preferred/cached starter (or show selector) |
 | `Ctrl+Shift+S` | Open starter manager |
+
+### Workflow Management
+| Key | Action |
+|-----|--------|
+| `Ctrl+F` | Show favorites (saved command configurations) |
+| `Ctrl+S` | Save current configuration as a favorite |
+| `Ctrl+H` | Show command history |
 
 ### Selection & Search
 | Key | Action |

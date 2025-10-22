@@ -1,7 +1,7 @@
 //! Maven command building and execution
 
-use crate::utils;
 use crate::config::LoggingConfig;
+use crate::utils;
 use std::{
     io::{BufRead, BufReader},
     path::Path,
@@ -114,7 +114,7 @@ pub fn build_command_string_with_options(
             let module_pom = project_root.join(module).join("pom.xml");
             parts.push("-f".to_string());
             parts.push(module_pom.to_string_lossy().to_string());
-            
+
             // Auto-add --also-make for exec:java to ensure dependencies are built
             if args.contains(&"exec:java") && !flags.iter().any(|f| f.contains("also-make")) {
                 parts.push("--also-make".to_string());
@@ -122,7 +122,7 @@ pub fn build_command_string_with_options(
         } else {
             parts.push("-pl".to_string());
             parts.push(module.to_string());
-            
+
             // Note: We don't auto-add --also-make for spring-boot:run because it would
             // try to execute the goal on all modules in the reactor (including parent POM).
         }
@@ -237,7 +237,7 @@ pub fn execute_maven_command_with_options(
                 let module_pom = project_root.join(module).join("pom.xml");
                 command.arg("-f").arg(&module_pom);
                 log::debug!("Using -f flag with POM: {:?}", module_pom);
-                
+
                 // Auto-add --also-make for exec:java to ensure dependencies are built
                 if args.contains(&"exec:java") && !flags.iter().any(|f| f.contains("also-make")) {
                     command.arg("--also-make");
@@ -247,7 +247,7 @@ pub fn execute_maven_command_with_options(
                 // Use -pl for reactor build
                 command.arg("-pl").arg(module);
                 log::debug!("Scoped to module: {}", module);
-                
+
                 // Note: We don't auto-add --also-make for spring-boot:run because it would
                 // try to execute the goal on all modules in the reactor (including parent POM)
                 // which fails. Dependencies should be built beforehand with a separate build command.
@@ -431,7 +431,7 @@ pub fn execute_maven_command_async_with_options(
             let module_pom = project_root.join(module).join("pom.xml");
             command.arg("-f").arg(&module_pom);
             log::debug!("Using -f flag with POM: {:?}", module_pom);
-            
+
             // Auto-add --also-make for exec:java to ensure dependencies are built
             if args.contains(&"exec:java") && !flags.iter().any(|f| f.contains("also-make")) {
                 command.arg("--also-make");
@@ -440,7 +440,7 @@ pub fn execute_maven_command_async_with_options(
         } else {
             // Use -pl for reactor build
             command.arg("-pl").arg(module);
-            
+
             // Note: We don't auto-add --also-make for spring-boot:run because it would
             // try to execute the goal on all modules in the reactor (including parent POM).
         }
@@ -469,7 +469,7 @@ pub fn execute_maven_command_async_with_options(
     thread::spawn(move || {
         let result = (|| -> Result<(), std::io::Error> {
             log::info!("Spawning Maven process asynchronously...");
-            
+
             // Configure command to create a new process group
             // This allows us to kill all child processes (like Spring Boot) when needed
             #[cfg(unix)]
@@ -477,7 +477,7 @@ pub fn execute_maven_command_async_with_options(
                 use std::os::unix::process::CommandExt;
                 command.process_group(0); // Create new process group
             }
-            
+
             let mut child = command
                 .args(&args)
                 .current_dir(&project_root)
@@ -549,4 +549,3 @@ pub fn execute_maven_command_async_with_options(
 
     Ok(rx)
 }
-

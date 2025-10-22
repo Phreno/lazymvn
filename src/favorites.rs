@@ -37,7 +37,7 @@ impl Favorite {
         } else {
             self.module.clone()
         };
-        
+
         format!("{} → [{}] {}", self.name, module_display, self.goal)
     }
 }
@@ -53,15 +53,13 @@ impl Favorites {
     /// Load favorites from disk
     pub fn load() -> Self {
         let file_path = Self::get_favorites_file_path();
-        
+
         let favorites = if file_path.exists() {
             match fs::read_to_string(&file_path) {
-                Ok(contents) => {
-                    serde_json::from_str(&contents).unwrap_or_else(|e| {
-                        log::warn!("Failed to parse favorites: {}", e);
-                        Vec::new()
-                    })
-                }
+                Ok(contents) => serde_json::from_str(&contents).unwrap_or_else(|e| {
+                    log::warn!("Failed to parse favorites: {}", e);
+                    Vec::new()
+                }),
                 Err(e) => {
                     log::warn!("Failed to read favorites: {}", e);
                     Vec::new()
@@ -71,7 +69,10 @@ impl Favorites {
             Vec::new()
         };
 
-        Self { favorites, file_path }
+        Self {
+            favorites,
+            file_path,
+        }
     }
 
     /// Add a favorite
@@ -86,7 +87,7 @@ impl Favorites {
             self.favorites.push(favorite);
             log::info!("Added new favorite");
         }
-        
+
         self.save();
     }
 
@@ -186,7 +187,7 @@ mod tests {
     #[test]
     fn favorites_add_and_list() {
         let mut favorites = Favorites::default();
-        
+
         favorites.add(Favorite::new(
             "Test 1".to_string(),
             "module1".to_string(),
@@ -194,7 +195,7 @@ mod tests {
             vec![],
             vec![],
         ));
-        
+
         favorites.add(Favorite::new(
             "Test 2".to_string(),
             "module2".to_string(),
@@ -211,7 +212,7 @@ mod tests {
     #[test]
     fn favorites_replace_existing_name() {
         let mut favorites = Favorites::default();
-        
+
         favorites.add(Favorite::new(
             "Build".to_string(),
             "module1".to_string(),
@@ -219,7 +220,7 @@ mod tests {
             vec![],
             vec![],
         ));
-        
+
         favorites.add(Favorite::new(
             "Build".to_string(),
             "module2".to_string(),
@@ -236,7 +237,7 @@ mod tests {
     #[test]
     fn favorites_remove_by_index() {
         let mut favorites = Favorites::default();
-        
+
         favorites.add(Favorite::new(
             "Test 1".to_string(),
             "module1".to_string(),
@@ -244,7 +245,7 @@ mod tests {
             vec![],
             vec![],
         ));
-        
+
         favorites.add(Favorite::new(
             "Test 2".to_string(),
             "module2".to_string(),

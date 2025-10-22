@@ -35,7 +35,7 @@ pub struct OutputConfig {
     /// Maximum number of lines to keep in output buffer (default: 10000)
     #[serde(default = "default_max_lines")]
     pub max_lines: usize,
-    
+
     /// Maximum number of updates to process per poll cycle (default: 100)
     #[serde(default = "default_max_updates_per_poll")]
     pub max_updates_per_poll: usize,
@@ -64,17 +64,17 @@ pub struct WatchConfig {
     /// Enable file watching (default: false)
     #[serde(default)]
     pub enabled: bool,
-    
+
     /// Commands that should trigger auto-reload on file changes
     /// Default: ["test", "start"]
     #[serde(default = "default_watch_commands")]
     pub commands: Vec<String>,
-    
+
     /// File patterns to watch (glob patterns)
     /// Default: ["src/**/*.java", "src/**/*.properties", "src/**/*.xml"]
     #[serde(default = "default_watch_patterns")]
     pub patterns: Vec<String>,
-    
+
     /// Debounce delay in milliseconds (default: 500ms)
     #[serde(default = "default_debounce_ms")]
     pub debounce_ms: u64,
@@ -545,7 +545,7 @@ packages = [
 ]
 "#;
         let config: Config = toml::from_str(toml_str).unwrap();
-        
+
         assert!(config.logging.is_some());
         let logging = config.logging.unwrap();
         assert_eq!(logging.packages.len(), 2);
@@ -561,9 +561,12 @@ packages = [
 maven_settings = "/path/to/settings.xml"
 "#;
         let config: Config = toml::from_str(toml_str).unwrap();
-        
+
         assert!(config.logging.is_none());
-        assert_eq!(config.maven_settings, Some("/path/to/settings.xml".to_string()));
+        assert_eq!(
+            config.maven_settings,
+            Some("/path/to/settings.xml".to_string())
+        );
     }
 
     #[test]
@@ -573,7 +576,7 @@ maven_settings = "/path/to/settings.xml"
 packages = []
 "#;
         let config: Config = toml::from_str(toml_str).unwrap();
-        
+
         assert!(config.logging.is_some());
         let logging = config.logging.unwrap();
         assert_eq!(logging.packages.len(), 0);
