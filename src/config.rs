@@ -8,6 +8,36 @@ pub struct Config {
     pub launch_mode: Option<LaunchMode>,
     pub notifications_enabled: Option<bool>,
     pub watch: Option<WatchConfig>,
+    pub output: Option<OutputConfig>,
+}
+
+/// Output buffer configuration
+#[derive(Deserialize, Clone, Debug)]
+pub struct OutputConfig {
+    /// Maximum number of lines to keep in output buffer (default: 10000)
+    #[serde(default = "default_max_lines")]
+    pub max_lines: usize,
+    
+    /// Maximum number of updates to process per poll cycle (default: 100)
+    #[serde(default = "default_max_updates_per_poll")]
+    pub max_updates_per_poll: usize,
+}
+
+fn default_max_lines() -> usize {
+    10_000
+}
+
+fn default_max_updates_per_poll() -> usize {
+    100
+}
+
+impl Default for OutputConfig {
+    fn default() -> Self {
+        Self {
+            max_lines: default_max_lines(),
+            max_updates_per_poll: default_max_updates_per_poll(),
+        }
+    }
 }
 
 /// File watching configuration

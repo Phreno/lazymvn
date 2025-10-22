@@ -925,10 +925,10 @@ impl TuiState {
     /// Check for and process any pending command updates
     /// Should be called regularly from the main event loop
     pub fn poll_command_updates(&mut self) {
-        // Maximum number of lines to keep in output buffer (prevent memory issues)
-        const MAX_OUTPUT_LINES: usize = 10_000;
-        // Maximum number of updates to process per poll (prevent UI freeze with high output rate)
-        const MAX_UPDATES_PER_POLL: usize = 100;
+        // Get output configuration from config or use defaults
+        let output_config = self.config.output.as_ref().cloned().unwrap_or_default();
+        let max_output_lines = output_config.max_lines;
+        let max_updates_per_poll = output_config.max_updates_per_poll;
 
         // Collect all pending updates first to avoid borrowing issues
         let mut updates = Vec::new();
@@ -937,7 +937,7 @@ impl TuiState {
         if let Some(receiver) = self.command_receiver.as_ref() {
             let mut count = 0;
             loop {
-                if count >= MAX_UPDATES_PER_POLL {
+                if count >= max_updates_per_poll {
                     // Limit updates per poll to prevent UI freeze
                     break;
                 }
@@ -972,10 +972,10 @@ impl TuiState {
                     had_output_lines = true;
                     
                     // Trim buffer if it exceeds max size
-                    if self.command_output.len() > MAX_OUTPUT_LINES {
-                        let excess = self.command_output.len() - MAX_OUTPUT_LINES;
+                    if self.command_output.len() > max_output_lines {
+                        let excess = self.command_output.len() - max_output_lines;
                         self.command_output.drain(0..excess);
-                        log::debug!("Trimmed {} lines from output buffer", excess);
+                        log::debug!("Trimmed {} lines from output buffer (max: {})", excess, max_output_lines);
                     }
                 }
                 maven::CommandUpdate::Completed => {

@@ -53,3 +53,15 @@ patterns = [
 # Debounce delay in milliseconds (wait time before triggering reload)
 # Default: 500
 debounce_ms = 500
+
+# Output buffer configuration
+[output]
+# Maximum number of lines to keep in output buffer (default: 10000)
+# When exceeded, oldest lines are removed to prevent memory issues
+# Useful for long-running commands with lots of output
+max_lines = 10000
+
+# Maximum number of updates to process per poll cycle (default: 100)
+# Limits updates processed per event loop iteration to prevent UI freeze
+# Especially important on Windows with high log volume
+max_updates_per_poll = 100

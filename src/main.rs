@@ -390,6 +390,17 @@ debounce_ms = 500
 # commands = ["start"]
 # patterns = ["src/**/*.java", "src/**/*.properties", "src/**/*.yaml"]
 # debounce_ms = 1000
+
+# Output buffer configuration
+[output]
+# Maximum number of lines to keep in output buffer (default: 10000)
+# When exceeded, oldest lines are removed to prevent memory issues
+max_lines = 10000
+
+# Maximum number of updates to process per poll cycle (default: 100)
+# Limits updates per event loop iteration to prevent UI freeze
+# Increase if you have a very fast machine, decrease for slower systems
+max_updates_per_poll = 100
 "#;
 
     fs::write(config_path, config_template)?;
@@ -404,11 +415,13 @@ debounce_ms = 500
     println!("   3. Run 'lazymvn' to start");
     println!();
     println!("📖 Configuration options:");
-    println!("   • maven_settings    - Path to custom settings.xml");
-    println!("   • launch_mode       - How to launch Spring Boot apps");
-    println!("   • watch.enabled     - Enable file watching for auto-reload");
-    println!("   • watch.commands    - Commands that trigger auto-reload");
-    println!("   • watch.patterns    - File patterns to watch");
+    println!("   • maven_settings          - Path to custom settings.xml");
+    println!("   • launch_mode             - How to launch Spring Boot apps");
+    println!("   • watch.enabled           - Enable file watching for auto-reload");
+    println!("   • watch.commands          - Commands that trigger auto-reload");
+    println!("   • watch.patterns          - File patterns to watch");
+    println!("   • output.max_lines        - Max output buffer size");
+    println!("   • output.max_updates_per_poll - Output processing rate limit");
     println!();
     println!("💡 Tip: Use 'lazymvn --debug' to see detailed logs");
 
