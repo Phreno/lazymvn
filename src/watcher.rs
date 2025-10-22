@@ -1,7 +1,7 @@
 //! File watching for auto-reload functionality
 
 use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
@@ -42,11 +42,11 @@ impl FileWatcher {
 
         // Drain all pending events
         while let Ok(event) = self.receiver.try_recv() {
-            if let Ok(event) = event {
-                if is_relevant_event(&event) {
-                    log::debug!("File change detected: {:?}", event.paths);
-                    has_changes = true;
-                }
+            if let Ok(event) = event
+                && is_relevant_event(&event)
+            {
+                log::debug!("File change detected: {:?}", event.paths);
+                has_changes = true;
             }
         }
 
@@ -56,10 +56,10 @@ impl FileWatcher {
 
         // Check debounce
         let now = Instant::now();
-        if let Some(last) = self.last_event {
-            if now.duration_since(last) < self.debounce_duration {
-                return false; // Too soon, still debouncing
-            }
+        if let Some(last) = self.last_event
+            && now.duration_since(last) < self.debounce_duration
+        {
+            return false; // Too soon, still debouncing
         }
 
         self.last_event = Some(now);
@@ -78,6 +78,7 @@ fn is_relevant_event(event: &Event) -> bool {
 }
 
 /// Check if a path matches any of the given patterns
+#[allow(dead_code)]
 pub fn matches_patterns(path: &Path, patterns: &[String]) -> bool {
     let path_str = path.to_string_lossy();
     
@@ -101,8 +102,7 @@ fn matches_glob(path: &str, pattern: &str) -> bool {
             let prefix = parts[0];
             let suffix = parts[1].trim_start_matches('/');
             
-            if path.starts_with(prefix) {
-                let remaining = &path[prefix.len()..];
+            if let Some(remaining) = path.strip_prefix(prefix) {
                 return matches_glob(remaining, suffix);
             }
         }

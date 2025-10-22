@@ -325,17 +325,17 @@ impl TuiState {
         };
 
         // Initialize file watcher if configured
-        if let Some(watch_config) = &state.config.watch {
-            if watch_config.enabled {
-                match crate::watcher::FileWatcher::new(&state.project_root, watch_config.debounce_ms) {
-                    Ok(watcher) => {
-                        state.file_watcher = Some(watcher);
-                        state.watch_enabled = true;
-                        log::info!("File watcher enabled with {} patterns", watch_config.patterns.len());
-                    }
-                    Err(e) => {
-                        log::error!("Failed to initialize file watcher: {}", e);
-                    }
+        if let Some(watch_config) = &state.config.watch
+            && watch_config.enabled
+        {
+            match crate::watcher::FileWatcher::new(&state.project_root, watch_config.debounce_ms) {
+                Ok(watcher) => {
+                    state.file_watcher = Some(watcher);
+                    state.watch_enabled = true;
+                    log::info!("File watcher enabled with {} patterns", watch_config.patterns.len());
+                }
+                Err(e) => {
+                    log::error!("Failed to initialize file watcher: {}", e);
                 }
             }
         }
@@ -1015,32 +1015,32 @@ impl TuiState {
             return;
         }
 
-        if let Some(watcher) = &mut self.file_watcher {
-            if watcher.check_changes() {
-                log::info!("File changes detected, checking if should re-run command");
+        if let Some(watcher) = &mut self.file_watcher
+            && watcher.check_changes()
+        {
+            log::info!("File changes detected, checking if should re-run command");
+            
+            // Clone last command to avoid borrow issues
+            let last_cmd = self.last_command.clone();
+            
+            // Check if last command is watchable
+            if let Some(last_cmd) = last_cmd {
+                let watch_config = self.config.watch.as_ref().unwrap();
                 
-                // Clone last command to avoid borrow issues
-                let last_cmd = self.last_command.clone();
+                // Check if this command should trigger auto-reload
+                let should_rerun = last_cmd.iter().any(|arg| {
+                    watch_config.commands.iter().any(|cmd| arg.contains(cmd))
+                });
                 
-                // Check if last command is watchable
-                if let Some(last_cmd) = last_cmd {
-                    let watch_config = self.config.watch.as_ref().unwrap();
+                if should_rerun {
+                    self.command_output.push(String::new());
+                    self.command_output.push("🔄 Files changed, reloading...".to_string());
+                    self.command_output.push(String::new());
                     
-                    // Check if this command should trigger auto-reload
-                    let should_rerun = last_cmd.iter().any(|arg| {
-                        watch_config.commands.iter().any(|cmd| arg.contains(cmd))
-                    });
-                    
-                    if should_rerun {
-                        self.command_output.push(String::new());
-                        self.command_output.push("🔄 Files changed, reloading...".to_string());
-                        self.command_output.push(String::new());
-                        
-                        // Re-run the last command
-                        log::info!("Re-running command due to file changes");
-                        let args: Vec<&str> = last_cmd.iter().map(|s| s.as_str()).collect();
-                        self.run_selected_module_command(&args);
-                    }
+                    // Re-run the last command
+                    log::info!("Re-running command due to file changes");
+                    let args: Vec<&str> = last_cmd.iter().map(|s| s.as_str()).collect();
+                    self.run_selected_module_command(&args);
                 }
             }
         }
