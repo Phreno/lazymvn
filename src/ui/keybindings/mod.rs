@@ -618,39 +618,42 @@ pub(crate) fn blank_line() -> Line<'static> {
     Line::raw("")
 }
 
-pub(crate) fn build_navigation_line() -> Line<'static> {
-    let spans: Vec<Span<'static>> = vec![
-        Span::styled("Views ", Theme::FOOTER_SECTION_STYLE),
-        key_token("0"),
-        Span::raw(" Output • "),
-        key_token("1"),
-        Span::raw(" Projects • "),
-        key_token("2"),
-        Span::raw(" Modules • "),
-        key_token("3"),
-        Span::raw(" Profiles • "),
-        key_token("4"),
-        Span::raw(" Flags  •  "),
-        Span::styled("Focus ", Theme::FOOTER_SECTION_STYLE),
-        key_token("←"),
-        Span::raw("  "),
-        key_token("→"),
-        Span::raw("  •  "),
-        Span::styled("Navigate ", Theme::FOOTER_SECTION_STYLE),
-        key_token("↑"),
-        Span::raw("  "),
-        key_token("↓"),
-        Span::raw("  •  "),
-        key_token("Ctrl+F"),
-        Span::raw(" Favs  •  "),
-        key_token("Ctrl+H"),
-        Span::raw(" History  •  "),
-        key_token("Ctrl+R"),
-        Span::raw(" Recent  •  "),
-        key_token("Esc"),
-        Span::raw(" Kill"),
-    ];
-    Line::from(spans)
+pub(crate) fn build_navigation_line() -> Vec<Line<'static>> {
+    // Split into 3 logical groups on separate lines for better readability
+    vec![
+        // Line 1: Views
+        Line::from(vec![
+            Span::styled("Views: ", Theme::FOOTER_SECTION_STYLE),
+            key_token("0"),
+            Span::raw(" Output  "),
+            key_token("1"),
+            Span::raw(" Projects  "),
+            key_token("2"),
+            Span::raw(" Modules  "),
+            key_token("3"),
+            Span::raw(" Profiles  "),
+            key_token("4"),
+            Span::raw(" Flags"),
+        ]),
+        // Line 2: Focus & Navigate
+        Line::from(vec![
+            Span::styled("Focus: ", Theme::FOOTER_SECTION_STYLE),
+            key_token("←→"),
+            Span::raw("   "),
+            Span::styled("Navigate: ", Theme::FOOTER_SECTION_STYLE),
+            key_token("↑↓"),
+            Span::raw("   "),
+            Span::styled("Actions: ", Theme::FOOTER_SECTION_STYLE),
+            key_token("Ctrl+F"),
+            Span::raw(" Favs  "),
+            key_token("Ctrl+H"),
+            Span::raw(" History  "),
+            key_token("Ctrl+R"),
+            Span::raw(" Recent  "),
+            key_token("Esc"),
+            Span::raw(" Kill"),
+        ]),
+    ]
 }
 
 pub(crate) fn simplified_footer_title(

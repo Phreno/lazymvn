@@ -359,7 +359,7 @@ pub fn render_footer(
     let _ = focus; // Not needed in simplified footer
 
     let mut constraints = vec![
-        Constraint::Length(1), // navigation
+        Constraint::Length(2), // navigation (2 lines)
         Constraint::Length(1), // spacer
         Constraint::Length(3), // commands box
     ];
@@ -372,8 +372,9 @@ pub fn render_footer(
         .constraints(constraints)
         .split(area);
 
-    // Navigation line
-    let navigation = Paragraph::new(crate::ui::keybindings::build_navigation_line());
+    // Navigation lines (multi-line)
+    let navigation_lines = crate::ui::keybindings::build_navigation_line();
+    let navigation = Paragraph::new(navigation_lines);
     f.render_widget(navigation, chunks[0]);
 
     // Spacer
