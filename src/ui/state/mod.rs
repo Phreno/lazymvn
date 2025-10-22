@@ -925,14 +925,27 @@ impl TuiState {
     /// Check for and process any pending command updates
     /// Should be called regularly from the main event loop
     pub fn poll_command_updates(&mut self) {
+        // Maximum number of lines to keep in output buffer (prevent memory issues)
+        const MAX_OUTPUT_LINES: usize = 10_000;
+        // Maximum number of updates to process per poll (prevent UI freeze with high output rate)
+        const MAX_UPDATES_PER_POLL: usize = 100;
+
         // Collect all pending updates first to avoid borrowing issues
         let mut updates = Vec::new();
         let mut should_clear_receiver = false;
 
         if let Some(receiver) = self.command_receiver.as_ref() {
+            let mut count = 0;
             loop {
+                if count >= MAX_UPDATES_PER_POLL {
+                    // Limit updates per poll to prevent UI freeze
+                    break;
+                }
                 match receiver.try_recv() {
-                    Ok(update) => updates.push(update),
+                    Ok(update) => {
+                        updates.push(update);
+                        count += 1;
+                    }
                     Err(mpsc::TryRecvError::Empty) => break,
                     Err(mpsc::TryRecvError::Disconnected) => {
                         log::warn!("Command channel disconnected unexpectedly");
@@ -943,6 +956,10 @@ impl TuiState {
             }
         }
 
+        // Check if we're currently at the bottom (for auto-scroll)
+        let was_at_bottom = self.output_offset >= self.max_scroll_offset();
+        let mut had_output_lines = false;
+
         // Now process all updates
         for update in updates {
             match update {
@@ -952,9 +969,14 @@ impl TuiState {
                 }
                 maven::CommandUpdate::OutputLine(line) => {
                     self.command_output.push(line);
-                    // Auto-scroll to bottom while command is running
-                    self.scroll_output_to_end();
-                    self.store_current_module_output();
+                    had_output_lines = true;
+                    
+                    // Trim buffer if it exceeds max size
+                    if self.command_output.len() > MAX_OUTPUT_LINES {
+                        let excess = self.command_output.len() - MAX_OUTPUT_LINES;
+                        self.command_output.drain(0..excess);
+                        log::debug!("Trimmed {} lines from output buffer", excess);
+                    }
                 }
                 maven::CommandUpdate::Completed => {
                     log::info!("Command completed successfully");
@@ -992,6 +1014,16 @@ impl TuiState {
                     );
                 }
             }
+        }
+
+        // Only update scroll and metrics once at the end if we had output lines
+        if had_output_lines {
+            // Auto-scroll to bottom only if we were already at bottom
+            if was_at_bottom {
+                self.scroll_output_to_end();
+            }
+            self.store_current_module_output();
+            self.output_metrics = None;
         }
 
         if should_clear_receiver {
