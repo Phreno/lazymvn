@@ -213,14 +213,11 @@ fn run<B: ratatui::backend::Backend>(
     
     let mut state = tui::TuiState::new(modules, project_root.clone(), config);
 
-    // Step 4: Discovering Maven profiles
-    loading_step!(progress, terminal, 4, 5, "Discovering Maven profiles...");
+    // Step 4: Discovering Maven profiles (asynchronous)
+    loading_step!(progress, terminal, 4, 5, "Starting profile discovery...");
     
-    // Load available profiles
-    if let Ok(profiles) = maven::get_profiles(&project_root) {
-        log::debug!("Found {} Maven profiles", profiles.len());
-        state.set_profiles(profiles);
-    }
+    // Start loading profiles asynchronously
+    state.start_loading_profiles();
 
     // Step 5: Ready!
     loading_step!(progress, terminal, 5, 5, "Starting LazyMVN...");
@@ -231,7 +228,10 @@ fn run<B: ratatui::backend::Backend>(
     loop {
         // Poll for command updates first
         state.poll_command_updates();
-        
+
+        // Poll for profile loading updates
+        state.poll_profiles_updates();
+
         // Check file watcher for auto-reload
         state.check_file_watcher();
 
@@ -274,11 +274,8 @@ fn run<B: ratatui::backend::Backend>(
                     // Create new state
                     state = tui::TuiState::new(new_modules, new_project_root.clone(), new_config);
 
-                    // Load profiles
-                    if let Ok(profiles) = maven::get_profiles(&new_project_root) {
-                        log::debug!("Found {} Maven profiles", profiles.len());
-                        state.set_profiles(profiles);
-                    }
+                    // Load profiles asynchronously
+                    state.start_loading_profiles();
                 }
                 Err(e) => {
                     log::error!("Failed to load new project: {}", e);

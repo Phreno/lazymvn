@@ -113,6 +113,11 @@ pub struct TuiState {
     pub is_command_running: bool,
     command_start_time: Option<Instant>,
     running_process_pid: Option<u32>,
+    // Async profile loading
+    profiles_receiver: Option<mpsc::Receiver<Result<Vec<String>, String>>>,
+    pub profile_loading_status: ProfileLoadingStatus,
+    profile_loading_start_time: Option<Instant>,
+    profile_spinner_frame: usize,
     // Recent projects
     pub recent_projects: Vec<PathBuf>,
     pub projects_list_state: ListState,
@@ -133,6 +138,17 @@ pub struct TuiState {
     file_watcher: Option<crate::watcher::FileWatcher>,
     last_command: Option<Vec<String>>,
     watch_enabled: bool,
+}
+
+/// Status of profile loading
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ProfileLoadingStatus {
+    /// Profiles are being loaded asynchronously
+    Loading,
+    /// Profiles have been loaded successfully
+    Loaded,
+    /// Failed to load profiles
+    Error(String),
 }
 
 /// State of a Maven profile
@@ -307,6 +323,10 @@ impl TuiState {
             is_command_running: false,
             command_start_time: None,
             running_process_pid: None,
+            profiles_receiver: None,
+            profile_loading_status: ProfileLoadingStatus::Loading,
+            profile_loading_start_time: None,
+            profile_spinner_frame: 0,
             recent_projects,
             projects_list_state,
             show_projects_popup: false,
@@ -978,6 +998,84 @@ impl TuiState {
             self.is_command_running = false;
             self.command_receiver = None;
         }
+    }
+
+    /// Check for and process any pending profile loading updates
+    /// Should be called regularly from the main event loop
+    pub fn poll_profiles_updates(&mut self) {
+        // Update spinner animation
+        if matches!(self.profile_loading_status, ProfileLoadingStatus::Loading) {
+            self.profile_spinner_frame = (self.profile_spinner_frame + 1) % 8;
+        }
+
+        // Check for timeout (30 seconds)
+        if let Some(start_time) = self.profile_loading_start_time {
+            if start_time.elapsed() > Duration::from_secs(30) {
+                log::warn!("Profile loading timed out after 30 seconds");
+                self.profile_loading_status = ProfileLoadingStatus::Error(
+                    "Timeout: Profile loading took too long (>30s)".to_string()
+                );
+                self.profiles_receiver = None;
+                self.profile_loading_start_time = None;
+                return;
+            }
+        }
+
+        if let Some(receiver) = self.profiles_receiver.as_ref() {
+            match receiver.try_recv() {
+                Ok(Ok(profile_names)) => {
+                    log::info!("Profiles loaded asynchronously: {} profiles", profile_names.len());
+                    self.set_profiles(profile_names);
+                    self.profile_loading_status = ProfileLoadingStatus::Loaded;
+                    self.profiles_receiver = None;
+                    self.profile_loading_start_time = None;
+                }
+                Ok(Err(error)) => {
+                    log::error!("Failed to load profiles: {}", error);
+                    self.profile_loading_status = ProfileLoadingStatus::Error(error);
+                    self.profiles_receiver = None;
+                    self.profile_loading_start_time = None;
+                }
+                Err(mpsc::TryRecvError::Empty) => {
+                    // Still loading, nothing to do
+                }
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    log::warn!("Profiles channel disconnected unexpectedly");
+                    self.profile_loading_status = ProfileLoadingStatus::Error(
+                        "Profile loading channel disconnected".to_string()
+                    );
+                    self.profiles_receiver = None;
+                    self.profile_loading_start_time = None;
+                }
+            }
+        }
+    }
+
+    /// Get the current spinner character for profile loading animation
+    pub fn profile_loading_spinner(&self) -> &'static str {
+        const SPINNER_FRAMES: [&str; 8] = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧"];
+        SPINNER_FRAMES[self.profile_spinner_frame % SPINNER_FRAMES.len()]
+    }
+
+    /// Start loading profiles asynchronously
+    pub fn start_loading_profiles(&mut self) {
+        let (tx, rx) = mpsc::channel();
+        self.profiles_receiver = Some(rx);
+        self.profile_loading_status = ProfileLoadingStatus::Loading;
+        self.profile_loading_start_time = Some(Instant::now());
+        self.profile_spinner_frame = 0;
+
+        let project_root = self.project_root.clone();
+        std::thread::spawn(move || {
+            let result = maven::get_profiles(&project_root)
+                .map_err(|e| e.to_string());
+            
+            if let Err(e) = tx.send(result) {
+                log::error!("Failed to send profiles result: {}", e);
+            }
+        });
+
+        log::info!("Started asynchronous profile loading");
     }
 
     /// Kill the currently running Maven process
@@ -1981,4 +2079,103 @@ fn column_for_byte_index(s: &str, byte_index: usize) -> usize {
         column += UnicodeWidthChar::width(ch).unwrap_or(0);
     }
     column
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_profile_loading_status_initial_state() {
+        let config = crate::config::Config::default();
+        let state = TuiState::new(
+            vec!["test-module".to_string()],
+            PathBuf::from("/tmp/test"),
+            config,
+        );
+        
+        // Initially, profiles should be in Loading state
+        assert!(matches!(state.profile_loading_status, ProfileLoadingStatus::Loading));
+        assert_eq!(state.profiles.len(), 0);
+    }
+
+    #[test]
+    fn test_profile_loading_spinner_frames() {
+        let config = crate::config::Config::default();
+        let mut state = TuiState::new(
+            vec!["test-module".to_string()],
+            PathBuf::from("/tmp/test"),
+            config,
+        );
+        
+        // Test spinner cycles through frames
+        let frame1 = state.profile_loading_spinner();
+        state.profile_spinner_frame = 1;
+        let frame2 = state.profile_loading_spinner();
+        state.profile_spinner_frame = 7;
+        let frame3 = state.profile_loading_spinner();
+        
+        // Should have different frames
+        assert_ne!(frame1, frame2);
+        assert_ne!(frame2, frame3);
+        
+        // Should cycle back after 8 frames
+        state.profile_spinner_frame = 8;
+        let frame_cycled = state.profile_loading_spinner();
+        assert_eq!(frame1, frame_cycled);
+    }
+
+    #[test]
+    fn test_profile_state_transitions() {
+        let mut profile = MavenProfile::new("test-profile".to_string(), false);
+        
+        // Default state for non-auto profile
+        assert_eq!(profile.state, ProfileState::Default);
+        assert!(!profile.is_active());
+        
+        // Toggle should enable
+        profile.toggle();
+        assert_eq!(profile.state, ProfileState::ExplicitlyEnabled);
+        assert!(profile.is_active());
+        
+        // Toggle again should return to default
+        profile.toggle();
+        assert_eq!(profile.state, ProfileState::Default);
+        assert!(!profile.is_active());
+    }
+
+    #[test]
+    fn test_auto_activated_profile_state_transitions() {
+        let mut profile = MavenProfile::new("auto-profile".to_string(), true);
+        
+        // Default state for auto-activated profile
+        assert_eq!(profile.state, ProfileState::Default);
+        assert!(profile.is_active()); // Auto-activated, so active by default
+        
+        // Toggle should disable
+        profile.toggle();
+        assert_eq!(profile.state, ProfileState::ExplicitlyDisabled);
+        assert!(!profile.is_active());
+        
+        // Toggle again should return to default (auto-activated)
+        profile.toggle();
+        assert_eq!(profile.state, ProfileState::Default);
+        assert!(profile.is_active());
+    }
+
+    #[test]
+    fn test_profile_maven_arg_generation() {
+        let mut profile = MavenProfile::new("test".to_string(), false);
+        
+        // Default state: no arg
+        assert_eq!(profile.to_maven_arg(), None);
+        
+        // Explicitly enabled: returns profile name
+        profile.state = ProfileState::ExplicitlyEnabled;
+        assert_eq!(profile.to_maven_arg(), Some("test".to_string()));
+        
+        // Explicitly disabled: returns !profile
+        profile.state = ProfileState::ExplicitlyDisabled;
+        assert_eq!(profile.to_maven_arg(), Some("!test".to_string()));
+    }
 }

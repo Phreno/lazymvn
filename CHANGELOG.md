@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Asynchronous Profile Loading** (#TBD):
+  - Profile discovery now happens asynchronously in a background thread
+  - UI remains responsive during profile loading (no blocking)
+  - Animated spinner (⠋⠙⠹⠸⠼⠴⠦⠧) displays while profiles are being discovered
+  - 30-second timeout for profile loading with clear error messaging
+  - Loading status displayed in Profiles pane title and content area
+  - Improved startup experience - application starts faster and feels more dynamic
+  - Profile loading state management with `ProfileLoadingStatus` enum (Loading, Loaded, Error)
+
+### Changed
+- **Startup Performance**:
+  - Profiles are now loaded in parallel with UI initialization
+  - Loading screen progresses faster through initialization steps
+  - Profile discovery step completes immediately, actual loading happens in background
+
+### Technical
+- Added `ProfileLoadingStatus` enum to track loading state
+- Added `profile_loading_spinner()` method for animated loading indicator
+- Added `poll_profiles_updates()` to process async profile results
+- Added `start_loading_profiles()` to initiate async loading with timeout
+- Added 5 unit tests for profile state management and spinner animation
+- Added 2 integration tests for timeout behavior and spinner frames
+- Profile loading now uses mpsc channels for thread communication
+- Timeout mechanism prevents indefinite hangs if Maven is unresponsive
+
 ## [0.3.6] - 2025-10-20
 
 ### Fixed

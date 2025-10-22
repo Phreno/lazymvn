@@ -51,12 +51,15 @@ pub fn draw<B: Backend>(
             state.focus == Focus::Modules,
         );
 
+        let spinner = state.profile_loading_spinner();
         render_profiles_pane(
             f,
             profiles_area,
             &state.profiles,
             &mut state.profiles_list_state,
             state.focus == Focus::Profiles,
+            &state.profile_loading_status,
+            spinner,
         );
 
         render_flags_pane(

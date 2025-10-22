@@ -71,13 +71,23 @@ pub fn render_profiles_pane(
     profiles: &[crate::ui::state::MavenProfile],
     list_state: &mut ListState,
     is_focused: bool,
+    loading_status: &crate::ui::state::ProfileLoadingStatus,
+    spinner: &str,
 ) {
+    use crate::ui::state::ProfileLoadingStatus;
+
     let active_count = profiles.iter().filter(|p| p.is_active()).count();
 
-    let title = if active_count == 0 {
-        "[3] Profiles".to_string()
-    } else {
-        format!("[3] Profiles ({})", active_count)
+    let title = match loading_status {
+        ProfileLoadingStatus::Loading => format!("[3] Profiles ({} loading...)", spinner),
+        ProfileLoadingStatus::Error(_) => "[3] Profiles (error)".to_string(),
+        ProfileLoadingStatus::Loaded => {
+            if active_count == 0 {
+                "[3] Profiles".to_string()
+            } else {
+                format!("[3] Profiles ({})", active_count)
+            }
+        }
     };
 
     let block = Block::default()
@@ -89,6 +99,23 @@ pub fn render_profiles_pane(
         } else {
             Theme::DEFAULT_STYLE
         });
+
+    // Show loading/error message if profiles are not loaded yet
+    if matches!(loading_status, ProfileLoadingStatus::Loading) {
+        let loading_text = Paragraph::new(format!("{} Discovering Maven profiles...", spinner))
+            .block(block)
+            .alignment(ratatui::layout::Alignment::Center)
+            .style(Theme::INFO_STYLE);
+        f.render_widget(loading_text, area);
+        return;
+    } else if let ProfileLoadingStatus::Error(err) = loading_status {
+        let error_text = Paragraph::new(format!("✗ Error loading profiles:\n{}", err))
+            .block(block)
+            .alignment(ratatui::layout::Alignment::Center)
+            .style(Theme::ERROR_STYLE);
+        f.render_widget(error_text, area);
+        return;
+    }
 
     let items: Vec<ListItem> = profiles
         .iter()
