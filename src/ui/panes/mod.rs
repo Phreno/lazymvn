@@ -983,3 +983,140 @@ mod tests {
         assert!(flags_area.height > 5);
     }
 }
+
+/// Render command history popup
+pub fn render_history_popup(
+    f: &mut Frame,
+    history: &[crate::history::HistoryEntry],
+    list_state: &mut ListState,
+) {
+    // Calculate popup size (centered, 80% width, 80% height)
+    let area = f.area();
+    let popup_width = (area.width * 80) / 100;
+    let popup_height = (area.height * 80) / 100;
+    let popup_x = (area.width - popup_width) / 2;
+    let popup_y = (area.height - popup_height) / 2;
+
+    let popup_area = Rect {
+        x: popup_x,
+        y: popup_y,
+        width: popup_width,
+        height: popup_height,
+    };
+
+    // Clear the area behind the popup
+    let clear_block = Block::default().style(Style::default().bg(ratatui::style::Color::Black));
+    f.render_widget(clear_block, popup_area);
+
+    // Split popup into title, list, preview, and help sections
+    let popup_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3),      // Title
+            Constraint::Percentage(60), // List
+            Constraint::Min(1),         // Preview
+            Constraint::Length(2),      // Help
+        ])
+        .split(popup_area);
+
+    // Title
+    let title_block = Block::default()
+        .title("Command History (Ctrl+H)")
+        .borders(Borders::ALL)
+        .border_type(ratatui::widgets::BorderType::Rounded)
+        .border_style(Theme::FOCUS_STYLE);
+    f.render_widget(title_block, popup_chunks[0]);
+
+    // Command list
+    let items: Vec<ListItem> = history
+        .iter()
+        .map(|entry| {
+            let time = entry.format_time();
+            let cmd = entry.format_command();
+            let line = format!("{} | {}", time, cmd);
+            ListItem::new(Line::from(line))
+        })
+        .collect();
+
+    let list_block = Block::default()
+        .title("Recent Commands")
+        .borders(Borders::ALL)
+        .border_type(ratatui::widgets::BorderType::Rounded);
+
+    let list = List::new(items)
+        .block(list_block)
+        .style(Theme::DEFAULT_STYLE)
+        .highlight_style(Theme::SELECTED_STYLE)
+        .highlight_symbol(">> ");
+
+    f.render_stateful_widget(list, popup_chunks[1], list_state);
+
+    // Preview of selected command
+    let preview_text = if let Some(selected) = list_state.selected() {
+        if let Some(entry) = history.get(selected) {
+            let mut lines = vec![
+                Line::from(vec![
+                    Span::styled("Module: ", Style::default().fg(ratatui::style::Color::Yellow)),
+                    Span::raw(&entry.module),
+                ]),
+                Line::from(vec![
+                    Span::styled("Goal: ", Style::default().fg(ratatui::style::Color::Yellow)),
+                    Span::raw(&entry.goal),
+                ]),
+            ];
+
+            if !entry.profiles.is_empty() {
+                lines.push(Line::from(vec![
+                    Span::styled(
+                        "Profiles: ",
+                        Style::default().fg(ratatui::style::Color::Yellow),
+                    ),
+                    Span::raw(entry.profiles.join(", ")),
+                ]));
+            }
+
+            if !entry.flags.is_empty() {
+                lines.push(Line::from(vec![
+                    Span::styled("Flags: ", Style::default().fg(ratatui::style::Color::Yellow)),
+                    Span::raw(entry.flags.join(", ")),
+                ]));
+            }
+
+            lines.push(Line::from(""));
+            lines.push(Line::from(vec![
+                Span::styled("Time: ", Style::default().fg(ratatui::style::Color::Yellow)),
+                Span::raw(entry.format_time()),
+            ]));
+
+            lines
+        } else {
+            vec![Line::from("No command selected")]
+        }
+    } else {
+        vec![Line::from("No command selected")]
+    };
+
+    let preview_block = Block::default()
+        .title("Command Details")
+        .borders(Borders::ALL)
+        .border_type(ratatui::widgets::BorderType::Rounded);
+
+    let preview = Paragraph::new(preview_text).block(preview_block);
+    f.render_widget(preview, popup_chunks[2]);
+
+    // Help
+    let help_text = Line::from(vec![
+        Span::styled("Enter", Style::default().fg(ratatui::style::Color::Green)),
+        Span::raw(" Run | "),
+        Span::styled("↑↓", Style::default().fg(ratatui::style::Color::Cyan)),
+        Span::raw(" Navigate | "),
+        Span::styled("Esc", Style::default().fg(ratatui::style::Color::Red)),
+        Span::raw(" Close"),
+    ]);
+
+    let help_paragraph = Paragraph::new(help_text)
+        .alignment(ratatui::layout::Alignment::Center)
+        .style(Theme::DEFAULT_STYLE);
+    f.render_widget(help_paragraph, popup_chunks[3]);
+}
+

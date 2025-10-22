@@ -76,6 +76,62 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
 
     log::debug!("Key event: {:?}", key);
 
+    // Handle command history popup separately
+    if state.show_history_popup {
+        match key.code {
+            KeyCode::Down => {
+                log::debug!("Navigate down in history");
+                let len = state.command_history.entries().len();
+                if len > 0 {
+                    let i = match state.history_list_state.selected() {
+                        Some(i) => {
+                            if i >= len - 1 {
+                                0
+                            } else {
+                                i + 1
+                            }
+                        }
+                        None => 0,
+                    };
+                    state.history_list_state.select(Some(i));
+                }
+            }
+            KeyCode::Up => {
+                log::debug!("Navigate up in history");
+                let len = state.command_history.entries().len();
+                if len > 0 {
+                    let i = match state.history_list_state.selected() {
+                        Some(i) => {
+                            if i == 0 {
+                                len - 1
+                            } else {
+                                i - 1
+                            }
+                        }
+                        None => 0,
+                    };
+                    state.history_list_state.select(Some(i));
+                }
+            }
+            KeyCode::Enter => {
+                log::info!("Execute command from history");
+                if let Some(selected) = state.history_list_state.selected() {
+                    if let Some(entry) = state.command_history.entries().get(selected) {
+                        // Apply the command's configuration
+                        state.apply_history_entry(entry.clone());
+                        state.show_history_popup = false;
+                    }
+                }
+            }
+            KeyCode::Esc | KeyCode::Char('q') => {
+                log::info!("Close history popup");
+                state.show_history_popup = false;
+            }
+            _ => {}
+        }
+        return;
+    }
+
     // Handle projects popup separately
     if state.show_projects_popup {
         match key.code {
@@ -260,6 +316,18 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
 
     // Direct command execution - no menu navigation needed
     match key.code {
+        KeyCode::Char('h')
+            if key
+                .modifiers
+                .contains(crossterm::event::KeyModifiers::CONTROL) =>
+        {
+            log::info!("Show command history");
+            state.show_history_popup = true;
+            // Reset selection to first item
+            if !state.command_history.entries().is_empty() {
+                state.history_list_state.select(Some(0));
+            }
+        }
         KeyCode::Char('r')
             if key
                 .modifiers
@@ -452,6 +520,8 @@ pub(crate) fn build_navigation_line() -> Line<'static> {
         Span::raw("  "),
         key_token("↓"),
         Span::raw("  •  "),
+        key_token("Ctrl+H"),
+        Span::raw(" History  •  "),
         key_token("Ctrl+R"),
         Span::raw(" Recent  •  "),
         key_token("Esc"),

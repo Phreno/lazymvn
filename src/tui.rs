@@ -7,9 +7,9 @@
 use crate::ui::{
     keybindings,
     panes::{
-        create_adaptive_layout, render_flags_pane, render_footer, render_modules_pane,
-        render_output_pane, render_profiles_pane, render_projects_pane, render_projects_popup,
-        render_starter_manager_popup, render_starter_selector_popup,
+        create_adaptive_layout, render_flags_pane, render_footer, render_history_popup,
+        render_modules_pane, render_output_pane, render_profiles_pane, render_projects_pane,
+        render_projects_popup, render_starter_manager_popup, render_starter_selector_popup,
     },
 };
 use crossterm::event::KeyEvent;
@@ -127,6 +127,15 @@ pub fn draw<B: Backend>(
                 f,
                 &state.starters_cache.starters,
                 &mut state.starters_list_state,
+            );
+        }
+
+        // Render command history popup if shown
+        if state.show_history_popup {
+            render_history_popup(
+                f,
+                state.command_history.entries(),
+                &mut state.history_list_state,
             );
         }
     })?;
@@ -255,6 +264,7 @@ mod tests {
             launch_mode: None,
             notifications_enabled: None,
             watch: None,
+            output: None,
         }
     }
 

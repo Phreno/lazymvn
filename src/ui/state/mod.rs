@@ -140,6 +140,10 @@ pub struct TuiState {
     watch_enabled: bool,
     // Git branch
     pub git_branch: Option<String>,
+    // Command history
+    pub command_history: crate::history::CommandHistory,
+    pub show_history_popup: bool,
+    pub history_list_state: ListState,
 }
 
 /// Status of profile loading
@@ -298,6 +302,13 @@ impl TuiState {
         // Get Git branch
         let git_branch = crate::utils::get_git_branch(&project_root);
 
+        // Load command history
+        let command_history = crate::history::CommandHistory::load();
+        let mut history_list_state = ListState::default();
+        if !command_history.entries().is_empty() {
+            history_list_state.select(Some(0));
+        }
+
         let mut state = Self {
             current_view: CurrentView::Modules,
             focus: Focus::Modules,
@@ -348,6 +359,9 @@ impl TuiState {
             last_command: None,
             watch_enabled: false,
             git_branch,
+            command_history,
+            show_history_popup: false,
+            history_list_state,
         };
 
         // Initialize file watcher if configured
@@ -902,6 +916,16 @@ impl TuiState {
 
                     // Save last command for watch mode
                     self.last_command = Some(args.iter().map(|s| s.to_string()).collect());
+
+                    // Add to command history
+                    let history_entry = crate::history::HistoryEntry::new(
+                        module.clone(),
+                        args.join(" "),
+                        active_profile_names.clone(),
+                        enabled_flag_names.clone(),
+                    );
+                    self.command_history.add(history_entry);
+                    log::debug!("Command added to history");
 
                     // Store metadata about this command execution
                     let module_output = ModuleOutput {
@@ -1739,6 +1763,61 @@ impl TuiState {
             None => 0,
         };
         self.projects_list_state.select(Some(i));
+    }
+
+    /// Apply a history entry: select module, set profiles, flags, and run command
+    pub fn apply_history_entry(&mut self, entry: crate::history::HistoryEntry) {
+        log::info!("Applying history entry for module: {}", entry.module);
+
+        // Find and select the module
+        if let Some(module_idx) = self
+            .modules
+            .iter()
+            .position(|m| m == &entry.module)
+        {
+            self.modules_list_state.select(Some(module_idx));
+            log::debug!("Selected module at index {}", module_idx);
+        } else {
+            log::warn!("Module '{}' not found in current project", entry.module);
+            self.command_output = vec![format!(
+                "Error: Module '{}' not found in current project",
+                entry.module
+            )];
+            return;
+        }
+
+        // Set profiles
+        for profile in &mut self.profiles {
+            if entry.profiles.contains(&profile.name) {
+                // Should be enabled
+                if !profile.is_active() {
+                    profile.state = crate::ui::state::ProfileState::ExplicitlyEnabled;
+                }
+            } else {
+                // Should be disabled or default
+                if profile.auto_activated {
+                    // If auto-activated but not in history, explicitly disable
+                    profile.state = crate::ui::state::ProfileState::ExplicitlyDisabled;
+                } else {
+                    // Otherwise set to default
+                    profile.state = crate::ui::state::ProfileState::Default;
+                }
+            }
+        }
+
+        // Set flags
+        for flag in &mut self.flags {
+            flag.enabled = entry.flags.contains(&flag.name);
+        }
+
+        // Switch to modules view
+        self.switch_to_modules();
+
+        // Execute the command
+        let goal_parts: Vec<&str> = entry.goal.split_whitespace().collect();
+        self.run_selected_module_command(&goal_parts);
+
+        log::info!("History entry applied and command executed");
     }
 
     // Spring Boot starter methods
