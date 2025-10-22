@@ -1,4 +1,5 @@
 mod config;
+mod favorites;
 mod history;
 mod loading;
 mod logger;

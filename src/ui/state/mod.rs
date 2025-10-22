@@ -144,6 +144,13 @@ pub struct TuiState {
     pub command_history: crate::history::CommandHistory,
     pub show_history_popup: bool,
     pub history_list_state: ListState,
+    // Favorites
+    pub favorites: crate::favorites::Favorites,
+    pub show_favorites_popup: bool,
+    pub favorites_list_state: ListState,
+    pub show_save_favorite_popup: bool,
+    pub favorite_name_input: String,
+    pub pending_favorite: Option<crate::history::HistoryEntry>,
 }
 
 /// Status of profile loading
@@ -309,6 +316,13 @@ impl TuiState {
             history_list_state.select(Some(0));
         }
 
+        // Load favorites
+        let favorites = crate::favorites::Favorites::load();
+        let mut favorites_list_state = ListState::default();
+        if !favorites.is_empty() {
+            favorites_list_state.select(Some(0));
+        }
+
         let mut state = Self {
             current_view: CurrentView::Modules,
             focus: Focus::Modules,
@@ -362,6 +376,12 @@ impl TuiState {
             command_history,
             show_history_popup: false,
             history_list_state,
+            favorites,
+            show_favorites_popup: false,
+            favorites_list_state,
+            show_save_favorite_popup: false,
+            favorite_name_input: String::new(),
+            pending_favorite: None,
         };
 
         // Initialize file watcher if configured
@@ -622,6 +642,17 @@ impl TuiState {
             .filter(|f| f.enabled)
             .map(|f| f.flag.clone()) // Use flag.flag instead of flag.name
             .collect()
+    }
+
+    pub fn get_last_executed_command(&self) -> Option<(String, Vec<String>, Vec<String>)> {
+        self.selected_module().and_then(|module| {
+            self.module_outputs.get(module).and_then(|output| {
+                output
+                    .command
+                    .clone()
+                    .map(|cmd| (cmd, output.profiles.clone(), output.flags.clone()))
+            })
+        })
     }
 
     /// Get list of active profile names for display
@@ -1819,6 +1850,137 @@ impl TuiState {
 
         log::info!("History entry applied and command executed");
     }
+
+    /// Show save favorite dialog with current context
+    pub fn show_save_favorite_dialog_from_current(&mut self) {
+        if let Some(module) = self.selected_module() {
+            // Get active profiles
+            let active_profiles: Vec<String> = self
+                .profiles
+                .iter()
+                .filter(|p| p.is_active())
+                .map(|p| p.name.clone())
+                .collect();
+
+            // Get enabled flags
+            let enabled_flags: Vec<String> = self
+                .flags
+                .iter()
+                .filter(|f| f.enabled)
+                .map(|f| f.name.clone())
+                .collect();
+
+            // Create a pending favorite entry
+            let entry = crate::history::HistoryEntry::new(
+                module.to_string(),
+                "".to_string(), // Will be filled with goal when saving
+                active_profiles,
+                enabled_flags,
+            );
+
+            self.pending_favorite = Some(entry);
+            self.favorite_name_input.clear();
+            self.show_save_favorite_popup = true;
+            log::info!("Opened save favorite dialog");
+        }
+    }
+
+    /// Save the pending favorite with the entered name
+    pub fn save_pending_favorite(&mut self, goal: String) {
+        if let Some(mut entry) = self.pending_favorite.take() {
+            entry.goal = goal;
+            
+            let favorite = crate::favorites::Favorite::new(
+                self.favorite_name_input.clone(),
+                entry.module,
+                entry.goal,
+                entry.profiles,
+                entry.flags,
+            );
+            
+            self.favorites.add(favorite);
+            self.show_save_favorite_popup = false;
+            self.favorite_name_input.clear();
+            log::info!("Favorite saved successfully");
+        }
+    }
+
+    /// Cancel saving favorite
+    pub fn cancel_save_favorite(&mut self) {
+        self.show_save_favorite_popup = false;
+        self.favorite_name_input.clear();
+        self.pending_favorite = None;
+        log::info!("Canceled save favorite");
+    }
+
+    /// Apply a favorite: select module, set profiles, flags, and show in modules view
+    pub fn apply_favorite(&mut self, favorite: &crate::favorites::Favorite) {
+        log::info!("Applying favorite: {}", favorite.name);
+
+        // Find and select the module
+        if let Some(module_idx) = self
+            .modules
+            .iter()
+            .position(|m| m == &favorite.module)
+        {
+            self.modules_list_state.select(Some(module_idx));
+            log::debug!("Selected module at index {}", module_idx);
+        } else {
+            log::warn!("Module '{}' not found in current project", favorite.module);
+            self.command_output = vec![format!(
+                "Error: Module '{}' not found in current project",
+                favorite.module
+            )];
+            return;
+        }
+
+        // Set profiles
+        for profile in &mut self.profiles {
+            if favorite.profiles.contains(&profile.name) {
+                if !profile.is_active() {
+                    profile.state = crate::ui::state::ProfileState::ExplicitlyEnabled;
+                }
+            } else {
+                if profile.auto_activated {
+                    profile.state = crate::ui::state::ProfileState::ExplicitlyDisabled;
+                } else {
+                    profile.state = crate::ui::state::ProfileState::Default;
+                }
+            }
+        }
+
+        // Set flags
+        for flag in &mut self.flags {
+            flag.enabled = favorite.flags.contains(&flag.name);
+        }
+
+        // Switch to modules view
+        self.switch_to_modules();
+
+        // Execute the command
+        let goal_parts: Vec<&str> = favorite.goal.split_whitespace().collect();
+        self.run_selected_module_command(&goal_parts);
+
+        log::info!("Favorite applied and command executed");
+    }
+
+    /// Delete the selected favorite
+    pub fn delete_selected_favorite(&mut self) {
+        if let Some(selected) = self.favorites_list_state.selected() {
+            if let Some(removed) = self.favorites.remove(selected) {
+                log::info!("Deleted favorite: {}", removed.name);
+                
+                // Adjust selection
+                let new_len = self.favorites.list().len();
+                if new_len == 0 {
+                    self.favorites_list_state.select(None);
+                } else if selected >= new_len {
+                    self.favorites_list_state.select(Some(new_len - 1));
+                }
+            }
+        }
+    }
+
 
     // Spring Boot starter methods
     pub fn show_starter_selector(&mut self) {

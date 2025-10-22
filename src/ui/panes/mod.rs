@@ -1116,3 +1116,206 @@ pub fn render_history_popup(
     f.render_widget(help_paragraph, popup_chunks[3]);
 }
 
+/// Render favorites popup
+pub fn render_favorites_popup(
+    f: &mut Frame,
+    favorites: &[crate::favorites::Favorite],
+    list_state: &mut ListState,
+) {
+    // Calculate popup size
+    let area = f.area();
+    let popup_width = (area.width * 80) / 100;
+    let popup_height = (area.height * 80) / 100;
+    let popup_x = (area.width - popup_width) / 2;
+    let popup_y = (area.height - popup_height) / 2;
+
+    let popup_area = Rect {
+        x: popup_x,
+        y: popup_y,
+        width: popup_width,
+        height: popup_height,
+    };
+
+    // Clear background
+    f.render_widget(ratatui::widgets::Clear, popup_area);
+
+    // Split popup
+    let popup_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3),      // Title
+            Constraint::Percentage(60), // List
+            Constraint::Min(1),         // Preview
+            Constraint::Length(2),      // Help
+        ])
+        .split(popup_area);
+
+    // Title
+    let title_block = Block::default()
+        .title("Favorite Commands (Ctrl+F)")
+        .borders(Borders::ALL)
+        .border_type(ratatui::widgets::BorderType::Rounded)
+        .border_style(Theme::FOCUS_STYLE);
+    f.render_widget(title_block, popup_chunks[0]);
+
+    // List
+    let items: Vec<ListItem> = if favorites.is_empty() {
+        vec![ListItem::new(Line::from(
+            "No favorites yet. Use Ctrl+S in history to save one!",
+        ))]
+    } else {
+        favorites
+            .iter()
+            .map(|fav| {
+                let line = fav.format_summary();
+                ListItem::new(Line::from(line))
+            })
+            .collect()
+    };
+
+    let list_block = Block::default()
+        .title("Saved Favorites")
+        .borders(Borders::ALL)
+        .border_type(ratatui::widgets::BorderType::Rounded);
+
+    let list = List::new(items)
+        .block(list_block)
+        .style(Theme::DEFAULT_STYLE)
+        .highlight_style(Theme::SELECTED_STYLE)
+        .highlight_symbol(">> ");
+
+    f.render_stateful_widget(list, popup_chunks[1], list_state);
+
+    // Preview
+    let preview_text = if favorites.is_empty() {
+        vec![Line::from("No favorites to preview")]
+    } else if let Some(selected) = list_state.selected() {
+        if let Some(fav) = favorites.get(selected) {
+            let mut lines = vec![
+                Line::from(vec![
+                    Span::styled("Name: ", Style::default().fg(ratatui::style::Color::Yellow)),
+                    Span::raw(&fav.name),
+                ]),
+                Line::from(vec![
+                    Span::styled("Module: ", Style::default().fg(ratatui::style::Color::Yellow)),
+                    Span::raw(&fav.module),
+                ]),
+                Line::from(vec![
+                    Span::styled("Goal: ", Style::default().fg(ratatui::style::Color::Yellow)),
+                    Span::raw(&fav.goal),
+                ]),
+            ];
+
+            if !fav.profiles.is_empty() {
+                lines.push(Line::from(vec![
+                    Span::styled(
+                        "Profiles: ",
+                        Style::default().fg(ratatui::style::Color::Yellow),
+                    ),
+                    Span::raw(fav.profiles.join(", ")),
+                ]));
+            }
+
+            if !fav.flags.is_empty() {
+                lines.push(Line::from(vec![
+                    Span::styled("Flags: ", Style::default().fg(ratatui::style::Color::Yellow)),
+                    Span::raw(fav.flags.join(", ")),
+                ]));
+            }
+
+            lines
+        } else {
+            vec![Line::from("No favorite selected")]
+        }
+    } else {
+        vec![Line::from("No favorite selected")]
+    };
+
+    let preview_block = Block::default()
+        .title("Command Details")
+        .borders(Borders::ALL)
+        .border_type(ratatui::widgets::BorderType::Rounded);
+
+    let preview = Paragraph::new(preview_text).block(preview_block);
+    f.render_widget(preview, popup_chunks[2]);
+
+    // Help
+    let help_text = Line::from(vec![
+        Span::styled("Enter", Style::default().fg(ratatui::style::Color::Green)),
+        Span::raw(" Run | "),
+        Span::styled("Del", Style::default().fg(ratatui::style::Color::Red)),
+        Span::raw(" Delete | "),
+        Span::styled("↑↓", Style::default().fg(ratatui::style::Color::Cyan)),
+        Span::raw(" Navigate | "),
+        Span::styled("Esc", Style::default().fg(ratatui::style::Color::Red)),
+        Span::raw(" Close"),
+    ]);
+
+    let help_paragraph = Paragraph::new(help_text)
+        .alignment(ratatui::layout::Alignment::Center)
+        .style(Theme::DEFAULT_STYLE);
+    f.render_widget(help_paragraph, popup_chunks[3]);
+}
+
+/// Render save favorite popup (name input)
+pub fn render_save_favorite_popup(f: &mut Frame, name_input: &str) {
+    // Calculate popup size (smaller, centered)
+    let area = f.area();
+    let popup_width = 60.min(area.width - 4);
+    let popup_height = 7;
+    let popup_x = (area.width - popup_width) / 2;
+    let popup_y = (area.height - popup_height) / 2;
+
+    let popup_area = Rect {
+        x: popup_x,
+        y: popup_y,
+        width: popup_width,
+        height: popup_height,
+    };
+
+    // Clear background
+    f.render_widget(ratatui::widgets::Clear, popup_area);
+
+    // Main block
+    let block = Block::default()
+        .title("Save as Favorite")
+        .borders(Borders::ALL)
+        .border_type(ratatui::widgets::BorderType::Rounded)
+        .border_style(Theme::FOCUS_STYLE);
+
+    let inner = block.inner(popup_area);
+    f.render_widget(block, popup_area);
+
+    // Split into prompt and input
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(1), // Prompt
+            Constraint::Length(1), // Spacer
+            Constraint::Length(1), // Input
+            Constraint::Length(1), // Spacer
+            Constraint::Length(1), // Help
+        ])
+        .split(inner);
+
+    // Prompt
+    let prompt = Paragraph::new("Enter a name for this favorite:");
+    f.render_widget(prompt, chunks[0]);
+
+    // Input field
+    let input_block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(ratatui::widgets::BorderType::Rounded);
+    let input = Paragraph::new(name_input).block(input_block);
+    f.render_widget(input, chunks[2]);
+
+    // Help
+    let help = Paragraph::new(Line::from(vec![
+        Span::styled("Enter", Style::default().fg(ratatui::style::Color::Green)),
+        Span::raw(" Save | "),
+        Span::styled("Esc", Style::default().fg(ratatui::style::Color::Red)),
+        Span::raw(" Cancel"),
+    ]))
+    .alignment(ratatui::layout::Alignment::Center);
+    f.render_widget(help, chunks[4]);
+}

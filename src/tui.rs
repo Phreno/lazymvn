@@ -7,9 +7,10 @@
 use crate::ui::{
     keybindings,
     panes::{
-        create_adaptive_layout, render_flags_pane, render_footer, render_history_popup,
-        render_modules_pane, render_output_pane, render_profiles_pane, render_projects_pane,
-        render_projects_popup, render_starter_manager_popup, render_starter_selector_popup,
+        create_adaptive_layout, render_favorites_popup, render_flags_pane, render_footer,
+        render_history_popup, render_modules_pane, render_output_pane, render_profiles_pane,
+        render_projects_pane, render_projects_popup, render_save_favorite_popup,
+        render_starter_manager_popup, render_starter_selector_popup,
     },
 };
 use crossterm::event::KeyEvent;
@@ -137,6 +138,16 @@ pub fn draw<B: Backend>(
                 state.command_history.entries(),
                 &mut state.history_list_state,
             );
+        }
+
+        // Render favorites popup if shown
+        if state.show_favorites_popup {
+            render_favorites_popup(f, state.favorites.list(), &mut state.favorites_list_state);
+        }
+
+        // Render save favorite popup if shown
+        if state.show_save_favorite_popup {
+            render_save_favorite_popup(f, &state.favorite_name_input);
         }
     })?;
     Ok(())

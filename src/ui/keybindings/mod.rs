@@ -76,6 +76,93 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
 
     log::debug!("Key event: {:?}", key);
 
+    // Handle save favorite popup separately
+    if state.show_save_favorite_popup {
+        match key.code {
+            KeyCode::Char(ch) => {
+                state.favorite_name_input.push(ch);
+            }
+            KeyCode::Backspace => {
+                state.favorite_name_input.pop();
+            }
+            KeyCode::Enter => {
+                if !state.favorite_name_input.trim().is_empty() {
+                    // Get current goal from the last executed command or default
+                    let goal = state
+                        .get_last_executed_command()
+                        .map(|(cmd, _, _)| cmd)
+                        .unwrap_or_else(|| "install".to_string());
+                    state.save_pending_favorite(goal);
+                    log::info!("Favorite saved");
+                }
+            }
+            KeyCode::Esc => {
+                state.cancel_save_favorite();
+            }
+            _ => {}
+        }
+        return;
+    }
+
+    // Handle favorites popup separately
+    if state.show_favorites_popup {
+        match key.code {
+            KeyCode::Down => {
+                log::debug!("Navigate down in favorites");
+                let len = state.favorites.list().len();
+                if len > 0 {
+                    let i = match state.favorites_list_state.selected() {
+                        Some(i) => {
+                            if i >= len - 1 {
+                                0
+                            } else {
+                                i + 1
+                            }
+                        }
+                        None => 0,
+                    };
+                    state.favorites_list_state.select(Some(i));
+                }
+            }
+            KeyCode::Up => {
+                log::debug!("Navigate up in favorites");
+                let len = state.favorites.list().len();
+                if len > 0 {
+                    let i = match state.favorites_list_state.selected() {
+                        Some(i) => {
+                            if i == 0 {
+                                len - 1
+                            } else {
+                                i - 1
+                            }
+                        }
+                        None => 0,
+                    };
+                    state.favorites_list_state.select(Some(i));
+                }
+            }
+            KeyCode::Enter => {
+                log::info!("Execute favorite");
+                if let Some(selected) = state.favorites_list_state.selected() {
+                    if let Some(fav) = state.favorites.list().get(selected).cloned() {
+                        state.apply_favorite(&fav);
+                        state.show_favorites_popup = false;
+                    }
+                }
+            }
+            KeyCode::Delete | KeyCode::Char('d') => {
+                log::info!("Delete favorite");
+                state.delete_selected_favorite();
+            }
+            KeyCode::Esc | KeyCode::Char('q') => {
+                log::info!("Close favorites popup");
+                state.show_favorites_popup = false;
+            }
+            _ => {}
+        }
+        return;
+    }
+
     // Handle command history popup separately
     if state.show_history_popup {
         match key.code {
@@ -120,6 +207,21 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
                         // Apply the command's configuration
                         state.apply_history_entry(entry.clone());
                         state.show_history_popup = false;
+                    }
+                }
+            }
+            KeyCode::Char('s')
+                if key
+                    .modifiers
+                    .contains(crossterm::event::KeyModifiers::CONTROL) =>
+            {
+                log::info!("Save selected history entry as favorite");
+                if let Some(selected) = state.history_list_state.selected() {
+                    if let Some(entry) = state.command_history.entries().get(selected).cloned() {
+                        state.pending_favorite = Some(entry);
+                        state.show_history_popup = false;
+                        state.show_save_favorite_popup = true;
+                        state.favorite_name_input.clear();
                     }
                 }
             }
@@ -316,6 +418,25 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
 
     // Direct command execution - no menu navigation needed
     match key.code {
+        KeyCode::Char('f')
+            if key
+                .modifiers
+                .contains(crossterm::event::KeyModifiers::CONTROL) =>
+        {
+            log::info!("Show favorites");
+            state.show_favorites_popup = true;
+            if !state.favorites.is_empty() {
+                state.favorites_list_state.select(Some(0));
+            }
+        }
+        KeyCode::Char('s')
+            if key
+                .modifiers
+                .contains(crossterm::event::KeyModifiers::CONTROL) =>
+        {
+            log::info!("Save current as favorite");
+            state.show_save_favorite_dialog_from_current();
+        }
         KeyCode::Char('h')
             if key
                 .modifiers
@@ -520,6 +641,8 @@ pub(crate) fn build_navigation_line() -> Line<'static> {
         Span::raw("  "),
         key_token("↓"),
         Span::raw("  •  "),
+        key_token("Ctrl+F"),
+        Span::raw(" Favs  •  "),
         key_token("Ctrl+H"),
         Span::raw(" History  •  "),
         key_token("Ctrl+R"),
