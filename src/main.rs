@@ -391,6 +391,28 @@ launch_mode = "auto"
 # Enable desktop notifications (optional)
 # notifications_enabled = true
 
+# Control log verbosity for specific packages
+# Useful to reduce noise from Spring Boot, Hibernate, etc.
+# Uncomment and customize to control logging levels
+# [logging]
+# packages = [
+#     # Reduce Spring Framework verbosity
+#     { name = "org.springframework", level = "WARN" },
+#     { name = "org.springframework.boot.autoconfigure", level = "WARN" },
+#     
+#     # Reduce Hibernate/JPA verbosity  
+#     { name = "org.hibernate", level = "WARN" },
+#     { name = "org.hibernate.SQL", level = "WARN" },
+#     
+#     # Reduce embedded server verbosity
+#     { name = "org.apache.catalina", level = "WARN" },
+#     { name = "org.apache.tomcat", level = "WARN" },
+#     
+#     # Keep your application logs verbose for debugging
+#     { name = "com.mycompany", level = "DEBUG" },
+# ]
+# Available levels: TRACE, DEBUG, INFO, WARN, ERROR, OFF
+
 # File watching configuration for auto-reload
 [watch]
 # Enable file watching (set to true to activate)
@@ -464,6 +486,7 @@ max_updates_per_poll = 100
     println!("📖 Configuration options:");
     println!("   • maven_settings          - Path to custom settings.xml");
     println!("   • launch_mode             - How to launch Spring Boot apps");
+    println!("   • logging.packages        - Control log verbosity per package");
     println!("   • watch.enabled           - Enable file watching for auto-reload");
     println!("   • watch.commands          - Commands that trigger auto-reload");
     println!("   • watch.patterns          - File patterns to watch");

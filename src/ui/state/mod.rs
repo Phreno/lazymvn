@@ -1868,6 +1868,18 @@ launch_mode = "auto"
 # Enable desktop notifications (optional)
 # notifications_enabled = true
 
+# Control log verbosity for specific packages
+# Useful to reduce noise from Spring Boot, Hibernate, etc.
+# [logging]
+# packages = [
+#     # Reduce Spring Framework verbosity
+#     { name = "org.springframework", level = "WARN" },
+#     { name = "org.hibernate", level = "WARN" },
+#     
+#     # Keep your application logs verbose
+#     { name = "com.mycompany", level = "DEBUG" },
+# ]
+
 # File watching configuration for auto-reload
 [watch]
 # Enable file watching (set to true to activate)
