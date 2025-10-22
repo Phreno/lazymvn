@@ -1024,8 +1024,9 @@ impl TuiState {
 
         // Only update scroll and metrics once at the end if we had output lines
         if had_output_lines {
-            // Auto-scroll to bottom only if we were already at bottom
-            if was_at_bottom {
+            // Auto-scroll to bottom while command is running (always follow logs)
+            // Only respect user's scroll position when command is not running
+            if was_at_bottom || self.is_command_running {
                 self.scroll_output_to_end();
             }
             self.store_current_module_output();
