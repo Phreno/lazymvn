@@ -147,6 +147,52 @@ pub fn get_project_modules() -> Result<(Vec<String>, PathBuf), Box<dyn std::erro
     Ok((modules, project_root))
 }
 
+/// Get project modules for a specific project path
+/// This is used when opening projects in tabs
+pub fn get_project_modules_for_path(
+    project_path: &PathBuf,
+) -> Result<(Vec<String>, PathBuf), Box<dyn std::error::Error>> {
+    log::debug!(
+        "get_project_modules_for_path: Loading project from {:?}",
+        project_path
+    );
+
+    // Find pom.xml in the given path
+    let pom_path = project_path.join("pom.xml");
+    if !pom_path.exists() {
+        // Try to find it by walking up
+        let mut current = project_path.clone();
+        loop {
+            let test_pom = current.join("pom.xml");
+            if test_pom.exists() {
+                log::debug!("Found pom.xml at: {:?}", test_pom);
+                let pom_content = fs::read_to_string(&test_pom)?;
+                let modules = normalize_modules(parse_modules_from_str(&pom_content));
+                let project_root = test_pom.parent().unwrap().to_path_buf();
+                return Ok((modules, project_root));
+            }
+
+            if !current.pop() {
+                break;
+            }
+        }
+        return Err("pom.xml not found in project path or parent directories".into());
+    }
+
+    // Read and parse pom.xml
+    let pom_content = fs::read_to_string(&pom_path)?;
+    let modules = normalize_modules(parse_modules_from_str(&pom_content));
+    let project_root = pom_path.parent().unwrap().to_path_buf();
+
+    log::info!(
+        "Loaded {} modules from project: {:?}",
+        modules.len(),
+        project_root
+    );
+
+    Ok((modules, project_root))
+}
+
 fn normalize_modules(modules: Vec<String>) -> Vec<String> {
     if modules.is_empty() {
         log::info!("No modules found, treating as single-module project");
