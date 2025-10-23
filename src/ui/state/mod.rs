@@ -919,8 +919,9 @@ impl TuiState {
             tab.command_output = vec!["No profile selected.".to_string()];
             tab.output_offset = 0;
         }
-        self.clamp_output_offset();
         tab.output_metrics = None;
+        drop(tab);
+        self.clamp_output_offset();
         self.refresh_search_matches();
     }
 
@@ -1036,24 +1037,28 @@ impl TuiState {
                     tab.last_command = Some(args.iter().map(|s| s.to_string()).collect());
 
                     // Add to command history
-                    let history_entry = crate::history::HistoryEntry::new(
-                        module.clone(),
-                        args.join(" "),
-                        active_profile_names.clone(),
-                        enabled_flag_names.clone(),
-                    );
-                    self.command_history.add(history_entry);
-                    log::debug!("Command added to history");
-
                     // Store metadata about this command execution
                     let module_output = ModuleOutput {
                         lines: tab.command_output.clone(),
                         scroll_offset: tab.output_offset,
                         command: Some(args.join(" ")),
-                        profiles: active_profile_names,
-                        flags: enabled_flag_names,
+                        profiles: active_profile_names.clone(),
+                        flags: enabled_flag_names.clone(),
                     };
-                    tab.module_outputs.insert(module, module_output);
+                    tab.module_outputs.insert(module.clone(), module_output);
+                    
+                    // Drop tab before calling self.command_history
+                    drop(tab);
+                    
+                    let history_entry = crate::history::HistoryEntry::new(
+                        module,
+                        args.join(" "),
+                        active_profile_names,
+                        enabled_flag_names,
+                    );
+                    self.command_history.add(history_entry);
+                    log::debug!("Command added to history");
+                    return;
                 }
                 Err(e) => {
                     log::error!("Failed to start async command: {}", e);
@@ -1066,8 +1071,9 @@ impl TuiState {
             tab.command_output = vec!["No module selected".to_string()];
             tab.output_offset = 0;
         }
-        self.clamp_output_offset();
         tab.output_metrics = None;
+        drop(tab);
+        self.clamp_output_offset();
     }
 
     /// Check for and process any pending command updates
@@ -1301,8 +1307,9 @@ impl TuiState {
                     tab.is_command_running = false;
                     tab.command_receiver = None;
                     tab.running_process_pid = None;
-                    self.store_current_module_output();
                     tab.output_metrics = None;
+                    drop(tab);
+                    self.store_current_module_output();
                 }
                 Err(e) => {
                     log::error!("Failed to kill process: {}", e);
@@ -1357,16 +1364,19 @@ impl TuiState {
 
     /// Yank (copy) the output to clipboard
     pub fn yank_output(&mut self) {
-        let tab = self.get_active_tab_mut();
-        if tab.command_output.is_empty() {
-            log::info!("No output to copy");
-            tab.command_output.push(String::new());
-            tab.command_output.push("⚠ No output to copy".to_string());
-            return;
-        }
-
-        let output_text = tab.command_output.join("\n");
-        let lines = tab.command_output.len();
+        // Extract data we need from tab first
+        let (output_text, lines) = {
+            let tab = self.get_active_tab();
+            if tab.command_output.is_empty() {
+                log::info!("No output to copy");
+                drop(tab);
+                let tab = self.get_active_tab_mut();
+                tab.command_output.push(String::new());
+                tab.command_output.push("⚠ No output to copy".to_string());
+                return;
+            }
+            (tab.command_output.join("\n"), tab.command_output.len())
+        };
 
         // Try to use system clipboard tools first (more reliable for terminal apps)
         #[cfg(target_os = "linux")]
@@ -1382,6 +1392,7 @@ impl TuiState {
                 drop(stdin);
                 if child.wait().is_ok() {
                     log::info!("Copied {} lines via wl-copy", lines);
+                    let tab = self.get_active_tab_mut();
                     tab.command_output.push(String::new());
                     tab.command_output
                         .push(format!("✓ Copied {} lines to clipboard", lines));
@@ -1401,6 +1412,7 @@ impl TuiState {
                 drop(stdin);
                 if child.wait().is_ok() {
                     log::info!("Copied {} lines via xclip", lines);
+                    let tab = self.get_active_tab_mut();
                     tab.command_output.push(String::new());
                     tab.command_output
                         .push(format!("✓ Copied {} lines to clipboard", lines));
@@ -1419,6 +1431,7 @@ impl TuiState {
                 drop(stdin);
                 if child.wait().is_ok() {
                     log::info!("Copied {} lines via xsel", lines);
+                    let tab = self.get_active_tab_mut();
                     tab.command_output.push(String::new());
                     tab.command_output
                         .push(format!("✓ Copied {} lines to clipboard", lines));
@@ -1445,6 +1458,7 @@ impl TuiState {
                         drop(stdin);
                         if child.wait().is_ok() {
                             log::info!("Copied {} lines via PowerShell Set-Clipboard", lines);
+                            let tab = self.get_active_tab_mut();
                             tab.command_output.push(String::new());
                             tab.command_output
                                 .push(format!("✓ Copied {} lines to clipboard", lines));
@@ -1461,6 +1475,7 @@ impl TuiState {
                         drop(stdin);
                         if child.wait().is_ok() {
                             log::info!("Copied {} lines via clip.exe", lines);
+                            let tab = self.get_active_tab_mut();
                             tab.command_output.push(String::new());
                             tab.command_output
                                 .push(format!("✓ Copied {} lines to clipboard", lines));
@@ -1483,6 +1498,7 @@ impl TuiState {
                         drop(stdin);
                         if child.wait().is_ok() {
                             log::info!("Copied {} lines via pbcopy", lines);
+                            let tab = self.get_active_tab_mut();
                             tab.command_output.push(String::new());
                             tab.command_output
                                 .push(format!("✓ Copied {} lines to clipboard", lines));
@@ -1505,6 +1521,7 @@ impl TuiState {
                 }
                 Err(e) => {
                     log::error!("Failed to initialize clipboard: {}", e);
+                    let tab = self.get_active_tab_mut();
                     tab.command_output.push(String::new());
                     tab.command_output
                         .push(format!("✗ Clipboard not available: {}", e));
@@ -1513,6 +1530,7 @@ impl TuiState {
             }
         };
 
+        let tab = self.get_active_tab_mut();
         match clipboard_result {
             Ok(()) => {
                 log::info!("Copied {} lines to clipboard via arboard", lines);
@@ -1606,11 +1624,12 @@ impl TuiState {
         if !self.should_allow_navigation() {
             return;
         }
-        let tab = self.get_active_tab_mut();
-        if tab.command_output.is_empty() {
+        let is_empty = self.get_active_tab().command_output.is_empty();
+        if is_empty {
             return;
         }
         let max_offset = self.max_scroll_offset();
+        let tab = self.get_active_tab_mut();
         let current = tab.output_offset as isize;
         let next = (current + delta).clamp(0, max_offset as isize) as usize;
         if next != tab.output_offset {
@@ -1933,14 +1952,17 @@ impl TuiState {
 
     /// Edit the project configuration file in the system editor
     pub fn edit_config(&mut self) {
-        let tab = self.get_active_tab_mut();
-        let config_path = tab.project_root.join("lazymvn.toml");
+        let config_path = {
+            let tab = self.get_active_tab();
+            tab.project_root.join("lazymvn.toml")
+        };
 
         // Generate config if it doesn't exist
         if !config_path.exists() {
             log::info!("Configuration file not found, creating: {:?}", config_path);
             if let Err(e) = self.generate_config_file(&config_path) {
                 log::error!("Failed to generate config file: {}", e);
+                let tab = self.get_active_tab_mut();
                 tab.command_output = vec![
                     format!("❌ Failed to generate config file: {}", e),
                     String::new(),
@@ -1963,6 +1985,7 @@ impl TuiState {
             });
 
         log::info!("Opening config with editor: {}", editor);
+        let tab = self.get_active_tab_mut();
         tab.command_output = vec![
             format!("📝 Opening configuration with {}...", editor),
             format!("   File: {}", config_path.display()),
@@ -2652,8 +2675,10 @@ max_updates_per_poll = 100
 
     /// Save current profiles and flags for the selected module
     pub fn save_module_preferences(&mut self) {
+        let module = self.selected_module().map(|m| m.to_string());
+        let enabled_flags = self.enabled_flag_names();
         let tab = self.get_active_tab_mut();
-        if let Some(module) = self.selected_module() {
+        if let Some(module) = module.as_deref() {
             // Save only explicitly set profiles (not Default state)
             let explicit_profiles: Vec<String> = tab
                 .profiles
@@ -2667,7 +2692,7 @@ max_updates_per_poll = 100
 
             let prefs = crate::config::ModulePreferences {
                 active_profiles: explicit_profiles.clone(),
-                enabled_flags: self.enabled_flag_names(),
+                enabled_flags,
             };
 
             log::info!(
@@ -2688,8 +2713,9 @@ max_updates_per_poll = 100
 
     /// Load preferences for the selected module
     pub fn load_module_preferences(&mut self) {
+        let module = self.selected_module().map(|m| m.to_string());
         let tab = self.get_active_tab_mut();
-        if let Some(module) = self.selected_module() {
+        if let Some(module) = module.as_deref() {
             if let Some(prefs) = tab.module_preferences.get_module_prefs(module) {
                 log::info!(
                     "Loading preferences for module '{}': profiles={:?}, flags={:?}",
