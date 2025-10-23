@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Multi-Tab Project Support** (#TBD):
+  - Open up to 10 Maven projects simultaneously in separate tabs
+  - Visual tab bar at top showing all open projects with active tab highlighting
+  - Tab indicators showing current position (e.g., "1/3")
+  - Independent state per tab: each maintains its own module selection, profiles, flags, and output
+  - Quick tab navigation with `Ctrl+Left`/`Ctrl+Right` keybindings
+  - Create new tabs with `Ctrl+T` (opens recent projects popup)
+  - Close tabs with `Ctrl+W` (prevents closing last tab)
+  - Process isolation: each tab can run its own Maven process independently
+  - Auto-cleanup: automatically saves preferences and kills processes when closing tabs
+  - Tab bar only displays when multiple tabs are open (clean single-tab UI)
+  - Footer redesigned with 3 lines: Views, Tabs/Navigation, Actions
+  - Perfect for microservices development, frontend+backend workflows, or multi-project testing
 - **Logging Configuration** (#TBD):
   - Control log verbosity via `lazymvn.toml` configuration
   - Package-level log level overrides using JVM arguments

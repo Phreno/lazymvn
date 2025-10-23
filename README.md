@@ -37,6 +37,16 @@ I want to credit both the project and its author for the idea and for shaping ho
 - **Quick switching**: Switch between projects with `Ctrl+R` without restarting
 - **Smart fallback**: If no POM is found, automatically loads the most recent project
 
+### Multi-Tab Support
+- **Multiple projects simultaneously**: Open up to 10 projects in separate tabs
+- **Visual tab bar**: Shows all open projects with active tab highlighting
+- **Tab indicators**: Display current tab position (e.g., "1/3")
+- **Independent state**: Each tab maintains its own module selection, profiles, flags, and output
+- **Quick navigation**: Switch between tabs with `Ctrl+Left`/`Ctrl+Right`
+- **Tab management**: Create new tabs with `Ctrl+T`, close tabs with `Ctrl+W`
+- **Process isolation**: Each tab can run its own Maven process independently
+- **Auto-cleanup**: Automatically saves preferences and kills processes when closing tabs
+
 ### Maven Operations
 - Execute common Maven commands: `clean`, `compile`, `test`, `package`, `install`, `dependency:tree`
 - **Run Spring Boot applications** with `s` key
@@ -109,6 +119,14 @@ I want to credit both the project and its author for the idea and for shaping ho
 | `Ctrl+R` | Show recent projects and switch to a different project |
 | `Ctrl+E` | Edit configuration file (lazymvn.toml) - **changes are applied immediately after editor closes** |
 | **Mouse** | Click on pane to focus it, click on item to select it |
+
+### Tab Management
+| Key | Action |
+|-----|--------|
+| `Ctrl+T` | Create new tab (opens recent projects popup) |
+| `Ctrl+W` | Close current tab (cannot close last tab) |
+| `Ctrl+←` | Switch to previous tab |
+| `Ctrl+→` | Switch to next tab |
 
 ### Views
 | Key | Action |
@@ -229,6 +247,49 @@ LazyMVN automatically detects your project structure:
 │   app               ││                    │
 └─────────────────────┘└────────────────────┘
 ```
+
+### Multi-Project Workflow
+
+LazyMVN supports working with multiple Maven projects simultaneously using tabs:
+
+**Opening Multiple Projects:**
+
+1. Launch LazyMVN with your first project
+2. Press `Ctrl+T` to create a new tab
+3. Select a project from the recent projects list (or it opens automatically)
+4. Repeat to open up to 10 projects
+
+**Visual Tab Bar:**
+
+When you have multiple tabs open, a tab bar appears at the top:
+
+```
+ [1] my-api │ 2 admin-service │ 3 batch-jobs  (1/3) 
+┌─────────────────────────────────────────────────┐
+│  Projects, Modules, Profiles, Flags, Output...  │
+└─────────────────────────────────────────────────┘
+```
+
+- `[1]` indicates the active tab (with brackets)
+- `2`, `3` show inactive tabs
+- `(1/3)` shows your position (tab 1 of 3)
+- `│` separates tabs
+- Each tab shows the project directory name
+
+**Tab Features:**
+
+- **Independent state**: Each tab has its own selected module, active profiles, enabled flags, and command output
+- **Concurrent processes**: Run Maven commands in multiple tabs simultaneously (e.g., run API in tab 1, tests in tab 2)
+- **Quick switching**: Use `Ctrl+Left` / `Ctrl+Right` to navigate between tabs
+- **Auto-save**: Closing a tab saves preferences and kills any running Maven process
+- **Protection**: Cannot close the last remaining tab (prevents accidental exit)
+
+**Typical Workflows:**
+
+1. **Microservices development**: Open API, Admin, and Worker services in separate tabs
+2. **Frontend + Backend**: Run backend in one tab, frontend build watch in another
+3. **Multi-project testing**: Run tests in parallel across different projects
+4. **Comparison**: Compare dependency trees or build outputs side-by-side
 
 ### Command-line Options
 
