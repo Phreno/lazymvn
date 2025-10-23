@@ -17,6 +17,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Works with Log4j, Logback, SLF4J, and Spring Boot logging
   - See `LOGGING_CONFIG.md` for detailed documentation
   - Example configuration in `lazymvn.toml.example`
+- **Live Configuration Reload** (#TBD):
+  - Press `Ctrl+E` to edit configuration file in system editor
+  - Configuration changes are automatically applied when editor closes
+  - No application restart needed for configuration updates
+  - Detects changes to launch_mode, watch settings, notifications, maven_settings, and more
+  - Automatically recreates file watcher if watch configuration changes
+  - Provides immediate feedback on detected configuration changes
+  - Improves developer workflow by eliminating restart cycle
 - **Asynchronous Profile Loading** (#TBD):
   - Profile discovery now happens asynchronously in a background thread
   - UI remains responsive during profile loading (no blocking)
@@ -48,6 +56,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added 5 unit tests for profile state management and spinner animation
 - Added 2 integration tests for timeout behavior and spinner frames
 - Profile loading now uses mpsc channels for thread communication
+- Added `reload_config()` method to `TuiState` for live configuration reload
+- Config reload detects changes and logs modifications to key settings
+- File watcher automatically recreated when watch configuration changes
+- Added `PartialEq` trait to config structs for change detection
 - Timeout mechanism prevents indefinite hangs if Maven is unresponsive
 - Enhanced `build_launch_command()` to accept packaging type and adjust classpath scope accordingly
 - Added 2 new tests for WAR and JAR packaging classpath behavior

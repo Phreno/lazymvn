@@ -1847,6 +1847,110 @@ impl TuiState {
         self.editor_command = Some((editor, config_path.to_string_lossy().to_string()));
     }
 
+    /// Reload configuration and apply changes
+    /// Returns true if configuration actually changed
+    pub fn reload_config(&mut self, new_config: crate::config::Config) -> bool {
+        log::info!("Reloading configuration");
+        
+        // Check what changed
+        let mut changed = false;
+        let mut changes = Vec::new();
+        
+        // Check launch_mode
+        if self.config.launch_mode != new_config.launch_mode {
+            changes.push(format!(
+                "  • Launch mode: {:?} → {:?}",
+                self.config.launch_mode, new_config.launch_mode
+            ));
+            changed = true;
+        }
+        
+        // Check maven_settings
+        if self.config.maven_settings != new_config.maven_settings {
+            changes.push(format!(
+                "  • Maven settings: {:?} → {:?}",
+                self.config.maven_settings, new_config.maven_settings
+            ));
+            changed = true;
+        }
+        
+        // Check notifications
+        if self.config.notifications_enabled != new_config.notifications_enabled {
+            changes.push(format!(
+                "  • Notifications: {:?} → {:?}",
+                self.config.notifications_enabled, new_config.notifications_enabled
+            ));
+            changed = true;
+        }
+        
+        // Check watch configuration
+        let watch_changed = match (&self.config.watch, &new_config.watch) {
+            (Some(old), Some(new)) => {
+                old.enabled != new.enabled
+                    || old.commands != new.commands
+                    || old.patterns != new.patterns
+                    || old.debounce_ms != new.debounce_ms
+            }
+            (None, Some(_)) | (Some(_), None) => true,
+            (None, None) => false,
+        };
+        
+        if watch_changed {
+            changes.push("  • Watch configuration changed".to_string());
+            changed = true;
+            
+            // Reinitialize file watcher if watch config changed
+            if let Some(watch_config) = &new_config.watch {
+                if watch_config.enabled {
+                    match crate::watcher::FileWatcher::new(&self.project_root, watch_config.debounce_ms) {
+                        Ok(watcher) => {
+                            self.file_watcher = Some(watcher);
+                            self.watch_enabled = true;
+                            log::info!("File watcher reinitialized with {} patterns", watch_config.patterns.len());
+                        }
+                        Err(e) => {
+                            log::error!("Failed to reinitialize file watcher: {}", e);
+                            self.file_watcher = None;
+                            self.watch_enabled = false;
+                        }
+                    }
+                } else {
+                    self.file_watcher = None;
+                    self.watch_enabled = false;
+                    log::info!("File watcher disabled");
+                }
+            } else {
+                self.file_watcher = None;
+                self.watch_enabled = false;
+            }
+        }
+        
+        // Check output configuration
+        if self.config.output != new_config.output {
+            changes.push("  • Output configuration changed".to_string());
+            changed = true;
+        }
+        
+        // Check logging configuration
+        if self.config.logging != new_config.logging {
+            changes.push("  • Logging configuration changed".to_string());
+            changed = true;
+        }
+        
+        // Apply the new configuration
+        self.config = new_config;
+        
+        // Log changes
+        if changed {
+            log::info!("Configuration changes detected:");
+            for change in &changes {
+                log::info!("{}", change);
+            }
+        }
+        
+        changed
+    }
+
     fn generate_config_file(&self, config_path: &std::path::Path) -> Result<(), std::io::Error> {
         use std::fs;
 

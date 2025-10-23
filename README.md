@@ -107,7 +107,7 @@ I want to credit both the project and its author for the idea and for shaping ho
 | `Page Up` / `Page Down` | Scroll output by pages |
 | `Home` / `End` | Jump to start/end of output |
 | `Ctrl+R` | Show recent projects and switch to a different project |
-| `Ctrl+E` | Edit configuration file (lazymvn.toml) in system editor |
+| `Ctrl+E` | Edit configuration file (lazymvn.toml) - **changes are applied immediately after editor closes** |
 | **Mouse** | Click on pane to focus it, click on item to select it |
 
 ### Views
@@ -280,6 +280,18 @@ Create a `lazymvn.toml` in your project root for custom settings:
 # Optional: Custom Maven settings file path
 maven_settings = "./custom-settings.xml"
 ```
+
+**Live Configuration Reload:**
+
+Press `Ctrl+E` to edit the configuration file in your system editor (`$EDITOR`, `$VISUAL`, or platform default). When you save and close the editor, **changes are automatically applied** without restarting lazymvn. This includes:
+- Maven settings path
+- Launch mode (auto/force-run/force-exec)
+- Watch configuration (enable/disable file watching)
+- Notification settings
+- Output buffer settings
+- Logging configuration
+
+The application will log detected changes and recreate the file watcher if watch settings were modified.
 
 ### Debug Logging
 

@@ -13,7 +13,7 @@ pub struct Config {
 }
 
 /// Logging configuration for controlling log verbosity via JVM arguments
-#[derive(Deserialize, Clone, Debug, Default)]
+#[derive(Deserialize, Clone, Debug, Default, PartialEq)]
 pub struct LoggingConfig {
     /// List of packages with custom log levels
     #[serde(default)]
@@ -21,7 +21,7 @@ pub struct LoggingConfig {
 }
 
 /// Package-specific log level configuration
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Clone, Debug, PartialEq)]
 pub struct PackageLogLevel {
     /// Package name (e.g., "com.mycompany.api.service")
     pub name: String,
@@ -30,7 +30,7 @@ pub struct PackageLogLevel {
 }
 
 /// Output buffer configuration
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Clone, Debug, PartialEq)]
 pub struct OutputConfig {
     /// Maximum number of lines to keep in output buffer (default: 10000)
     #[serde(default = "default_max_lines")]
@@ -59,7 +59,7 @@ impl Default for OutputConfig {
 }
 
 /// File watching configuration
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Clone, Debug, PartialEq)]
 pub struct WatchConfig {
     /// Enable file watching (default: false)
     #[serde(default)]
@@ -288,6 +288,77 @@ fn find_maven_settings(project_root: &Path) -> Option<PathBuf> {
     None
 }
 
+/// Module preferences for saving selected profiles and flags per module
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ModulePreferences {
+    pub active_profiles: Vec<String>,
+    pub enabled_flags: Vec<String>,
+}
+
+/// Manages module preferences per project
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ProjectPreferences {
+    modules: std::collections::HashMap<String, ModulePreferences>,
+}
+
+impl ProjectPreferences {
+    /// Load preferences for a specific project
+    pub fn load(project_root: &Path) -> Self {
+        let prefs_file = Self::get_prefs_file(project_root);
+
+        if let Ok(content) = fs::read_to_string(&prefs_file)
+            && let Ok(prefs) = serde_json::from_str(&content)
+        {
+            log::debug!("Loaded module preferences from {:?}", prefs_file);
+            return prefs;
+        }
+
+        log::debug!("No preferences file found, creating new");
+        Self::default()
+    }
+
+    /// Save preferences to disk
+    pub fn save(&self, project_root: &Path) -> Result<(), String> {
+        let prefs_file = Self::get_prefs_file(project_root);
+
+        if let Some(parent) = prefs_file.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("Failed to create preferences directory: {}", e))?;
+        }
+
+        let content = serde_json::to_string_pretty(self)
+            .map_err(|e| format!("Failed to serialize preferences: {}", e))?;
+
+        fs::write(&prefs_file, content)
+            .map_err(|e| format!("Failed to write preferences: {}", e))?;
+
+        log::debug!("Saved module preferences to {:?}", prefs_file);
+        Ok(())
+    }
+
+    /// Get preferences for a specific module
+    pub fn get_module_prefs(&self, module: &str) -> Option<&ModulePreferences> {
+        self.modules.get(module)
+    }
+
+    /// Set preferences for a specific module
+    pub fn set_module_prefs(&mut self, module: String, prefs: ModulePreferences) {
+        self.modules.insert(module, prefs);
+    }
+
+    /// Get the preferences file path for a project
+    fn get_prefs_file(project_root: &Path) -> PathBuf {
+        let config_dir = get_config_dir();
+        let project_hash = format!(
+            "{:x}",
+            md5::compute(project_root.to_string_lossy().as_bytes())
+        );
+        config_dir
+            .join("preferences")
+            .join(format!("{}.json", project_hash))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -456,77 +527,6 @@ mod tests {
             config.maven_settings,
             Some("/custom/settings.xml".to_string())
         );
-    }
-}
-
-/// Module preferences for saving selected profiles and flags per module
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct ModulePreferences {
-    pub active_profiles: Vec<String>,
-    pub enabled_flags: Vec<String>,
-}
-
-/// Manages module preferences per project
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct ProjectPreferences {
-    modules: std::collections::HashMap<String, ModulePreferences>,
-}
-
-impl ProjectPreferences {
-    /// Load preferences for a specific project
-    pub fn load(project_root: &Path) -> Self {
-        let prefs_file = Self::get_prefs_file(project_root);
-
-        if let Ok(content) = fs::read_to_string(&prefs_file)
-            && let Ok(prefs) = serde_json::from_str(&content)
-        {
-            log::debug!("Loaded module preferences from {:?}", prefs_file);
-            return prefs;
-        }
-
-        log::debug!("No preferences file found, creating new");
-        Self::default()
-    }
-
-    /// Save preferences to disk
-    pub fn save(&self, project_root: &Path) -> Result<(), String> {
-        let prefs_file = Self::get_prefs_file(project_root);
-
-        if let Some(parent) = prefs_file.parent() {
-            fs::create_dir_all(parent)
-                .map_err(|e| format!("Failed to create preferences directory: {}", e))?;
-        }
-
-        let content = serde_json::to_string_pretty(self)
-            .map_err(|e| format!("Failed to serialize preferences: {}", e))?;
-
-        fs::write(&prefs_file, content)
-            .map_err(|e| format!("Failed to write preferences: {}", e))?;
-
-        log::debug!("Saved module preferences to {:?}", prefs_file);
-        Ok(())
-    }
-
-    /// Get preferences for a specific module
-    pub fn get_module_prefs(&self, module: &str) -> Option<&ModulePreferences> {
-        self.modules.get(module)
-    }
-
-    /// Set preferences for a specific module
-    pub fn set_module_prefs(&mut self, module: String, prefs: ModulePreferences) {
-        self.modules.insert(module, prefs);
-    }
-
-    /// Get the preferences file path for a project
-    fn get_prefs_file(project_root: &Path) -> PathBuf {
-        let config_dir = get_config_dir();
-        let project_hash = format!(
-            "{:x}",
-            md5::compute(project_root.to_string_lossy().as_bytes())
-        );
-        config_dir
-            .join("preferences")
-            .join(format!("{}.json", project_hash))
     }
 }
 

@@ -304,12 +304,27 @@ fn run<B: ratatui::backend::Backend>(
             match status {
                 Ok(exit_status) => {
                     if exit_status.success() {
-                        log::info!("Editor closed successfully");
-                        state.command_output = vec![
-                            "✅ Configuration file saved.".to_string(),
-                            String::new(),
-                            "⚠️  Note: You need to restart LazyMVN to apply changes.".to_string(),
-                        ];
+                        log::info!("Editor closed successfully, reloading configuration");
+                        
+                        // Reload configuration
+                        let new_config = config::load_config(&state.project_root);
+                        
+                        // Apply configuration changes
+                        let config_changed = state.reload_config(new_config);
+                        
+                        if config_changed {
+                            state.command_output = vec![
+                                "✅ Configuration file saved and reloaded.".to_string(),
+                                String::new(),
+                                "Changes have been applied successfully.".to_string(),
+                            ];
+                            log::info!("Configuration reloaded successfully");
+                        } else {
+                            state.command_output = vec![
+                                "✅ Configuration file saved (no changes detected).".to_string(),
+                            ];
+                            log::info!("Configuration unchanged");
+                        }
                     } else {
                         log::warn!("Editor exited with non-zero status: {:?}", exit_status);
                         state.command_output =
