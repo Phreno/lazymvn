@@ -3,6 +3,10 @@
 //! This module manages the state of the terminal UI including module selection,
 //! profiles, flags, command execution, and output display.
 
+// Sub-modules
+mod project_tab;
+pub use project_tab::ProjectTab;
+
 // Re-export types
 
 use crate::maven;
