@@ -415,6 +415,16 @@ impl TuiState {
         self.tabs.len()
     }
 
+    /// Get all tabs (for rendering)
+    pub fn get_tabs(&self) -> &[ProjectTab] {
+        &self.tabs
+    }
+
+    /// Get the active tab index
+    pub fn get_active_tab_index(&self) -> usize {
+        self.active_tab_index
+    }
+
     /// Check if any tab has a running process
     pub fn has_running_processes(&self) -> bool {
         self.tabs.iter().any(|tab| tab.has_running_process())

@@ -44,6 +44,9 @@ impl Theme {
 
     /// Style for focused footer box borders
     /// Style for disabled footer text
+    /// Style for dimmed/secondary text
+    pub const DIM_STYLE: Style = Style::new().fg(Color::DarkGray);
+
     /// Style for search match highlights
     pub const SEARCH_MATCH_STYLE: Style = Style::new().bg(Color::Yellow).fg(Color::Black);
 

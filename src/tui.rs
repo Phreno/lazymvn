@@ -10,7 +10,7 @@ use crate::ui::{
         create_adaptive_layout, render_favorites_popup, render_flags_pane, render_footer,
         render_history_popup, render_modules_pane, render_output_pane, render_profiles_pane,
         render_projects_pane, render_projects_popup, render_save_favorite_popup,
-        render_starter_manager_popup, render_starter_selector_popup,
+        render_starter_manager_popup, render_starter_selector_popup, render_tab_bar,
     },
 };
 use crossterm::event::KeyEvent;
@@ -30,8 +30,13 @@ pub fn draw<B: Backend>(
         let focus = state.focus;
         let search_active = state.search_mod.is_some();
         
-        let (projects_area, modules_area, profiles_area, flags_area, output_area, footer_area) =
+        let (tab_bar_area, projects_area, modules_area, profiles_area, flags_area, output_area, footer_area) =
             create_adaptive_layout(f.area(), Some(focus));
+
+        // Render tab bar (only if multiple tabs exist)
+        if state.get_tab_count() > 1 {
+            render_tab_bar(f, tab_bar_area, state.get_tabs(), state.get_active_tab_index());
+        }
 
         // Get active tab for rendering (in a scoped block to release borrow)
         let tab = state.get_active_tab_mut();
@@ -218,7 +223,7 @@ pub fn handle_mouse_event(
         height: terminal_size.1,
     };
 
-    let (projects_area, modules_area, profiles_area, flags_area, output_area, _footer_area) =
+    let (_tab_bar_area, projects_area, modules_area, profiles_area, flags_area, output_area, _footer_area) =
         create_adaptive_layout(total_area, Some(state.focus));
 
     // Check which pane was clicked and set focus accordingly
