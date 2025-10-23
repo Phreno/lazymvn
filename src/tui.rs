@@ -72,12 +72,8 @@ pub fn draw<B: Backend>(
             focus == Focus::Flags,
         );
 
-        // Extract data for output rendering before calling state methods
+        // Extract is_running before dropping tab
         let is_running = tab.is_command_running;
-        let command_output = tab.command_output.clone();
-        let output_offset = tab.output_offset;
-        
-        // Drop tab borrow here so we can call state methods
         drop(tab);
         
         // Now render profiles with state data
@@ -109,6 +105,11 @@ pub fn draw<B: Backend>(
         let selected_module = state.selected_module();
         let current_context = state.current_output_context();
         let elapsed = state.command_elapsed_seconds();
+        
+        // Get tab again for rendering output (immutable borrow is OK with closure accessing state)
+        let tab = state.get_active_tab();
+        let command_output = &tab.command_output;
+        let output_offset = tab.output_offset;
         render_output_pane(
             f,
             output_area,

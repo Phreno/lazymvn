@@ -330,33 +330,38 @@ fn run<B: ratatui::backend::Backend>(
                         log::info!("Editor closed successfully, reloading configuration");
                         
                         // Reload configuration
-                        let new_config = config::load_config(&state.project_root);
+                        let project_root = state.get_active_tab().project_root.clone();
+                        let new_config = config::load_config(&project_root);
                         
                         // Apply configuration changes
                         let config_changed = state.reload_config(new_config);
                         
                         if config_changed {
-                            state.command_output = vec![
+                            let tab = state.get_active_tab_mut();
+                            tab.command_output = vec![
                                 "✅ Configuration file saved and reloaded.".to_string(),
                                 String::new(),
                                 "Changes have been applied successfully.".to_string(),
                             ];
                             log::info!("Configuration reloaded successfully");
                         } else {
-                            state.command_output = vec![
+                            let tab = state.get_active_tab_mut();
+                            tab.command_output = vec![
                                 "✅ Configuration file saved (no changes detected).".to_string(),
                             ];
                             log::info!("Configuration unchanged");
                         }
                     } else {
                         log::warn!("Editor exited with non-zero status: {:?}", exit_status);
-                        state.command_output =
+                        let tab = state.get_active_tab_mut();
+                        tab.command_output =
                             vec![format!("⚠️  Editor exited with status: {:?}", exit_status)];
                     }
                 }
                 Err(e) => {
                     log::error!("Failed to launch editor: {}", e);
-                    state.command_output = vec![
+                    let tab = state.get_active_tab_mut();
+                    tab.command_output = vec![
                         format!("❌ Failed to launch editor '{}': {}", editor, e),
                         String::new(),
                         "Please check that the EDITOR environment variable is set correctly."

@@ -969,8 +969,12 @@ impl TuiState {
             log::warn!("Command already running, ignoring new command request");
             return;
         }
+        
+        drop(tab);
+        let module = self.selected_module().map(|m| m.to_string());
+        let tab = self.get_active_tab_mut();
 
-        if let Some(module) = self.selected_module().map(|m| m.to_string()) {
+        if let Some(module) = module {
             log::info!("Running async command for module: {}", module);
 
             // Collect enabled flags
@@ -1103,8 +1107,15 @@ impl TuiState {
         }
 
         // Check if we're currently at the bottom (for auto-scroll)
-        let was_at_bottom = tab.output_offset >= self.max_scroll_offset();
+        // Drop tab temporarily to call max_scroll_offset
+        let output_offset = tab.output_offset;
+        drop(tab);
+        let was_at_bottom = output_offset >= self.max_scroll_offset();
+        
+        // Re-get tab for processing updates
+        let tab = self.get_active_tab_mut();
         let mut had_output_lines = false;
+        let mut need_notification = None; // (title, body, success)
 
         // Now process all updates
         for update in updates {
@@ -1136,15 +1147,13 @@ impl TuiState {
                     tab.is_command_running = false;
                     tab.command_receiver = None;
                     tab.running_process_pid = None;
-                    self.store_current_module_output();
                     tab.output_metrics = None;
-
-                    // Send desktop notification
-                    self.send_notification(
-                        "LazyMVN - Build Complete",
-                        "Maven command completed successfully ✓",
+                    
+                    need_notification = Some((
+                        "LazyMVN - Build Complete".to_string(),
+                        "Maven command completed successfully ✓".to_string(),
                         true,
-                    );
+                    ));
                 }
                 maven::CommandUpdate::Error(msg) => {
                     log::error!("Command failed: {}", msg);
@@ -1153,33 +1162,48 @@ impl TuiState {
                     tab.is_command_running = false;
                     tab.command_receiver = None;
                     tab.running_process_pid = None;
-                    self.store_current_module_output();
                     tab.output_metrics = None;
-
-                    // Send desktop notification for error
-                    self.send_notification(
-                        "LazyMVN - Build Failed",
-                        &format!("Maven command failed: {}", msg),
+                    
+                    need_notification = Some((
+                        "LazyMVN - Build Failed".to_string(),
+                        format!("Maven command failed: {}", msg),
                         false,
-                    );
+                    ));
                 }
             }
         }
 
+        // Get is_command_running before dropping tab
+        let is_command_running = tab.is_command_running;
+        
+        if should_clear_receiver {
+            tab.is_command_running = false;
+            tab.command_receiver = None;
+        }
+        
+        // Drop tab before calling self methods
+        drop(tab);
+        
+        // Store module output if we had a command completion
+        if need_notification.is_some() {
+            self.store_current_module_output();
+        }
+        
         // Only update scroll and metrics once at the end if we had output lines
         if had_output_lines {
             // Auto-scroll to bottom while command is running (always follow logs)
             // Only respect user's scroll position when command is not running
-            if was_at_bottom || tab.is_command_running {
+            if was_at_bottom || is_command_running {
                 self.scroll_output_to_end();
             }
             self.store_current_module_output();
+            let tab = self.get_active_tab_mut();
             tab.output_metrics = None;
         }
-
-        if should_clear_receiver {
-            tab.is_command_running = false;
-            tab.command_receiver = None;
+        
+        // Send notification if needed
+        if let Some((title, body, success)) = need_notification {
+            self.send_notification(&title, &body, success);
         }
     }
 
