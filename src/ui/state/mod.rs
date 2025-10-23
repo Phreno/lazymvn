@@ -502,28 +502,42 @@ impl TuiState {
             return;
         }
 
+        let focus = self.focus;
         let tab = self.get_active_tab_mut();
 
-        match self.focus {
+        match focus {
             Focus::Projects => {
                 // Projects view is static, no navigation needed
             }
             Focus::Modules => {
-                if tab.modules.is_empty() {
+                let modules_empty = tab.modules.is_empty();
+                if modules_empty {
                     return;
                 }
+                
+                // Need to drop tab borrow to call save_module_preferences
+                let new_index = {
+                    let i = match tab.modules_list_state.selected() {
+                        Some(i) => (i + 1) % tab.modules.len(),
+                        None => 0,
+                    };
+                    i
+                };
+                drop(tab);
+                
                 // Save current module preferences before switching
                 self.save_module_preferences();
-
-                let i = match tab.modules_list_state.selected() {
-                    Some(i) => (i + 1) % tab.modules.len(),
-                    None => 0,
-                };
-                tab.modules_list_state.select(Some(i));
+                
+                // Now update the selection
+                let tab = self.get_active_tab_mut();
+                tab.modules_list_state.select(Some(new_index));
+                drop(tab);
+                
                 self.sync_selected_module_output();
-
+                
                 // Load preferences for the new module
                 self.load_module_preferences();
+                return;
             }
             Focus::Profiles => {
                 if !tab.profiles.is_empty() {
@@ -532,8 +546,10 @@ impl TuiState {
                         None => 0,
                     };
                     tab.profiles_list_state.select(Some(i));
+                    drop(tab);
                     // Update output to show new profile XML
                     self.sync_selected_profile_output();
+                    return;
                 }
             }
             Focus::Flags => {
@@ -556,34 +572,48 @@ impl TuiState {
             return;
         }
 
+        let focus = self.focus;
         let tab = self.get_active_tab_mut();
 
-        match self.focus {
+        match focus {
             Focus::Projects => {
                 // Projects view is static, no navigation needed
             }
             Focus::Modules => {
-                if tab.modules.is_empty() {
+                let modules_empty = tab.modules.is_empty();
+                if modules_empty {
                     return;
                 }
+                
+                // Need to drop tab borrow to call save_module_preferences
+                let new_index = {
+                    let i = match tab.modules_list_state.selected() {
+                        Some(i) => {
+                            if i == 0 {
+                                tab.modules.len() - 1
+                            } else {
+                                i - 1
+                            }
+                        }
+                        None => 0,
+                    };
+                    i
+                };
+                drop(tab);
+                
                 // Save current module preferences before switching
                 self.save_module_preferences();
-
-                let i = match tab.modules_list_state.selected() {
-                    Some(i) => {
-                        if i == 0 {
-                            tab.modules.len() - 1
-                        } else {
-                            i - 1
-                        }
-                    }
-                    None => 0,
-                };
-                tab.modules_list_state.select(Some(i));
+                
+                // Now update the selection
+                let tab = self.get_active_tab_mut();
+                tab.modules_list_state.select(Some(new_index));
+                drop(tab);
+                
                 self.sync_selected_module_output();
-
+                
                 // Load preferences for the new module
                 self.load_module_preferences();
+                return;
             }
             Focus::Profiles => {
                 if !tab.profiles.is_empty() {
@@ -598,8 +628,10 @@ impl TuiState {
                         None => 0,
                     };
                     tab.profiles_list_state.select(Some(i));
+                    drop(tab);
                     // Update output to show new profile XML
                     self.sync_selected_profile_output();
+                    return;
                 }
             }
             Focus::Flags => {
@@ -823,21 +855,24 @@ impl TuiState {
 
     // Module output management
     pub(crate) fn sync_selected_module_output(&mut self) {
-        let tab = self.get_active_tab_mut();
-        if let Some(module) = self.selected_module() {
-            if let Some(module_output) = tab.module_outputs.get(module) {
-                tab.command_output = module_output.lines.clone();
-                tab.output_offset = module_output.scroll_offset;
+        let module = self.selected_module().map(|m| m.to_string());
+        {
+            let tab = self.get_active_tab_mut();
+            if let Some(module) = module.as_deref() {
+                if let Some(module_output) = tab.module_outputs.get(module) {
+                    tab.command_output = module_output.lines.clone();
+                    tab.output_offset = module_output.scroll_offset;
+                } else {
+                    tab.command_output.clear();
+                    tab.output_offset = 0;
+                }
             } else {
                 tab.command_output.clear();
                 tab.output_offset = 0;
             }
-        } else {
-            tab.command_output.clear();
-            tab.output_offset = 0;
+            tab.output_metrics = None;
         }
         self.clamp_output_offset();
-        tab.output_metrics = None;
         self.refresh_search_matches();
     }
 

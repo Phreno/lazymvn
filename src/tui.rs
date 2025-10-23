@@ -26,10 +26,14 @@ pub fn draw<B: Backend>(
     state: &mut crate::ui::state::TuiState,
 ) -> Result<(), std::io::Error> {
     terminal.draw(|f| {
+        // Extract data from state that doesn't require mutable access
+        let focus = state.focus;
+        let search_active = state.search_mod.is_some();
+        
         let (projects_area, modules_area, profiles_area, flags_area, output_area, footer_area) =
-            create_adaptive_layout(f.area(), Some(state.focus));
+            create_adaptive_layout(f.area(), Some(focus));
 
-        // Get active tab for rendering
+        // Get active tab for rendering (in a scoped block to release borrow)
         let tab = state.get_active_tab_mut();
         
         // Get project root name for display
@@ -45,7 +49,7 @@ pub fn draw<B: Backend>(
             projects_area,
             project_name,
             tab.git_branch.as_deref(),
-            state.focus == Focus::Projects,
+            focus == Focus::Projects,
         );
 
         render_modules_pane(
@@ -53,27 +57,46 @@ pub fn draw<B: Backend>(
             modules_area,
             &tab.modules,
             &mut tab.modules_list_state,
-            state.focus == Focus::Modules,
+            focus == Focus::Modules,
         );
 
-        let spinner = state.profile_loading_spinner();
-        render_profiles_pane(
-            f,
-            profiles_area,
-            &tab.profiles,
-            &mut tab.profiles_list_state,
-            state.focus == Focus::Profiles,
-            &state.profile_loading_status,
-            spinner,
-        );
-
+        // Need to clone profiles data to avoid borrow issues with profile_loading_status
+        let profiles_clone = tab.profiles.clone();
+        let mut profiles_list_state_clone = tab.profiles_list_state.clone();
+        
         render_flags_pane(
             f,
             flags_area,
             &tab.flags,
             &mut tab.flags_list_state,
-            state.focus == Focus::Flags,
+            focus == Focus::Flags,
         );
+
+        // Extract data for output rendering before calling state methods
+        let is_running = tab.is_command_running;
+        let command_output = tab.command_output.clone();
+        let output_offset = tab.output_offset;
+        
+        // Drop tab borrow here so we can call state methods
+        drop(tab);
+        
+        // Now render profiles with state data
+        let spinner = state.profile_loading_spinner();
+        let profile_loading_status = &state.profile_loading_status;
+        render_profiles_pane(
+            f,
+            profiles_area,
+            &profiles_clone,
+            &mut profiles_list_state_clone,
+            focus == Focus::Profiles,
+            profile_loading_status,
+            spinner,
+        );
+        
+        // Sync list state back if it changed
+        let tab = state.get_active_tab_mut();
+        tab.profiles_list_state = profiles_list_state_clone;
+        drop(tab);
 
         // Update output metrics for proper scrolling calculations
         let inner_area = ratatui::widgets::Block::default()
@@ -85,16 +108,15 @@ pub fn draw<B: Backend>(
         // Render output pane
         let selected_module = state.selected_module();
         let current_context = state.current_output_context();
-        let is_running = tab.is_command_running;
         let elapsed = state.command_elapsed_seconds();
         render_output_pane(
             f,
             output_area,
-            &tab.command_output,
-            tab.output_offset,
-            state.focus == Focus::Output,
+            command_output,
+            output_offset,
+            focus == Focus::Output,
             |line_index| state.search_line_style(line_index),
-            state.search_mod.is_some(),
+            search_active,
             selected_module,
             current_context,
             is_running,
