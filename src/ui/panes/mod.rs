@@ -357,35 +357,36 @@ pub fn render_tab_bar(
     let mut tab_spans = Vec::new();
     for (idx, tab) in tabs.iter().enumerate() {
         let is_active = idx == active_tab_index;
-        
+
         // Get short project name
-        let project_name = tab.project_root
+        let project_name = tab
+            .project_root
             .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("???");
-        
+
         // Format: " [1] project-name " or " 1 project-name " (active has brackets)
         let tab_label = if is_active {
             format!(" [{}] {} ", idx + 1, project_name)
         } else {
             format!("  {}  {} ", idx + 1, project_name)
         };
-        
+
         // Style
         let style = if is_active {
             Theme::ACTIVE_PROFILE_STYLE
         } else {
             Theme::DEFAULT_STYLE
         };
-        
+
         tab_spans.push(Span::styled(tab_label, style));
-        
+
         // Separator
         if idx < tabs.len() - 1 {
             tab_spans.push(Span::raw("│"));
         }
     }
-    
+
     // Add indicator of total tabs at the end
     if tabs.len() > 1 {
         tab_spans.push(Span::styled(
@@ -393,16 +394,14 @@ pub fn render_tab_bar(
             Theme::DIM_STYLE,
         ));
     }
-    
+
     let line = Line::from(tab_spans);
-    let paragraph = Paragraph::new(line)
-        .style(Theme::DEFAULT_STYLE)
-        .block(
-            Block::default()
-                .borders(Borders::BOTTOM)
-                .border_style(Theme::DEFAULT_STYLE),
-        );
-    
+    let paragraph = Paragraph::new(line).style(Theme::DEFAULT_STYLE).block(
+        Block::default()
+            .borders(Borders::BOTTOM)
+            .border_style(Theme::DEFAULT_STYLE),
+    );
+
     f.render_widget(paragraph, area);
 }
 
@@ -483,11 +482,14 @@ pub fn create_adaptive_layout(
     // Split vertically: tab bar, content, footer
     let vertical = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(tab_bar_height),
-            Constraint::Min(0),
-            Constraint::Length(footer_height),
-        ].as_ref())
+        .constraints(
+            [
+                Constraint::Length(tab_bar_height),
+                Constraint::Min(0),
+                Constraint::Length(footer_height),
+            ]
+            .as_ref(),
+        )
         .split(area);
 
     let tab_bar_area = vertical[0];
@@ -495,7 +497,7 @@ pub fn create_adaptive_layout(
     let footer_area = vertical[2];
 
     // Adaptive width layout for content
-    let (projects_area, modules_area, profiles_area, flags_area, output_area, _footer) = 
+    let (projects_area, modules_area, profiles_area, flags_area, output_area, _footer) =
         if is_narrow {
             // Single column mode - stack everything vertically
             create_single_column_layout(content_area, footer_area, focused_pane, is_short)
@@ -503,8 +505,16 @@ pub fn create_adaptive_layout(
             // Two column mode - left panes and output
             create_two_column_layout(content_area, footer_area, focused_pane, is_short)
         };
-    
-    (tab_bar_area, projects_area, modules_area, profiles_area, flags_area, output_area, footer_area)
+
+    (
+        tab_bar_area,
+        projects_area,
+        modules_area,
+        profiles_area,
+        flags_area,
+        output_area,
+        footer_area,
+    )
 }
 
 /// Create single column layout for narrow terminals

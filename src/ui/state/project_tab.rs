@@ -3,14 +3,14 @@
 //! Each tab represents a complete Maven project with its own state,
 //! including modules, profiles, output, and running processes.
 
+use ratatui::widgets::ListState;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::mpsc;
 use std::time::Instant;
-use ratatui::widgets::ListState;
 
-use crate::maven;
 use crate::config;
+use crate::maven;
 use crate::ui::state::{BuildFlag, MavenProfile, ModuleOutput, OutputMetrics};
 use crate::watcher::FileWatcher;
 
@@ -18,17 +18,17 @@ use crate::watcher::FileWatcher;
 pub struct ProjectTab {
     pub id: usize,
     pub project_root: PathBuf,
-    
+
     // Project data
     pub modules: Vec<String>,
     pub profiles: Vec<MavenProfile>,
     pub flags: Vec<BuildFlag>,
-    
+
     // List states
     pub modules_list_state: ListState,
     pub profiles_list_state: ListState,
     pub flags_list_state: ListState,
-    
+
     // Command execution
     pub command_output: Vec<String>,
     pub output_offset: usize,
@@ -36,22 +36,22 @@ pub struct ProjectTab {
     pub command_start_time: Option<Instant>,
     pub running_process_pid: Option<u32>,
     pub command_receiver: Option<mpsc::Receiver<maven::CommandUpdate>>,
-    
+
     // Module outputs cache
     pub module_outputs: HashMap<String, ModuleOutput>,
-    
+
     // Project config
     pub config: config::Config,
     pub module_preferences: config::ProjectPreferences,
-    
+
     // File watcher
     pub file_watcher: Option<FileWatcher>,
     pub last_command: Option<Vec<String>>,
     pub watch_enabled: bool,
-    
+
     // Git info
     pub git_branch: Option<String>,
-    
+
     // UI state
     pub output_view_height: u16,
     pub output_area_width: u16,
@@ -68,13 +68,13 @@ impl ProjectTab {
     ) -> Self {
         // Get git branch
         let git_branch = crate::utils::get_git_branch(&project_root);
-        
+
         // Load module preferences
         let module_preferences = config::ProjectPreferences::load(&project_root);
-        
+
         // Initialize profiles
         let profiles = Vec::new(); // Will be loaded asynchronously
-        
+
         // Initialize flags (same as in TuiState::new)
         let flags = vec![
             BuildFlag {
@@ -113,13 +113,18 @@ impl ProjectTab {
                 enabled: false,
             },
         ];
-        
+
         // Initialize list states
         let mut modules_list_state = ListState::default();
         if !modules.is_empty() {
             modules_list_state.select(Some(0));
         }
-        
+
+        let mut flags_list_state = ListState::default();
+        if !flags.is_empty() {
+            flags_list_state.select(Some(0));
+        }
+
         // Create file watcher if enabled in config
         let (file_watcher, watch_enabled) = if let Some(watch_config) = &config.watch {
             if watch_config.enabled {
@@ -139,7 +144,7 @@ impl ProjectTab {
         } else {
             (None, false)
         };
-        
+
         Self {
             id,
             project_root,
@@ -148,7 +153,7 @@ impl ProjectTab {
             flags,
             modules_list_state,
             profiles_list_state: ListState::default(),
-            flags_list_state: ListState::default(),
+            flags_list_state,
             command_output: vec!["Ready. Select a module and press a command key.".to_string()],
             output_offset: 0,
             is_command_running: false,
@@ -167,14 +172,15 @@ impl ProjectTab {
             output_metrics: None,
         }
     }
-    
+
     /// Get the display title for this tab
     pub fn get_title(&self) -> String {
-        let project_name = self.project_root
+        let project_name = self
+            .project_root
             .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("???");
-        
+
         // Optionally include git branch
         if let Some(ref branch) = self.git_branch {
             format!("{} ({})", project_name, branch)
@@ -182,7 +188,7 @@ impl ProjectTab {
             project_name.to_string()
         }
     }
-    
+
     /// Get a short title for the tab (max 20 chars)
     #[allow(dead_code)]
     pub fn get_short_title(&self, max_len: usize) -> String {
@@ -193,16 +199,16 @@ impl ProjectTab {
             format!("{}...", &title[..max_len.saturating_sub(3)])
         }
     }
-    
+
     /// Check if this tab has a running process
     pub fn has_running_process(&self) -> bool {
         self.is_command_running && self.running_process_pid.is_some()
     }
-    
+
     /// Cleanup resources (kill process, save preferences)
     pub fn cleanup(&mut self) {
         log::info!("Cleaning up tab {} ({})", self.id, self.get_title());
-        
+
         // Kill running process
         if let Some(pid) = self.running_process_pid {
             log::info!("Killing process {} in tab {}", pid, self.id);
@@ -217,15 +223,19 @@ impl ProjectTab {
             self.running_process_pid = None;
             self.is_command_running = false;
         }
-        
+
         // Save module preferences
         if let Err(e) = self.module_preferences.save(&self.project_root) {
-            log::error!("Failed to save module preferences for tab {}: {}", self.id, e);
+            log::error!(
+                "Failed to save module preferences for tab {}: {}",
+                self.id,
+                e
+            );
         }
-        
+
         log::info!("Tab {} cleanup completed", self.id);
     }
-    
+
     /// Get the currently selected module
     #[allow(dead_code)]
     pub fn get_selected_module(&self) -> Option<&String> {
@@ -233,7 +243,7 @@ impl ProjectTab {
             .selected()
             .and_then(|i| self.modules.get(i))
     }
-    
+
     /// Get the currently selected module index
     #[allow(dead_code)]
     pub fn get_selected_module_index(&self) -> Option<usize> {

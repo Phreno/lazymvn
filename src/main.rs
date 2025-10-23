@@ -15,8 +15,8 @@ use clap::Parser;
 use crossterm::event;
 use ratatui::{Terminal, backend::CrosstermBackend};
 use std::io;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 #[derive(Parser)]
 #[command(name = "lazymvn")]
@@ -232,7 +232,7 @@ fn run<B: ratatui::backend::Backend>(
     // Setup signal handler for graceful shutdown (Ctrl+C, SIGTERM)
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
-    
+
     ctrlc::set_handler(move || {
         log::info!("Received interrupt signal (Ctrl+C), initiating shutdown");
         r.store(false, Ordering::SeqCst);
@@ -328,14 +328,14 @@ fn run<B: ratatui::backend::Backend>(
                 Ok(exit_status) => {
                     if exit_status.success() {
                         log::info!("Editor closed successfully, reloading configuration");
-                        
+
                         // Reload configuration
                         let project_root = state.get_active_tab().project_root.clone();
                         let new_config = config::load_config(&project_root);
-                        
+
                         // Apply configuration changes
                         let config_changed = state.reload_config(new_config);
-                        
+
                         if config_changed {
                             let tab = state.get_active_tab_mut();
                             tab.command_output = vec![
@@ -390,10 +390,10 @@ fn run<B: ratatui::backend::Backend>(
             }
         }
     }
-    
+
     // Cleanup before exit - kill any running Maven processes
     state.cleanup();
-    
+
     Ok(())
 }
 

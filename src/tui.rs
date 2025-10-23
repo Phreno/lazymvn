@@ -29,18 +29,30 @@ pub fn draw<B: Backend>(
         // Extract data from state that doesn't require mutable access
         let focus = state.focus;
         let search_active = state.search_mod.is_some();
-        
-        let (tab_bar_area, projects_area, modules_area, profiles_area, flags_area, output_area, footer_area) =
-            create_adaptive_layout(f.area(), Some(focus));
+
+        let (
+            tab_bar_area,
+            projects_area,
+            modules_area,
+            profiles_area,
+            flags_area,
+            output_area,
+            footer_area,
+        ) = create_adaptive_layout(f.area(), Some(focus));
 
         // Render tab bar (only if multiple tabs exist)
         if state.get_tab_count() > 1 {
-            render_tab_bar(f, tab_bar_area, state.get_tabs(), state.get_active_tab_index());
+            render_tab_bar(
+                f,
+                tab_bar_area,
+                state.get_tabs(),
+                state.get_active_tab_index(),
+            );
         }
 
         // Get active tab for rendering (in a scoped block to release borrow)
         let tab = state.get_active_tab_mut();
-        
+
         // Get project root name for display
         let project_name = tab
             .project_root
@@ -68,7 +80,7 @@ pub fn draw<B: Backend>(
         // Need to clone profiles data to avoid borrow issues with profile_loading_status
         let profiles_clone = tab.profiles.clone();
         let mut profiles_list_state_clone = tab.profiles_list_state.clone();
-        
+
         render_flags_pane(
             f,
             flags_area,
@@ -79,7 +91,7 @@ pub fn draw<B: Backend>(
 
         // Extract is_running before releasing borrow
         let is_running = tab.is_command_running;
-        
+
         // Now render profiles with state data
         let spinner = state.profile_loading_spinner();
         let profile_loading_status = &state.profile_loading_status;
@@ -92,7 +104,7 @@ pub fn draw<B: Backend>(
             profile_loading_status,
             spinner,
         );
-        
+
         // Sync list state back if it changed
         {
             let tab = state.get_active_tab_mut();
@@ -110,7 +122,7 @@ pub fn draw<B: Backend>(
         let selected_module = state.selected_module();
         let current_context = state.current_output_context();
         let elapsed = state.command_elapsed_seconds();
-        
+
         // Get tab again for rendering output (immutable borrow is OK with closure accessing state)
         let tab = state.get_active_tab();
         let command_output = &tab.command_output;
@@ -223,8 +235,15 @@ pub fn handle_mouse_event(
         height: terminal_size.1,
     };
 
-    let (_tab_bar_area, projects_area, modules_area, profiles_area, flags_area, output_area, _footer_area) =
-        create_adaptive_layout(total_area, Some(state.focus));
+    let (
+        _tab_bar_area,
+        projects_area,
+        modules_area,
+        profiles_area,
+        flags_area,
+        output_area,
+        _footer_area,
+    ) = create_adaptive_layout(total_area, Some(state.focus));
 
     // Check which pane was clicked and set focus accordingly
     let click_pos = (mouse.column, mouse.row);
@@ -415,7 +434,8 @@ mod tests {
         state.set_profiles(vec!["p1".to_string()]);
         // Then toggle the profile to explicitly enable it
         if !state.get_active_tab().profiles.is_empty() {
-            state.get_active_tab_mut().profiles[0].state = crate::ui::state::ProfileState::ExplicitlyEnabled;
+            state.get_active_tab_mut().profiles[0].state =
+                crate::ui::state::ProfileState::ExplicitlyEnabled;
         }
 
         // 4. Simulate 'k' key press for package
@@ -519,7 +539,10 @@ mod tests {
         let state = crate::ui::state::TuiState::new(modules, project_root, test_cfg());
 
         // Check flags are initialized
-        assert!(!state.get_active_tab().flags.is_empty(), "Flags should be initialized");
+        assert!(
+            !state.get_active_tab().flags.is_empty(),
+            "Flags should be initialized"
+        );
 
         // Check all flags start disabled
         assert_eq!(
@@ -542,7 +565,10 @@ mod tests {
         let mut state = crate::ui::state::TuiState::new(modules, project_root, test_cfg());
 
         // Initial selection should be module1 (index 0)
-        assert_eq!(state.get_active_tab().modules_list_state.selected(), Some(0));
+        assert_eq!(
+            state.get_active_tab().modules_list_state.selected(),
+            Some(0)
+        );
 
         // Rapid down presses - should only move once due to debouncing
         for _ in 0..5 {
@@ -553,7 +579,10 @@ mod tests {
         }
 
         // Should only have moved to index 1, not 5 (due to debouncing)
-        assert_eq!(state.get_active_tab().modules_list_state.selected(), Some(1));
+        assert_eq!(
+            state.get_active_tab().modules_list_state.selected(),
+            Some(1)
+        );
 
         // Wait for debounce period to pass
         thread::sleep(Duration::from_millis(110));
@@ -563,7 +592,10 @@ mod tests {
             crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Down),
             &mut state,
         );
-        assert_eq!(state.get_active_tab().modules_list_state.selected(), Some(2));
+        assert_eq!(
+            state.get_active_tab().modules_list_state.selected(),
+            Some(2)
+        );
     }
 
     #[test]
@@ -583,7 +615,12 @@ mod tests {
         assert_eq!(state.current_view, CurrentView::Profiles);
 
         // No profiles should be explicitly enabled initially
-        let active_count = state.get_active_tab().profiles.iter().filter(|p| p.is_active()).count();
+        let active_count = state
+            .get_active_tab()
+            .profiles
+            .iter()
+            .filter(|p| p.is_active())
+            .count();
         assert_eq!(active_count, 0);
 
         // Simulate pressing Enter to toggle profile
@@ -593,7 +630,12 @@ mod tests {
         );
 
         // First profile should now be explicitly enabled
-        let active_count = state.get_active_tab().profiles.iter().filter(|p| p.is_active()).count();
+        let active_count = state
+            .get_active_tab()
+            .profiles
+            .iter()
+            .filter(|p| p.is_active())
+            .count();
         assert_eq!(active_count, 1);
         assert_eq!(
             state.get_active_tab().profiles[0].state,
@@ -627,7 +669,12 @@ mod tests {
         assert_eq!(state.current_view, CurrentView::Flags);
 
         // No flags should be enabled initially
-        let enabled_count = state.get_active_tab().flags.iter().filter(|f| f.enabled).count();
+        let enabled_count = state
+            .get_active_tab()
+            .flags
+            .iter()
+            .filter(|f| f.enabled)
+            .count();
         assert_eq!(enabled_count, 0);
 
         // Simulate pressing Space to toggle flag
@@ -637,7 +684,12 @@ mod tests {
         );
 
         // First flag should now be enabled
-        let enabled_count = state.get_active_tab().flags.iter().filter(|f| f.enabled).count();
+        let enabled_count = state
+            .get_active_tab()
+            .flags
+            .iter()
+            .filter(|f| f.enabled)
+            .count();
         assert_eq!(enabled_count, 1);
         assert!(state.get_active_tab().flags[0].enabled);
 
@@ -648,7 +700,12 @@ mod tests {
         );
 
         // Flag should be disabled
-        let enabled_count = state.get_active_tab().flags.iter().filter(|f| f.enabled).count();
+        let enabled_count = state
+            .get_active_tab()
+            .flags
+            .iter()
+            .filter(|f| f.enabled)
+            .count();
         assert_eq!(enabled_count, 0);
     }
 
@@ -743,7 +800,7 @@ mod tests {
         assert!(auto_profile.is_active()); // Back to auto-activated
     }
 
-    #[test]    
+    #[test]
     #[ignore] // Mouse tests are fragile due to terminal size dependencies
     fn test_mouse_click_selects_item() {
         let modules = vec![
@@ -755,7 +812,10 @@ mod tests {
         let mut state = crate::ui::state::TuiState::new(modules, project_root, test_cfg());
 
         // Initial selection is first module
-        assert_eq!(state.get_active_tab().modules_list_state.selected(), Some(0));
+        assert_eq!(
+            state.get_active_tab().modules_list_state.selected(),
+            Some(0)
+        );
 
         // Simulate mouse click on modules pane
         // Projects pane is at rows 0-2 (3 lines), modules pane starts at row 3
@@ -772,6 +832,12 @@ mod tests {
         // Should have switched focus to modules
         assert_eq!(state.focus, Focus::Modules);
         // Selection should have been updated based on click position
-        assert!(state.get_active_tab().modules_list_state.selected().is_some());
+        assert!(
+            state
+                .get_active_tab()
+                .modules_list_state
+                .selected()
+                .is_some()
+        );
     }
 }
