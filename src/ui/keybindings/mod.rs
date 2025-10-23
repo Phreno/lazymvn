@@ -464,6 +464,43 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
             log::info!("Edit configuration");
             state.edit_config();
         }
+        KeyCode::Char('t')
+            if key
+                .modifiers
+                .contains(crossterm::event::KeyModifiers::CONTROL) =>
+        {
+            log::info!("Create new tab (Ctrl+T)");
+            state.show_recent_projects();
+        }
+        KeyCode::Char('w')
+            if key
+                .modifiers
+                .contains(crossterm::event::KeyModifiers::CONTROL) =>
+        {
+            log::info!("Close current tab (Ctrl+W)");
+            // Only close if not the last tab
+            if state.get_tab_count() > 1 {
+                let active_index = state.get_active_tab_index();
+                match state.close_tab(active_index) {
+                    Ok(()) => {
+                        log::info!("Tab closed successfully");
+                    }
+                    Err(e) => {
+                        log::error!("Failed to close tab: {}", e);
+                    }
+                }
+            } else {
+                log::warn!("Cannot close last tab");
+            }
+        }
+        KeyCode::Left if key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => {
+            log::info!("Switch to previous tab (Ctrl+Left)");
+            state.prev_tab();
+        }
+        KeyCode::Right if key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => {
+            log::info!("Switch to next tab (Ctrl+Right)");
+            state.next_tab();
+        }
         KeyCode::Left => {
             log::debug!("Cycle focus left");
             state.cycle_focus_left();
@@ -650,6 +687,18 @@ pub(crate) fn build_navigation_line() -> Vec<Line<'static>> {
             Span::styled("Navigate: ", Theme::FOOTER_SECTION_STYLE),
             key_token("↑↓"),
             Span::raw("   "),
+            Span::styled("Tabs: ", Theme::FOOTER_SECTION_STYLE),
+            key_token("Ctrl+T"),
+            Span::raw(" New  "),
+            key_token("Ctrl+W"),
+            Span::raw(" Close  "),
+            key_token("Ctrl+←→"),
+            Span::raw(" Switch  "),
+            key_token("Esc"),
+            Span::raw(" Kill"),
+        ]),
+        // Line 3: Actions
+        Line::from(vec![
             Span::styled("Actions: ", Theme::FOOTER_SECTION_STYLE),
             key_token("Ctrl+F"),
             Span::raw(" Favs  "),
@@ -658,9 +707,7 @@ pub(crate) fn build_navigation_line() -> Vec<Line<'static>> {
             key_token("Ctrl+R"),
             Span::raw(" Recent  "),
             key_token("Ctrl+E"),
-            Span::raw(" Edit  "),
-            key_token("Esc"),
-            Span::raw(" Kill"),
+            Span::raw(" Edit"),
         ]),
     ]
 }

@@ -420,7 +420,7 @@ pub fn render_footer(
     let _ = focus; // Not needed in simplified footer
 
     let mut constraints = vec![
-        Constraint::Length(2), // navigation (2 lines)
+        Constraint::Length(3), // navigation (3 lines)
         Constraint::Length(1), // spacer
         Constraint::Length(3), // commands box
     ];
@@ -474,7 +474,7 @@ pub fn create_adaptive_layout(
     focused_pane: Option<Focus>,
 ) -> (Rect, Rect, Rect, Rect, Rect, Rect, Rect) {
     let tab_bar_height = 2;
-    let footer_height = 9;
+    let footer_height = 10;
 
     // Determine layout mode based on terminal size
     let is_narrow = area.width < 80; // Narrow width threshold
