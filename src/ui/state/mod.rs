@@ -1912,9 +1912,17 @@ impl TuiState {
             && let Some(project) = self.recent_projects.get(idx)
         {
             log::info!("Selected project: {:?}", project);
-            // TODO: With tabs implemented, this should call create_tab() instead
-            // For now, this functionality is disabled during migration
-            // self.create_tab(project.clone());
+            match self.create_tab(project.clone()) {
+                Ok(tab_idx) => {
+                    log::info!("Opened project in tab {}", tab_idx);
+                }
+                Err(e) => {
+                    log::error!("Failed to create tab: {}", e);
+                    if let Some(tab) = self.tabs.get_mut(self.active_tab_index) {
+                        tab.command_output = vec![format!("❌ {}", e)];
+                    }
+                }
+            }
             self.hide_recent_projects();
         }
     }
