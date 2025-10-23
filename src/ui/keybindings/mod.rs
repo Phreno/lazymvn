@@ -60,7 +60,7 @@ const MODULE_ACTIONS: [ModuleAction; 9] = [
     ModuleAction {
         key_display: "y",
         prefix: "",
-        suffix: "ank",
+        suffix: "ank output",
     },
 ];
 
@@ -493,11 +493,19 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
                 log::warn!("Cannot close last tab");
             }
         }
-        KeyCode::Left if key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => {
+        KeyCode::Left
+            if key
+                .modifiers
+                .contains(crossterm::event::KeyModifiers::CONTROL) =>
+        {
             log::info!("Switch to previous tab (Ctrl+Left)");
             state.prev_tab();
         }
-        KeyCode::Right if key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => {
+        KeyCode::Right
+            if key
+                .modifiers
+                .contains(crossterm::event::KeyModifiers::CONTROL) =>
+        {
             log::info!("Switch to next tab (Ctrl+Right)");
             state.next_tab();
         }
@@ -663,7 +671,7 @@ pub(crate) fn blank_line() -> Line<'static> {
 }
 
 pub(crate) fn build_navigation_line() -> Vec<Line<'static>> {
-    // Split into 3 logical groups on separate lines for better readability
+    // Split into multiples logical groups on separate lines for better readability
     vec![
         // Line 1: Views
         Line::from(vec![
@@ -687,17 +695,20 @@ pub(crate) fn build_navigation_line() -> Vec<Line<'static>> {
             Span::styled("Navigate: ", Theme::FOOTER_SECTION_STYLE),
             key_token("↑↓"),
             Span::raw("   "),
+        ]),
+        // Line 3: Tabulations
+        Line::from(vec![
             Span::styled("Tabs: ", Theme::FOOTER_SECTION_STYLE),
             key_token("Ctrl+T"),
-            Span::raw(" New  "),
+            Span::raw(" New "),
             key_token("Ctrl+W"),
-            Span::raw(" Close  "),
+            Span::raw(" Close "),
             key_token("Ctrl+←→"),
-            Span::raw(" Switch  "),
+            Span::raw(" Switch "),
             key_token("Esc"),
             Span::raw(" Kill"),
         ]),
-        // Line 3: Actions
+        // Actions
         Line::from(vec![
             Span::styled("Actions: ", Theme::FOOTER_SECTION_STYLE),
             key_token("Ctrl+F"),
@@ -705,7 +716,7 @@ pub(crate) fn build_navigation_line() -> Vec<Line<'static>> {
             key_token("Ctrl+H"),
             Span::raw(" History  "),
             key_token("Ctrl+R"),
-            Span::raw(" Recent  "),
+            Span::raw(" Recent projects "),
             key_token("Ctrl+E"),
             Span::raw(" Edit"),
         ]),
@@ -761,7 +772,10 @@ mod tests {
         );
 
         // Initial state - first module selected
-        assert_eq!(state.get_active_tab().modules_list_state.selected(), Some(0));
+        assert_eq!(
+            state.get_active_tab().modules_list_state.selected(),
+            Some(0)
+        );
 
         // Simulate key press event for Down arrow
         let press_event = KeyEvent {

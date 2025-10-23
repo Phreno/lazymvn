@@ -88,11 +88,11 @@ pub struct TuiState {
     tabs: Vec<ProjectTab>,
     active_tab_index: usize,
     next_tab_id: usize,
-    
+
     // Global UI state
     pub current_view: CurrentView,
     pub focus: Focus,
-    
+
     // Search state (operates on active tab)
     search_state: Option<SearchState>,
     search_input: Option<String>,
@@ -101,22 +101,22 @@ pub struct TuiState {
     search_error: Option<String>,
     pending_center: Option<SearchMatch>,
     pub search_mod: Option<SearchMode>,
-    
+
     // Debouncing for navigation keys
     last_nav_key_time: Option<Instant>,
     nav_debounce_duration: Duration,
-    
+
     // Async profile loading (for active tab)
     profiles_receiver: Option<mpsc::Receiver<Result<Vec<String>, String>>>,
     pub profile_loading_status: ProfileLoadingStatus,
     profile_loading_start_time: Option<Instant>,
     profile_spinner_frame: usize,
-    
+
     // Recent projects (global)
     pub recent_projects: Vec<PathBuf>,
     pub projects_list_state: ListState,
     pub show_projects_popup: bool,
-    
+
     // Spring Boot starters (global cache)
     pub starters_cache: crate::starters::StartersCache,
     pub show_starter_selector: bool,
@@ -124,15 +124,15 @@ pub struct TuiState {
     pub starter_candidates: Vec<String>,
     pub starter_filter: String,
     pub starters_list_state: ListState,
-    
+
     // Clipboard - keep it alive to prevent "dropped too quickly" errors (global)
     clipboard: Option<arboard::Clipboard>,
-    
+
     // Command history (global)
     pub command_history: crate::history::CommandHistory,
     pub show_history_popup: bool,
     pub history_list_state: ListState,
-    
+
     // Favorites (global)
     pub favorites: crate::favorites::Favorites,
     pub show_favorites_popup: bool,
@@ -140,7 +140,7 @@ pub struct TuiState {
     pub show_save_favorite_popup: bool,
     pub favorite_name_input: String,
     pub pending_favorite: Option<crate::history::HistoryEntry>,
-    
+
     // Editor command to execute (global)
     pub editor_command: Option<(String, String)>,
 }
@@ -236,16 +236,16 @@ impl TuiState {
     pub fn new(modules: Vec<String>, project_root: PathBuf, config: crate::config::Config) -> Self {
         // Create empty state with tabs system
         let mut state = Self::new_with_tabs();
-        
+
         // Create initial tab with the provided project
         let tab = ProjectTab::new(1, project_root, modules, config);
         state.tabs.push(tab);
         state.next_tab_id = 2;
         state.active_tab_index = 0;
-        
+
         // Load preferences for the initially selected module
         state.load_module_preferences();
-        
+
         state
     }
 
@@ -255,10 +255,10 @@ impl TuiState {
             tabs: Vec::new(),
             active_tab_index: 0,
             next_tab_id: 1,
-            
+
             current_view: CurrentView::Modules,
             focus: Focus::Modules,
-            
+
             search_state: None,
             search_input: None,
             search_history: Vec::new(),
@@ -266,39 +266,39 @@ impl TuiState {
             search_error: None,
             pending_center: None,
             search_mod: None,
-            
+
             last_nav_key_time: None,
             nav_debounce_duration: Duration::from_millis(50),
-            
+
             profiles_receiver: None,
             profile_loading_status: ProfileLoadingStatus::Loaded,
             profile_loading_start_time: None,
             profile_spinner_frame: 0,
-            
+
             recent_projects: crate::config::RecentProjects::load().get_projects(),
             projects_list_state: ListState::default(),
             show_projects_popup: false,
-            
+
             starters_cache: crate::starters::StartersCache::new(),
             show_starter_selector: false,
             show_starter_manager: false,
             starter_candidates: Vec::new(),
             starter_filter: String::new(),
             starters_list_state: ListState::default(),
-            
+
             clipboard: arboard::Clipboard::new().ok(),
-            
+
             command_history: crate::history::CommandHistory::load(),
             show_history_popup: false,
             history_list_state: ListState::default(),
-            
+
             favorites: crate::favorites::Favorites::load(),
             show_favorites_popup: false,
             favorites_list_state: ListState::default(),
             show_save_favorite_popup: false,
             favorite_name_input: String::new(),
             pending_favorite: None,
-            
+
             editor_command: None,
         }
     }
@@ -308,11 +308,14 @@ impl TuiState {
     pub fn create_tab(&mut self, project_root: PathBuf) -> Result<usize, String> {
         // Check if project is already open in a tab
         if let Some(existing_index) = self.find_tab_by_project(&project_root) {
-            log::info!("Project already open in tab {}, switching to it", existing_index);
+            log::info!(
+                "Project already open in tab {}, switching to it",
+                existing_index
+            );
             self.active_tab_index = existing_index;
             return Ok(existing_index);
         }
-        
+
         // Check maximum tabs limit
         const MAX_TABS: usize = 10;
         if self.tabs.len() >= MAX_TABS {
@@ -321,27 +324,31 @@ impl TuiState {
                 MAX_TABS
             ));
         }
-        
+
         // Load project modules
         let (modules, resolved_root) = crate::project::get_project_modules_for_path(&project_root)
             .map_err(|e| format!("Failed to load project: {}", e))?;
-        
+
         // Load project config
         let config = crate::config::load_config(&resolved_root);
-        
+
         // Create the tab
         let tab = ProjectTab::new(self.next_tab_id, resolved_root.clone(), modules, config);
-        log::info!("Created tab {} for project: {:?}", self.next_tab_id, resolved_root);
-        
+        log::info!(
+            "Created tab {} for project: {:?}",
+            self.next_tab_id,
+            resolved_root
+        );
+
         self.next_tab_id += 1;
         self.tabs.push(tab);
         self.active_tab_index = self.tabs.len() - 1;
-        
+
         // Add to recent projects
         let mut recent = crate::config::RecentProjects::load();
         recent.add(resolved_root);
         self.recent_projects = recent.get_projects();
-        
+
         Ok(self.active_tab_index)
     }
 
@@ -350,25 +357,29 @@ impl TuiState {
         if index >= self.tabs.len() {
             return Err("Tab index out of bounds".to_string());
         }
-        
+
         if self.tabs.len() == 1 {
             return Err("Cannot close last tab".to_string());
         }
-        
+
         // Cleanup the tab (kill processes, save preferences)
         self.tabs[index].cleanup();
-        
+
         // Remove the tab
         let removed_tab = self.tabs.remove(index);
-        log::info!("Closed tab {} ({})", removed_tab.id, removed_tab.get_title());
-        
+        log::info!(
+            "Closed tab {} ({})",
+            removed_tab.id,
+            removed_tab.get_title()
+        );
+
         // Adjust active tab index
         if self.active_tab_index >= self.tabs.len() {
             self.active_tab_index = self.tabs.len() - 1;
         } else if self.active_tab_index > index {
             self.active_tab_index -= 1;
         }
-        
+
         Ok(())
     }
 
@@ -376,7 +387,11 @@ impl TuiState {
     #[allow(dead_code)]
     pub fn switch_to_tab(&mut self, index: usize) {
         if index < self.tabs.len() {
-            log::debug!("Switching from tab {} to tab {}", self.active_tab_index, index);
+            log::debug!(
+                "Switching from tab {} to tab {}",
+                self.active_tab_index,
+                index
+            );
             self.active_tab_index = index;
         }
     }
@@ -435,7 +450,10 @@ impl TuiState {
     /// Count running processes across all tabs
     #[allow(dead_code)]
     pub fn count_running_processes(&self) -> usize {
-        self.tabs.iter().filter(|tab| tab.has_running_process()).count()
+        self.tabs
+            .iter()
+            .filter(|tab| tab.has_running_process())
+            .count()
     }
 
     /// Find a tab by project root path
@@ -450,11 +468,11 @@ impl TuiState {
     #[allow(dead_code)]
     pub fn cleanup_all_tabs(&mut self) {
         log::info!("Cleaning up all {} tabs", self.tabs.len());
-        
+
         for tab in &mut self.tabs {
             tab.cleanup();
         }
-        
+
         log::info!("All tabs cleaned up");
     }
 
@@ -529,25 +547,24 @@ impl TuiState {
                 if modules_empty {
                     return;
                 }
-                
+
                 // Need to drop tab borrow to call save_module_preferences
                 let new_index = {
-                    
                     match tab.modules_list_state.selected() {
                         Some(i) => (i + 1) % tab.modules.len(),
                         None => 0,
                     }
                 };
-                
+
                 // Save current module preferences before switching
                 self.save_module_preferences();
-                
+
                 // Now update the selection
                 let tab = self.get_active_tab_mut();
                 tab.modules_list_state.select(Some(new_index));
-                
+
                 self.sync_selected_module_output();
-                
+
                 // Load preferences for the new module
                 self.load_module_preferences();
             }
@@ -594,10 +611,9 @@ impl TuiState {
                 if modules_empty {
                     return;
                 }
-                
+
                 // Need to drop tab borrow to call save_module_preferences
                 let new_index = {
-                    
                     match tab.modules_list_state.selected() {
                         Some(i) => {
                             if i == 0 {
@@ -609,16 +625,16 @@ impl TuiState {
                         None => 0,
                     }
                 };
-                
+
                 // Save current module preferences before switching
                 self.save_module_preferences();
-                
+
                 // Now update the selection
                 let tab = self.get_active_tab_mut();
                 tab.modules_list_state.select(Some(new_index));
-                
+
                 self.sync_selected_module_output();
-                
+
                 // Load preferences for the new module
                 self.load_module_preferences();
             }
@@ -949,8 +965,7 @@ impl TuiState {
                     ..Default::default()
                 }
             };
-            tab.module_outputs
-                .insert(module.to_string(), module_output);
+            tab.module_outputs.insert(module.to_string(), module_output);
         }
     }
 
@@ -974,7 +989,7 @@ impl TuiState {
             log::warn!("Command already running, ignoring new command request");
             return;
         }
-        
+
         let module = self.selected_module().map(|m| m.to_string());
         let tab = self.get_active_tab_mut();
 
@@ -1049,9 +1064,9 @@ impl TuiState {
                         flags: enabled_flag_names.clone(),
                     };
                     tab.module_outputs.insert(module.clone(), module_output);
-                    
+
                     // Drop tab before calling self.command_history
-                    
+
                     let history_entry = crate::history::HistoryEntry::new(
                         module,
                         args.join(" "),
@@ -1081,7 +1096,7 @@ impl TuiState {
     /// Should be called regularly from the main event loop
     pub fn poll_command_updates(&mut self) {
         let tab = self.get_active_tab_mut();
-        
+
         // Get output configuration from config or use defaults
         let output_config = tab.config.output.as_ref().cloned().unwrap_or_default();
         let max_output_lines = output_config.max_lines;
@@ -1117,7 +1132,7 @@ impl TuiState {
         // Drop tab temporarily to call max_scroll_offset
         let output_offset = tab.output_offset;
         let was_at_bottom = output_offset >= self.max_scroll_offset();
-        
+
         // Re-get tab for processing updates
         let tab = self.get_active_tab_mut();
         let mut had_output_lines = false;
@@ -1154,7 +1169,7 @@ impl TuiState {
                     tab.command_receiver = None;
                     tab.running_process_pid = None;
                     tab.output_metrics = None;
-                    
+
                     need_notification = Some((
                         "LazyMVN - Build Complete".to_string(),
                         "Maven command completed successfully ✓".to_string(),
@@ -1169,7 +1184,7 @@ impl TuiState {
                     tab.command_receiver = None;
                     tab.running_process_pid = None;
                     tab.output_metrics = None;
-                    
+
                     need_notification = Some((
                         "LazyMVN - Build Failed".to_string(),
                         format!("Maven command failed: {}", msg),
@@ -1181,19 +1196,19 @@ impl TuiState {
 
         // Get is_command_running before dropping tab
         let is_command_running = tab.is_command_running;
-        
+
         if should_clear_receiver {
             tab.is_command_running = false;
             tab.command_receiver = None;
         }
-        
+
         // Drop tab before calling self methods
-        
+
         // Store module output if we had a command completion
         if need_notification.is_some() {
             self.store_current_module_output();
         }
-        
+
         // Only update scroll and metrics once at the end if we had output lines
         if had_output_lines {
             // Auto-scroll to bottom while command is running (always follow logs)
@@ -1205,7 +1220,7 @@ impl TuiState {
             let tab = self.get_active_tab_mut();
             tab.output_metrics = None;
         }
-        
+
         // Send notification if needed
         if let Some((title, body, success)) = need_notification {
             self.send_notification(&title, &body, success);
@@ -2006,9 +2021,9 @@ impl TuiState {
     /// This should be called before the application exits
     pub fn cleanup(&mut self) {
         log::info!("Cleaning up application resources");
-        
+
         let tab = self.get_active_tab_mut();
-        
+
         // Kill any running Maven process
         if let Some(pid) = tab.running_process_pid {
             log::info!("Killing running Maven process with PID: {}", pid);
@@ -2023,12 +2038,12 @@ impl TuiState {
             tab.running_process_pid = None;
             tab.is_command_running = false;
         }
-        
+
         // Save module preferences
         if let Err(e) = tab.module_preferences.save(&tab.project_root) {
             log::error!("Failed to save module preferences: {}", e);
         }
-        
+
         log::info!("Cleanup completed");
     }
 
@@ -2036,13 +2051,13 @@ impl TuiState {
     /// Returns true if configuration actually changed
     pub fn reload_config(&mut self, new_config: crate::config::Config) -> bool {
         log::info!("Reloading configuration");
-        
+
         let tab = self.get_active_tab_mut();
-        
+
         // Check what changed
         let mut changed = false;
         let mut changes = Vec::new();
-        
+
         // Check launch_mode
         if tab.config.launch_mode != new_config.launch_mode {
             changes.push(format!(
@@ -2051,7 +2066,7 @@ impl TuiState {
             ));
             changed = true;
         }
-        
+
         // Check maven_settings
         if tab.config.maven_settings != new_config.maven_settings {
             changes.push(format!(
@@ -2060,7 +2075,7 @@ impl TuiState {
             ));
             changed = true;
         }
-        
+
         // Check notifications
         if tab.config.notifications_enabled != new_config.notifications_enabled {
             changes.push(format!(
@@ -2069,7 +2084,7 @@ impl TuiState {
             ));
             changed = true;
         }
-        
+
         // Check watch configuration
         let watch_changed = match (&tab.config.watch, &new_config.watch) {
             (Some(old), Some(new)) => {
@@ -2081,19 +2096,25 @@ impl TuiState {
             (None, Some(_)) | (Some(_), None) => true,
             (None, None) => false,
         };
-        
+
         if watch_changed {
             changes.push("  • Watch configuration changed".to_string());
             changed = true;
-            
+
             // Reinitialize file watcher if watch config changed
             if let Some(watch_config) = &new_config.watch {
                 if watch_config.enabled {
-                    match crate::watcher::FileWatcher::new(&tab.project_root, watch_config.debounce_ms) {
+                    match crate::watcher::FileWatcher::new(
+                        &tab.project_root,
+                        watch_config.debounce_ms,
+                    ) {
                         Ok(watcher) => {
                             tab.file_watcher = Some(watcher);
                             tab.watch_enabled = true;
-                            log::info!("File watcher reinitialized with {} patterns", watch_config.patterns.len());
+                            log::info!(
+                                "File watcher reinitialized with {} patterns",
+                                watch_config.patterns.len()
+                            );
                         }
                         Err(e) => {
                             log::error!("Failed to reinitialize file watcher: {}", e);
@@ -2111,22 +2132,22 @@ impl TuiState {
                 tab.watch_enabled = false;
             }
         }
-        
+
         // Check output configuration
         if tab.config.output != new_config.output {
             changes.push("  • Output configuration changed".to_string());
             changed = true;
         }
-        
+
         // Check logging configuration
         if tab.config.logging != new_config.logging {
             changes.push("  • Logging configuration changed".to_string());
             changed = true;
         }
-        
+
         // Apply the new configuration
         tab.config = new_config;
-        
+
         // Log changes
         if changed {
             log::info!("Configuration changes detected:");
@@ -2134,7 +2155,7 @@ impl TuiState {
                 log::info!("{}", change);
             }
         }
-        
+
         changed
     }
 
@@ -2208,7 +2229,7 @@ max_updates_per_poll = 100
         log::info!("Applying history entry for module: {}", entry.module);
 
         let tab = self.get_active_tab_mut();
-        
+
         // Find and select the module
         if let Some(module_idx) = tab.modules.iter().position(|m| m == &entry.module) {
             tab.modules_list_state.select(Some(module_idx));
@@ -2260,7 +2281,7 @@ max_updates_per_poll = 100
     pub fn show_save_favorite_dialog_from_current(&mut self) {
         if let Some(module) = self.selected_module() {
             let tab = self.get_active_tab();
-            
+
             // Get active profiles
             let active_profiles: Vec<String> = tab
                 .profiles
@@ -2325,7 +2346,7 @@ max_updates_per_poll = 100
         log::info!("Applying favorite: {}", favorite.name);
 
         let tab = self.get_active_tab_mut();
-        
+
         // Find and select the module
         if let Some(module_idx) = tab.modules.iter().position(|m| m == &favorite.module) {
             tab.modules_list_state.select(Some(module_idx));
@@ -2429,7 +2450,7 @@ max_updates_per_poll = 100
 
             if let Some(fqcn) = filtered.get(idx) {
                 log::info!("Selected starter: {}", fqcn);
-                
+
                 let fqcn_clone = fqcn.clone();
                 let project_root = self.get_active_tab().project_root.clone();
 
@@ -2440,9 +2461,14 @@ max_updates_per_poll = 100
                     .iter()
                     .any(|s| s.fully_qualified_class_name == fqcn_clone)
                 {
-                    let label = fqcn_clone.split('.').next_back().unwrap_or(&fqcn_clone).to_string();
+                    let label = fqcn_clone
+                        .split('.')
+                        .next_back()
+                        .unwrap_or(&fqcn_clone)
+                        .to_string();
                     let is_default = self.starters_cache.starters.is_empty();
-                    let starter = crate::starters::Starter::new(fqcn_clone.clone(), label, is_default);
+                    let starter =
+                        crate::starters::Starter::new(fqcn_clone.clone(), label, is_default);
                     self.starters_cache.add_starter(starter);
 
                     // Save the cache
@@ -2473,7 +2499,7 @@ max_updates_per_poll = 100
         let tab = self.get_active_tab();
         let project_root = tab.project_root.clone();
         let config_clone = tab.config.clone();
-        
+
         // Detect Spring Boot capabilities for this module
         match crate::maven::detect_spring_boot_capabilities(&project_root, module) {
             Ok(detection) => {
