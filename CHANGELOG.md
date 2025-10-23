@@ -41,6 +41,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Servlet API and other `provided` scope dependencies now available at runtime
   - Also adds `-Dexec.cleanupDaemonThreads=false` for better shutdown behavior
   - Works automatically without POM modifications - detects packaging type and adjusts classpath scope
+- **Process Cleanup on Exit** (#TBD):
+  - Fixed orphaned Maven/Java processes when quitting lazymvn
+  - Application now properly kills running Maven processes on exit (both 'q' key and Ctrl+C)
+  - Prevents zombie Java processes that continue running after lazymvn closes
+  - Graceful shutdown: sends SIGTERM first, then SIGKILL if process doesn't terminate
+  - Works on both Unix (kill command with process groups) and Windows (taskkill /T)
 
 ### Changed
 - **Startup Performance**:
@@ -58,6 +64,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Profile loading now uses mpsc channels for thread communication
 - Added `reload_config()` method to `TuiState` for live configuration reload
 - Config reload detects changes and logs modifications to key settings
+- File watcher automatically recreated when watch configuration changes
+- Added `PartialEq` trait to config structs for change detection
+- Added `cleanup()` method to `TuiState` for graceful shutdown
+- Integrated `ctrlc` crate for signal handling (Ctrl+C, SIGTERM)
+- Process cleanup now kills entire process group to catch child processes
 - File watcher automatically recreated when watch configuration changes
 - Added `PartialEq` trait to config structs for change detection
 - Timeout mechanism prevents indefinite hangs if Maven is unresponsive

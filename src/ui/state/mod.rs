@@ -1847,6 +1847,34 @@ impl TuiState {
         self.editor_command = Some((editor, config_path.to_string_lossy().to_string()));
     }
 
+    /// Cleanup resources and kill any running Maven processes
+    /// This should be called before the application exits
+    pub fn cleanup(&mut self) {
+        log::info!("Cleaning up application resources");
+        
+        // Kill any running Maven process
+        if let Some(pid) = self.running_process_pid {
+            log::info!("Killing running Maven process with PID: {}", pid);
+            match crate::maven::kill_process(pid) {
+                Ok(()) => {
+                    log::info!("Successfully killed Maven process {}", pid);
+                }
+                Err(e) => {
+                    log::error!("Failed to kill Maven process {}: {}", pid, e);
+                }
+            }
+            self.running_process_pid = None;
+            self.is_command_running = false;
+        }
+        
+        // Save module preferences
+        if let Err(e) = self.module_preferences.save(&self.project_root) {
+            log::error!("Failed to save module preferences: {}", e);
+        }
+        
+        log::info!("Cleanup completed");
+    }
+
     /// Reload configuration and apply changes
     /// Returns true if configuration actually changed
     pub fn reload_config(&mut self, new_config: crate::config::Config) -> bool {

@@ -15,6 +15,8 @@ use clap::Parser;
 use crossterm::event;
 use ratatui::{Terminal, backend::CrosstermBackend};
 use std::io;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 #[derive(Parser)]
 #[command(name = "lazymvn")]
@@ -227,7 +229,22 @@ fn run<B: ratatui::backend::Backend>(
     // Small delay to show completion
     std::thread::sleep(std::time::Duration::from_millis(300));
 
+    // Setup signal handler for graceful shutdown (Ctrl+C, SIGTERM)
+    let running = Arc::new(AtomicBool::new(true));
+    let r = running.clone();
+    
+    ctrlc::set_handler(move || {
+        log::info!("Received interrupt signal (Ctrl+C), initiating shutdown");
+        r.store(false, Ordering::SeqCst);
+    })
+    .expect("Error setting Ctrl-C handler");
+
     loop {
+        // Check if we received an interrupt signal
+        if !running.load(Ordering::SeqCst) {
+            log::info!("Interrupt signal detected, breaking main loop");
+            break;
+        }
         // Poll for command updates first
         state.poll_command_updates();
 
@@ -362,6 +379,10 @@ fn run<B: ratatui::backend::Backend>(
             }
         }
     }
+    
+    // Cleanup before exit - kill any running Maven processes
+    state.cleanup();
+    
     Ok(())
 }
 
