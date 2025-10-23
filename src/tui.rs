@@ -29,8 +29,11 @@ pub fn draw<B: Backend>(
         let (projects_area, modules_area, profiles_area, flags_area, output_area, footer_area) =
             create_adaptive_layout(f.area(), Some(state.focus));
 
+        // Get active tab for rendering
+        let tab = state.get_active_tab_mut();
+        
         // Get project root name for display
-        let project_name = state
+        let project_name = tab
             .project_root
             .file_name()
             .and_then(|n| n.to_str())
@@ -41,15 +44,15 @@ pub fn draw<B: Backend>(
             f,
             projects_area,
             project_name,
-            state.git_branch.as_deref(),
+            tab.git_branch.as_deref(),
             state.focus == Focus::Projects,
         );
 
         render_modules_pane(
             f,
             modules_area,
-            &state.modules,
-            &mut state.modules_list_state,
+            &tab.modules,
+            &mut tab.modules_list_state,
             state.focus == Focus::Modules,
         );
 
@@ -57,8 +60,8 @@ pub fn draw<B: Backend>(
         render_profiles_pane(
             f,
             profiles_area,
-            &state.profiles,
-            &mut state.profiles_list_state,
+            &tab.profiles,
+            &mut tab.profiles_list_state,
             state.focus == Focus::Profiles,
             &state.profile_loading_status,
             spinner,
@@ -67,8 +70,8 @@ pub fn draw<B: Backend>(
         render_flags_pane(
             f,
             flags_area,
-            &state.flags,
-            &mut state.flags_list_state,
+            &tab.flags,
+            &mut tab.flags_list_state,
             state.focus == Focus::Flags,
         );
 
@@ -80,18 +83,22 @@ pub fn draw<B: Backend>(
         state.set_output_view_dimensions(inner_area.height, inner_area.width);
 
         // Render output pane
+        let selected_module = state.selected_module();
+        let current_context = state.current_output_context();
+        let is_running = tab.is_command_running;
+        let elapsed = state.command_elapsed_seconds();
         render_output_pane(
             f,
             output_area,
-            &state.command_output,
-            state.output_offset,
+            &tab.command_output,
+            tab.output_offset,
             state.focus == Focus::Output,
             |line_index| state.search_line_style(line_index),
             state.search_mod.is_some(),
-            state.selected_module(),
-            state.current_output_context(),
-            state.is_command_running,
-            state.command_elapsed_seconds(),
+            selected_module,
+            current_context,
+            is_running,
+            elapsed,
         );
 
         // Render footer
@@ -233,21 +240,31 @@ fn handle_pane_item_click(
 
     match focus {
         Focus::Modules => {
-            if item_index < state.modules.len() {
-                state.modules_list_state.select(Some(item_index));
+            let needs_sync = {
+                let tab = state.get_active_tab_mut();
+                if item_index < tab.modules.len() {
+                    tab.modules_list_state.select(Some(item_index));
+                    log::debug!("Selected module at index {}", item_index);
+                    true
+                } else {
+                    false
+                }
+            };
+            if needs_sync {
                 state.sync_selected_module_output();
-                log::debug!("Selected module at index {}", item_index);
             }
         }
         Focus::Profiles => {
-            if item_index < state.profiles.len() {
-                state.profiles_list_state.select(Some(item_index));
+            let tab = state.get_active_tab_mut();
+            if item_index < tab.profiles.len() {
+                tab.profiles_list_state.select(Some(item_index));
                 log::debug!("Selected profile at index {}", item_index);
             }
         }
         Focus::Flags => {
-            if item_index < state.flags.len() {
-                state.flags_list_state.select(Some(item_index));
+            let tab = state.get_active_tab_mut();
+            if item_index < tab.flags.len() {
+                tab.flags_list_state.select(Some(item_index));
                 log::debug!("Selected flag at index {}", item_index);
             }
         }
@@ -287,7 +304,10 @@ mod tests {
         let modules = vec!["module1".to_string(), "module2".to_string()];
         let project_root = PathBuf::from("/");
         let mut state = crate::ui::state::TuiState::new(modules, project_root, test_cfg());
-        state.command_output = vec!["output1".to_string(), "output2".to_string()];
+        {
+            let tab = state.get_active_tab_mut();
+            tab.command_output = vec!["output1".to_string(), "output2".to_string()];
+        }
 
         // Test that drawing succeeds without errors
         draw(&mut terminal, &mut state).unwrap();

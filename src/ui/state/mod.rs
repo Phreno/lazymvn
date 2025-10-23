@@ -232,181 +232,21 @@ pub struct BuildFlag {
 }
 
 impl TuiState {
+    /// Legacy constructor - creates state with tabs system and initial project tab
+    /// This is a compatibility wrapper for the old API
     pub fn new(modules: Vec<String>, project_root: PathBuf, config: crate::config::Config) -> Self {
-        let mut modules_list_state = ListState::default();
-        let profiles_list_state = ListState::default();
-        let flags_list_state = ListState::default();
-        if !modules.is_empty() {
-            modules_list_state.select(Some(0));
-        }
-
-        // Initialize common Maven build flags
-        let flags = vec![
-            BuildFlag {
-                name: "Also Make".to_string(),
-                flag: "--also-make".to_string(),
-                enabled: false,
-            },
-            BuildFlag {
-                name: "Also Make Dependents".to_string(),
-                flag: "--also-make-dependents".to_string(),
-                enabled: false,
-            },
-            BuildFlag {
-                name: "Update Snapshots".to_string(),
-                flag: "--update-snapshots".to_string(),
-                enabled: false,
-            },
-            BuildFlag {
-                name: "Skip Tests".to_string(),
-                flag: "-DskipTests".to_string(),
-                enabled: false,
-            },
-            BuildFlag {
-                name: "Offline".to_string(),
-                flag: "--offline".to_string(),
-                enabled: false,
-            },
-            BuildFlag {
-                name: "Fail Fast".to_string(),
-                flag: "--fail-fast".to_string(),
-                enabled: false,
-            },
-            BuildFlag {
-                name: "Fail At End".to_string(),
-                flag: "--fail-at-end".to_string(),
-                enabled: false,
-            },
-        ];
-
-        // Load recent projects
-        let mut recent_projects_manager = crate::config::RecentProjects::load();
-        recent_projects_manager.remove_invalid();
-        let recent_projects = recent_projects_manager.get_projects();
-
-        let mut projects_list_state = ListState::default();
-        if !recent_projects.is_empty() {
-            projects_list_state.select(Some(0));
-        }
-
-        // Load starters cache for this project
-        let starters_cache = crate::starters::StartersCache::load(&project_root);
-        let mut starters_list_state = ListState::default();
-        if !starters_cache.starters.is_empty() {
-            starters_list_state.select(Some(0));
-        }
-
-        // Load module preferences for this project
-        let module_preferences = crate::config::ProjectPreferences::load(&project_root);
-
-        // Get Git branch
-        let git_branch = crate::utils::get_git_branch(&project_root);
-
-        // Load command history
-        let command_history = crate::history::CommandHistory::load();
-        let mut history_list_state = ListState::default();
-        if !command_history.entries().is_empty() {
-            history_list_state.select(Some(0));
-        }
-
-        // Load favorites
-        let favorites = crate::favorites::Favorites::load();
-        let mut favorites_list_state = ListState::default();
-        if !favorites.is_empty() {
-            favorites_list_state.select(Some(0));
-        }
-
-        let mut state = Self {
-            current_view: CurrentView::Modules,
-            focus: Focus::Modules,
-            modules,
-            profiles: vec![],
-            flags,
-            modules_list_state,
-            profiles_list_state,
-            flags_list_state,
-            command_output: vec![],
-            output_offset: 0,
-            output_view_height: 0,
-            module_outputs: HashMap::new(),
-            project_root,
-            search_state: None,
-            search_input: None,
-            search_history: Vec::new(),
-            search_history_index: None,
-            search_error: None,
-            output_area_width: 0,
-            output_metrics: None,
-            pending_center: None,
-            search_mod: None,
-            config,
-            last_nav_key_time: None,
-            nav_debounce_duration: Duration::from_millis(100),
-            command_receiver: None,
-            is_command_running: false,
-            command_start_time: None,
-            running_process_pid: None,
-            profiles_receiver: None,
-            profile_loading_status: ProfileLoadingStatus::Loading,
-            profile_loading_start_time: None,
-            profile_spinner_frame: 0,
-            recent_projects,
-            projects_list_state,
-            show_projects_popup: false,
-            switch_to_project: None,
-            starters_cache,
-            show_starter_selector: false,
-            show_starter_manager: false,
-            starter_candidates: vec![],
-            starter_filter: String::new(),
-            starters_list_state,
-            module_preferences,
-            clipboard: None,
-            file_watcher: None,
-            last_command: None,
-            watch_enabled: false,
-            git_branch,
-            command_history,
-            show_history_popup: false,
-            history_list_state,
-            favorites,
-            show_favorites_popup: false,
-            favorites_list_state,
-            show_save_favorite_popup: false,
-            favorite_name_input: String::new(),
-            pending_favorite: None,
-            editor_command: None,
-        };
-
-        // Initialize file watcher if configured
-        if let Some(watch_config) = &state.config.watch
-            && watch_config.enabled
-        {
-            match crate::watcher::FileWatcher::new(&state.project_root, watch_config.debounce_ms) {
-                Ok(watcher) => {
-                    state.file_watcher = Some(watcher);
-                    state.watch_enabled = true;
-                    log::info!(
-                        "File watcher enabled with {} patterns",
-                        watch_config.patterns.len()
-                    );
-                }
-                Err(e) => {
-                    log::error!("Failed to initialize file watcher: {}", e);
-                }
-            }
-        }
-
-        // Pre-select first flag to ensure alignment
-        if !state.flags.is_empty() {
-            state.flags_list_state.select(Some(0));
-        }
-
-        state.sync_selected_module_output();
-
+        // Create empty state with tabs system
+        let mut state = Self::new_with_tabs();
+        
+        // Create initial tab with the provided project
+        let tab = ProjectTab::new(1, project_root, modules, config);
+        state.tabs.push(tab);
+        state.next_tab_id = 2;
+        state.active_tab_index = 0;
+        
         // Load preferences for the initially selected module
         state.load_module_preferences();
-
+        
         state
     }
 
@@ -1050,24 +890,26 @@ impl TuiState {
     }
 
     fn store_current_module_output(&mut self) {
-        if let Some(module) = self.selected_module() {
+        let module = self.selected_module().map(|m| m.to_string());
+        if let Some(module) = module {
+            let tab = self.get_active_tab_mut();
             // Get the current execution context from the most recent command
-            let module_output = if let Some(existing) = self.module_outputs.get(module) {
+            let module_output = if let Some(existing) = tab.module_outputs.get(&module) {
                 ModuleOutput {
-                    lines: self.command_output.clone(),
-                    scroll_offset: self.output_offset,
+                    lines: tab.command_output.clone(),
+                    scroll_offset: tab.output_offset,
                     command: existing.command.clone(),
                     profiles: existing.profiles.clone(),
                     flags: existing.flags.clone(),
                 }
             } else {
                 ModuleOutput {
-                    lines: self.command_output.clone(),
-                    scroll_offset: self.output_offset,
+                    lines: tab.command_output.clone(),
+                    scroll_offset: tab.output_offset,
                     ..Default::default()
                 }
             };
-            self.module_outputs
+            tab.module_outputs
                 .insert(module.to_string(), module_output);
         }
     }
@@ -1995,9 +1837,9 @@ impl TuiState {
             && let Some(project) = self.recent_projects.get(idx)
         {
             log::info!("Selected project: {:?}", project);
-            // TODO: When tabs are implemented, this will call create_tab() instead
-            let tab = self.get_active_tab_mut();
-            tab.switch_to_project = Some(project.clone());
+            // TODO: With tabs implemented, this should call create_tab() instead
+            // For now, this functionality is disabled during migration
+            // self.create_tab(project.clone());
             self.hide_recent_projects();
         }
     }
@@ -2330,8 +2172,10 @@ max_updates_per_poll = 100
     /// Show save favorite dialog with current context
     pub fn show_save_favorite_dialog_from_current(&mut self) {
         if let Some(module) = self.selected_module() {
+            let tab = self.get_active_tab();
+            
             // Get active profiles
-            let active_profiles: Vec<String> = self
+            let active_profiles: Vec<String> = tab
                 .profiles
                 .iter()
                 .filter(|p| p.is_active())
@@ -2339,7 +2183,7 @@ max_updates_per_poll = 100
                 .collect();
 
             // Get enabled flags
-            let enabled_flags: Vec<String> = self
+            let enabled_flags: Vec<String> = tab
                 .flags
                 .iter()
                 .filter(|f| f.enabled)
@@ -2587,11 +2431,14 @@ max_updates_per_poll = 100
             }
             Err(e) => {
                 log::error!("Failed to detect Spring Boot capabilities: {}", e);
-                self.command_output = vec![
-                    format!("Error detecting launch strategy: {}", e),
-                    String::new(),
-                    "Falling back to spring-boot:run...".to_string(),
-                ];
+                {
+                    let tab = self.get_active_tab_mut();
+                    tab.command_output = vec![
+                        format!("Error detecting launch strategy: {}", e),
+                        String::new(),
+                        "Falling back to spring-boot:run...".to_string(),
+                    ];
+                }
 
                 // Fallback to old behavior
                 let main_class_arg = format!("-Dspring-boot.run.mainClass={}", fqcn);
