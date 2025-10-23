@@ -256,14 +256,18 @@ fn run<B: ratatui::backend::Backend>(
 
         tui::draw(terminal, &mut state)?;
 
+        // TODO: Project switching disabled during tabs migration
+        // This will be replaced with tab management in Phase 5
         // Check if we need to switch projects
+        /*
         if let Some(new_project) = state.switch_to_project.take() {
             log::info!("Switching to project: {:?}", new_project);
 
             // Change directory
             if let Err(e) = std::env::set_current_dir(&new_project) {
                 log::error!("Failed to switch to project: {}", e);
-                state.command_output = vec![format!("Error: Failed to switch to project: {}", e)];
+                let tab = state.get_active_tab_mut();
+                tab.command_output = vec![format!("Error: Failed to switch to project: {}", e)];
                 continue;
             }
 
@@ -298,10 +302,12 @@ fn run<B: ratatui::backend::Backend>(
                 }
                 Err(e) => {
                     log::error!("Failed to load new project: {}", e);
-                    state.command_output = vec![format!("Error: Failed to load project: {}", e)];
+                    let tab = state.get_active_tab_mut();
+                    tab.command_output = vec![format!("Error: Failed to load project: {}", e)];
                 }
             }
         }
+        */
 
         // Check if we need to open an editor
         if let Some((editor, file_path)) = state.editor_command.take() {

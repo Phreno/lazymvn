@@ -258,7 +258,7 @@ impl TuiState {
             next_tab_id: 1,
             
             current_view: CurrentView::Modules,
-            focus: Focus::LeftPane,
+            focus: Focus::Modules,
             
             search_state: None,
             search_input: None,
