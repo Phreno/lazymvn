@@ -2781,18 +2781,21 @@ mod tests {
     #[test]
     fn test_profile_loading_status_initial_state() {
         let config = crate::config::Config::default();
-        let state = TuiState::new(
+        let mut state = TuiState::new(
             vec!["test-module".to_string()],
             PathBuf::from("/tmp/test"),
             config,
         );
 
-        // Initially, profiles should be in Loading state
+        // Start loading profiles to set status to Loading
+        state.start_loading_profiles();
+
+        // Now profiles should be in Loading state
         assert!(matches!(
             state.profile_loading_status,
             ProfileLoadingStatus::Loading
         ));
-        assert_eq!(state.profiles.len(), 0);
+        assert_eq!(state.get_active_tab().profiles.len(), 0);
     }
 
     #[test]

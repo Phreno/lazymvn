@@ -1338,7 +1338,7 @@ mod tests {
             height: 40,
         };
 
-        let (_, modules_area, _, _, output_area, _) =
+        let (_, _, modules_area, _, _, output_area, _) =
             create_adaptive_layout(area, Some(Focus::Modules));
 
         // In single column, all panes should have the same x position (stacked vertically)
@@ -1359,7 +1359,7 @@ mod tests {
             height: 40,
         };
 
-        let (_, modules_area, _, _, output_area, _) =
+        let (_, _, modules_area, _, _, output_area, _) =
             create_adaptive_layout(area, Some(Focus::Modules));
 
         // In two column, output should be to the right of modules
@@ -1377,7 +1377,7 @@ mod tests {
         };
 
         // Focus on modules
-        let (projects_area, modules_area, profiles_area, _, _, _) =
+        let (_, projects_area, modules_area, profiles_area, _, _, _) =
             create_adaptive_layout(area, Some(Focus::Modules));
 
         // Modules (focused) should have more height than others
@@ -1395,7 +1395,7 @@ mod tests {
             height: 40,
         };
 
-        let (projects_area, modules_area, profiles_area, flags_area, _, _) =
+        let (_, projects_area, modules_area, profiles_area, flags_area, _, _) =
             create_adaptive_layout(area, Some(Focus::Modules));
 
         // Projects should be small (length 3)
