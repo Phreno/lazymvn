@@ -15,7 +15,6 @@ use crate::ui::search::{SearchMatch, SearchState, collect_search_matches};
 use ratatui::widgets::ListState;
 use regex::Regex;
 use std::{
-    collections::HashMap,
     path::PathBuf,
     sync::mpsc,
     time::{Duration, Instant},
@@ -305,6 +304,7 @@ impl TuiState {
     }
 
     /// Create a new tab for a project
+    #[allow(dead_code)]
     pub fn create_tab(&mut self, project_root: PathBuf) -> Result<usize, String> {
         // Check if project is already open in a tab
         if let Some(existing_index) = self.find_tab_by_project(&project_root) {
@@ -373,6 +373,7 @@ impl TuiState {
     }
 
     /// Switch to a specific tab by index
+    #[allow(dead_code)]
     pub fn switch_to_tab(&mut self, index: usize) {
         if index < self.tabs.len() {
             log::debug!("Switching from tab {} to tab {}", self.active_tab_index, index);
@@ -426,16 +427,19 @@ impl TuiState {
     }
 
     /// Check if any tab has a running process
+    #[allow(dead_code)]
     pub fn has_running_processes(&self) -> bool {
         self.tabs.iter().any(|tab| tab.has_running_process())
     }
 
     /// Count running processes across all tabs
+    #[allow(dead_code)]
     pub fn count_running_processes(&self) -> usize {
         self.tabs.iter().filter(|tab| tab.has_running_process()).count()
     }
 
     /// Find a tab by project root path
+    #[allow(dead_code)]
     fn find_tab_by_project(&self, project_root: &PathBuf) -> Option<usize> {
         self.tabs
             .iter()
@@ -443,6 +447,7 @@ impl TuiState {
     }
 
     /// Cleanup all tabs (kill all processes, save all preferences)
+    #[allow(dead_code)]
     pub fn cleanup_all_tabs(&mut self) {
         log::info!("Cleaning up all {} tabs", self.tabs.len());
         
@@ -527,13 +532,12 @@ impl TuiState {
                 
                 // Need to drop tab borrow to call save_module_preferences
                 let new_index = {
-                    let i = match tab.modules_list_state.selected() {
+                    
+                    match tab.modules_list_state.selected() {
                         Some(i) => (i + 1) % tab.modules.len(),
                         None => 0,
-                    };
-                    i
+                    }
                 };
-                drop(tab);
                 
                 // Save current module preferences before switching
                 self.save_module_preferences();
@@ -541,13 +545,11 @@ impl TuiState {
                 // Now update the selection
                 let tab = self.get_active_tab_mut();
                 tab.modules_list_state.select(Some(new_index));
-                drop(tab);
                 
                 self.sync_selected_module_output();
                 
                 // Load preferences for the new module
                 self.load_module_preferences();
-                return;
             }
             Focus::Profiles => {
                 if !tab.profiles.is_empty() {
@@ -556,10 +558,8 @@ impl TuiState {
                         None => 0,
                     };
                     tab.profiles_list_state.select(Some(i));
-                    drop(tab);
                     // Update output to show new profile XML
                     self.sync_selected_profile_output();
-                    return;
                 }
             }
             Focus::Flags => {
@@ -597,7 +597,8 @@ impl TuiState {
                 
                 // Need to drop tab borrow to call save_module_preferences
                 let new_index = {
-                    let i = match tab.modules_list_state.selected() {
+                    
+                    match tab.modules_list_state.selected() {
                         Some(i) => {
                             if i == 0 {
                                 tab.modules.len() - 1
@@ -606,10 +607,8 @@ impl TuiState {
                             }
                         }
                         None => 0,
-                    };
-                    i
+                    }
                 };
-                drop(tab);
                 
                 // Save current module preferences before switching
                 self.save_module_preferences();
@@ -617,13 +616,11 @@ impl TuiState {
                 // Now update the selection
                 let tab = self.get_active_tab_mut();
                 tab.modules_list_state.select(Some(new_index));
-                drop(tab);
                 
                 self.sync_selected_module_output();
                 
                 // Load preferences for the new module
                 self.load_module_preferences();
-                return;
             }
             Focus::Profiles => {
                 if !tab.profiles.is_empty() {
@@ -638,10 +635,8 @@ impl TuiState {
                         None => 0,
                     };
                     tab.profiles_list_state.select(Some(i));
-                    drop(tab);
                     // Update output to show new profile XML
                     self.sync_selected_profile_output();
-                    return;
                 }
             }
             Focus::Flags => {
@@ -930,7 +925,6 @@ impl TuiState {
             tab.output_offset = 0;
         }
         tab.output_metrics = None;
-        drop(tab);
         self.clamp_output_offset();
         self.refresh_search_matches();
     }
@@ -981,7 +975,6 @@ impl TuiState {
             return;
         }
         
-        drop(tab);
         let module = self.selected_module().map(|m| m.to_string());
         let tab = self.get_active_tab_mut();
 
@@ -1058,7 +1051,6 @@ impl TuiState {
                     tab.module_outputs.insert(module.clone(), module_output);
                     
                     // Drop tab before calling self.command_history
-                    drop(tab);
                     
                     let history_entry = crate::history::HistoryEntry::new(
                         module,
@@ -1082,7 +1074,6 @@ impl TuiState {
             tab.output_offset = 0;
         }
         tab.output_metrics = None;
-        drop(tab);
         self.clamp_output_offset();
     }
 
@@ -1125,7 +1116,6 @@ impl TuiState {
         // Check if we're currently at the bottom (for auto-scroll)
         // Drop tab temporarily to call max_scroll_offset
         let output_offset = tab.output_offset;
-        drop(tab);
         let was_at_bottom = output_offset >= self.max_scroll_offset();
         
         // Re-get tab for processing updates
@@ -1198,7 +1188,6 @@ impl TuiState {
         }
         
         // Drop tab before calling self methods
-        drop(tab);
         
         // Store module output if we had a command completion
         if need_notification.is_some() {
@@ -1318,7 +1307,6 @@ impl TuiState {
                     tab.command_receiver = None;
                     tab.running_process_pid = None;
                     tab.output_metrics = None;
-                    drop(tab);
                     self.store_current_module_output();
                 }
                 Err(e) => {
@@ -1379,7 +1367,6 @@ impl TuiState {
             let tab = self.get_active_tab();
             if tab.command_output.is_empty() {
                 log::info!("No output to copy");
-                drop(tab);
                 let tab = self.get_active_tab_mut();
                 tab.command_output.push(String::new());
                 tab.command_output.push("⚠ No output to copy".to_string());
@@ -2443,7 +2430,7 @@ max_updates_per_poll = 100
                     .starters_cache
                     .starters
                     .iter()
-                    .any(|s| &s.fully_qualified_class_name == &fqcn_clone)
+                    .any(|s| s.fully_qualified_class_name == fqcn_clone)
                 {
                     let label = fqcn_clone.split('.').next_back().unwrap_or(&fqcn_clone).to_string();
                     let is_default = self.starters_cache.starters.is_empty();

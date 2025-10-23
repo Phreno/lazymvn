@@ -33,6 +33,7 @@ impl StartersCache {
     }
 
     /// Load starters for a specific project
+    #[allow(dead_code)]
     pub fn load(project_root: &Path) -> Self {
         let cache_file = get_starters_cache_file(project_root);
 

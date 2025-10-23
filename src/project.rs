@@ -149,6 +149,7 @@ pub fn get_project_modules() -> Result<(Vec<String>, PathBuf), Box<dyn std::erro
 
 /// Get project modules for a specific project path
 /// This is used when opening projects in tabs
+#[allow(dead_code)]
 pub fn get_project_modules_for_path(
     project_path: &PathBuf,
 ) -> Result<(Vec<String>, PathBuf), Box<dyn std::error::Error>> {

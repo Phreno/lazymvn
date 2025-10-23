@@ -208,6 +208,7 @@ impl RecentProjects {
             .collect()
     }
 
+    #[allow(dead_code)]
     pub fn remove_invalid(&mut self) {
         let original_len = self.projects.len();
         self.projects.retain(|p| PathBuf::from(p).exists());

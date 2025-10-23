@@ -77,9 +77,8 @@ pub fn draw<B: Backend>(
             focus == Focus::Flags,
         );
 
-        // Extract is_running before dropping tab
+        // Extract is_running before releasing borrow
         let is_running = tab.is_command_running;
-        drop(tab);
         
         // Now render profiles with state data
         let spinner = state.profile_loading_spinner();
@@ -95,9 +94,10 @@ pub fn draw<B: Backend>(
         );
         
         // Sync list state back if it changed
-        let tab = state.get_active_tab_mut();
-        tab.profiles_list_state = profiles_list_state_clone;
-        drop(tab);
+        {
+            let tab = state.get_active_tab_mut();
+            tab.profiles_list_state = profiles_list_state_clone;
+        }
 
         // Update output metrics for proper scrolling calculations
         let inner_area = ratatui::widgets::Block::default()

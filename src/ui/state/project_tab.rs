@@ -184,6 +184,7 @@ impl ProjectTab {
     }
     
     /// Get a short title for the tab (max 20 chars)
+    #[allow(dead_code)]
     pub fn get_short_title(&self, max_len: usize) -> String {
         let title = self.get_title();
         if title.len() <= max_len {
@@ -226,6 +227,7 @@ impl ProjectTab {
     }
     
     /// Get the currently selected module
+    #[allow(dead_code)]
     pub fn get_selected_module(&self) -> Option<&String> {
         self.modules_list_state
             .selected()
@@ -233,6 +235,7 @@ impl ProjectTab {
     }
     
     /// Get the currently selected module index
+    #[allow(dead_code)]
     pub fn get_selected_module_index(&self) -> Option<usize> {
         self.modules_list_state.selected()
     }
