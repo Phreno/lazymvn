@@ -9,7 +9,7 @@ When running Spring Boot applications that use Log4j 1.x (common in enterprise a
 User reported seeing verbose logs from frameworks like:
 - `org.springframework`
 - `com.couchbase`
-- `fr.laposte.disf.fwmc`
+- `fr.company.example.fwmc`
 
 Even though they had configured logging overrides in `lazymvn.toml`:
 
@@ -48,9 +48,9 @@ The user doesn't need to do anything. They simply:
 packages = [
     { name = "org.springframework", level = "WARN" },
     { name = "com.couchbase", level = "WARN" },
-    { name = "fr.laposte.disf.fwmc", level = "WARN" },
-    { name = "fr.laposte.disfe", level = "WARN" },
-    { name = "fr.laposte.disf.assemblage", level = "DEBUG" },
+    { name = "fr.company.example.fwmc", level = "WARN" },
+    { name = "fr.company.example", level = "WARN" },
+    { name = "fr.company.example.assemblage", level = "DEBUG" },
 ]
 ```
 
