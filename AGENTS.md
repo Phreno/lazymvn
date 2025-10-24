@@ -8,23 +8,57 @@ This file contains coding guidelines and conventions for contributors and AI age
 
 ```
 lazymvn/
-├── src/
+├── src/                  # Source code
 │   ├── main.rs           # Entry point, TUI setup, main event loop
 │   ├── config.rs         # Configuration file loading (lazymvn.toml)
-│   ├── maven.rs          # Maven command execution
+│   ├── maven/            # Maven command execution and detection
+│   │   ├── command.rs    # Command building and execution
+│   │   ├── detection.rs  # Spring Boot/exec:java detection
+│   │   ├── process.rs    # Process management
+│   │   └── profiles.rs   # Profile loading
 │   ├── project.rs        # POM parsing, module discovery, caching
 │   ├── tui.rs            # TUI coordination and rendering
 │   ├── utils.rs          # Utilities (log parsing, cleaning)
-│   └── ui/
-│       ├── keybindings.rs  # Key event handling
-│       ├── state.rs        # Application state management
-│       ├── panes.rs        # UI pane rendering
-│       ├── search.rs       # Search functionality
-│       └── theme.rs        # Colors and styles
-├── demo/
-│   ├── multi-module/     # Demo multi-module project
-│   └── single-module/    # Demo single-module project
-└── target/               # Build outputs (untracked)
+│   ├── logger.rs         # Logging system
+│   ├── watcher.rs        # File watching for live reload
+│   ├── starters.rs       # Spring Boot starter management
+│   ├── favorites.rs      # Favorites management
+│   ├── history.rs        # Command history
+│   └── ui/               # UI components
+│       ├── keybindings/  # Key event handling
+│       ├── state/        # Application state management
+│       │   ├── mod.rs
+│       │   └── project_tab.rs  # Per-tab state
+│       ├── panes/        # UI pane rendering
+│       ├── search.rs     # Search functionality
+│       └── theme.rs      # Colors and styles
+├── docs/                 # Documentation (features, implementations, design)
+│   ├── README.md         # Documentation index
+│   ├── DEBUG_YANK.md     # Debug yank feature
+│   ├── TABS_*.md         # Tab system documentation
+│   ├── LOGGING_CONFIG.md # Logging configuration
+│   └── ...               # Other feature docs
+├── examples/             # Configuration examples
+│   ├── README.md         # Examples index
+│   ├── lazymvn.toml.example          # Complete example
+│   ├── lazymvn.toml.spring-boot-example  # Spring Boot config
+│   ├── lazymvn.toml.watch-example    # Watch mode config
+│   └── ...               # Other examples
+├── scripts/              # Test and utility scripts
+│   ├── README.md         # Scripts documentation
+│   ├── test_debug_yank.sh    # Debug yank feature test
+│   ├── test-env.sh       # Environment validation
+│   ├── test-live-reload.sh   # Live reload test
+│   └── ...               # Other test scripts
+├── demo/                 # Demo Maven projects for testing
+│   ├── multi-module/     # Multi-module Maven project
+│   └── single-module/    # Single-module Maven project
+├── tests/                # Integration tests
+├── target/               # Build outputs (untracked)
+├── AGENTS.md             # This file - development guidelines
+├── CONTRIBUTING.md       # Contribution guidelines
+├── README.md             # User documentation
+└── CHANGELOG.md          # Version history
 ```
 
 ## Build & Test Commands
@@ -50,6 +84,46 @@ cargo fmt
 # Lint code
 cargo clippy -- -D warnings
 ```
+
+## Project Organization
+
+### Documentation (`docs/`)
+All feature documentation, implementation notes, and design decisions are in the `docs/` directory.
+See [docs/README.md](docs/README.md) for a complete index.
+
+**Key documentation files:**
+- Feature implementations (TABS_*, SPRING_BOOT_LAUNCHER, etc.)
+- Bug fixes (FIX_SHARED_STARTER, etc.)
+- Configuration guides (LOGGING_CONFIG, PROFILE_ACTIVATION, etc.)
+
+### Configuration Examples (`examples/`)
+Example configuration files for different use cases.
+See [examples/README.md](examples/README.md) for details.
+
+**Available examples:**
+- `lazymvn.toml.example` - Complete configuration with all features
+- `lazymvn.toml.spring-boot-example` - Spring Boot optimized
+- `lazymvn.toml.watch-example` - File watching configuration
+- And more...
+
+### Test Scripts (`scripts/`)
+All test scripts for validating features and environment setup.
+See [scripts/README.md](scripts/README.md) for usage instructions.
+
+**Run from project root:**
+```bash
+./scripts/test-env.sh           # Validate environment
+./scripts/test_debug_yank.sh    # Test debug yank feature
+./scripts/test-live-reload.sh   # Test live reload
+```
+
+### Root Directory Files
+Only essential files remain in the root:
+- `AGENTS.md` - This file (development guidelines)
+- `CONTRIBUTING.md` - Contribution process
+- `README.md` - User-facing documentation
+- `CHANGELOG.md` - Version history
+- `Cargo.toml` / `Cargo.lock` - Rust project files
 
 ## Coding Style
 

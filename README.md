@@ -434,6 +434,27 @@ lazymvn/
 └── Cargo.toml            # Dependencies and metadata
 ```
 
+## Project Resources
+
+### Documentation
+- **[docs/](docs/)** - Detailed feature documentation and implementation notes
+  - Feature guides, design decisions, and technical specifications
+  - See [docs/README.md](docs/README.md) for the complete documentation index
+
+### Configuration Examples
+- **[examples/](examples/)** - Configuration file examples
+  - Complete examples for various use cases (Spring Boot, watch mode, logging, etc.)
+  - See [examples/README.md](examples/README.md) for all available examples
+
+### Test Scripts
+- **[scripts/](scripts/)** - Test and validation scripts
+  - Environment setup validation, feature tests, and integration tests
+  - See [scripts/README.md](scripts/README.md) for usage instructions
+
+### Development Guidelines
+- **[AGENTS.md](AGENTS.md)** - Coding guidelines and project structure for contributors and AI agents
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** - Contribution process and code of conduct
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
