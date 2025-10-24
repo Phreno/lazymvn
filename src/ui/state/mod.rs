@@ -2525,12 +2525,29 @@ max_updates_per_poll = 100
                     .filter_map(|p| p.to_maven_arg())
                     .collect();
 
+                // Build JVM args from logging configuration
+                let jvm_args: Vec<String> = if let Some(ref logging_config) = tab.config.logging {
+                    logging_config
+                        .packages
+                        .iter()
+                        .flat_map(|pkg| {
+                            // Generate args for both log4j and Spring Boot logging
+                            vec![
+                                format!("-Dlog4j.logger.{}={}", pkg.name, pkg.level),
+                                format!("-Dlogging.level.{}={}", pkg.name, pkg.level),
+                            ]
+                        })
+                        .collect()
+                } else {
+                    Vec::new()
+                };
+
                 // Build launch command with the strategy
                 let command_parts = crate::maven::build_launch_command(
                     strategy,
                     Some(fqcn),
                     &active_profiles,
-                    &[], // JVM args could be added here in the future
+                    &jvm_args,
                     detection.packaging.as_deref(),
                 );
 
