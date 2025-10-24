@@ -259,27 +259,95 @@ fn get_config_dir() -> PathBuf {
     config_dir
 }
 
+/// Get the configuration file path for a specific project
+/// Returns ~/.config/lazymvn/projects/<hash>/config.toml
+pub fn get_project_config_path(project_root: &Path) -> PathBuf {
+    let config_dir = get_config_dir();
+    let project_hash = format!(
+        "{:x}",
+        md5::compute(project_root.to_string_lossy().as_bytes())
+    )
+    .chars()
+    .take(8)
+    .collect::<String>();
+    
+    config_dir
+        .join("projects")
+        .join(&project_hash)
+        .join("config.toml")
+}
+
+/// Check if a project has a configuration file
+pub fn has_project_config(project_root: &Path) -> bool {
+    get_project_config_path(project_root).exists()
+}
+
+/// Create a project configuration file from template
+/// Returns the path to the created configuration file
+pub fn create_project_config(project_root: &Path) -> Result<PathBuf, String> {
+    use std::fs;
+    
+    // Get config path
+    let config_path = get_project_config_path(project_root);
+    let config_dir = config_path.parent().unwrap();
+    
+    // Create directory structure
+    fs::create_dir_all(config_dir)
+        .map_err(|e| format!("Failed to create config directory: {}", e))?;
+    
+    // Read template file
+    let template_content = include_str!("../config_template.toml");
+    
+    // Write to config path
+    fs::write(&config_path, template_content)
+        .map_err(|e| format!("Failed to write config file: {}", e))?;
+    
+    Ok(config_path)
+}
+
 pub fn load_config(project_root: &Path) -> Config {
     log::debug!("Loading config from project root: {:?}", project_root);
     let mut config: Config = {
-        let config_path = project_root.join("lazymvn.toml");
+        // First try the new centralized location
+        let config_path = get_project_config_path(project_root);
         log::debug!("Checking for config file at: {:?}", config_path);
+        
         if let Ok(content) = fs::read_to_string(&config_path) {
-            log::info!("Found lazymvn.toml, parsing configuration");
+            log::info!("Found config.toml in centralized location, parsing configuration");
             match toml::from_str(&content) {
                 Ok(cfg) => {
-                    log::debug!("Successfully parsed lazymvn.toml");
+                    log::debug!("Successfully parsed config.toml");
                     cfg
                 }
                 Err(e) => {
-                    log::error!("Failed to parse lazymvn.toml: {}", e);
+                    log::error!("Failed to parse config.toml: {}", e);
                     log::error!("Using default configuration instead");
                     Config::default()
                 }
             }
         } else {
-            log::debug!("No lazymvn.toml found, using defaults");
-            Config::default()
+            // Fallback: try legacy location (project_root/lazymvn.toml) for backward compatibility
+            let legacy_config_path = project_root.join("lazymvn.toml");
+            log::debug!("Checking legacy config file at: {:?}", legacy_config_path);
+            
+            if let Ok(content) = fs::read_to_string(&legacy_config_path) {
+                log::warn!("Found lazymvn.toml in project root (legacy location)");
+                log::warn!("Consider running 'lazymvn --setup' to migrate to centralized config");
+                match toml::from_str(&content) {
+                    Ok(cfg) => {
+                        log::debug!("Successfully parsed legacy lazymvn.toml");
+                        cfg
+                    }
+                    Err(e) => {
+                        log::error!("Failed to parse lazymvn.toml: {}", e);
+                        log::error!("Using default configuration instead");
+                        Config::default()
+                    }
+                }
+            } else {
+                log::debug!("No config file found, using defaults");
+                Config::default()
+            }
         }
     };
 

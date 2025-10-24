@@ -366,13 +366,17 @@ fn test_get_profile_xml_with_maven_settings_xml() {
     )
     .unwrap();
 
-    // Create lazymvn.toml to point to maven_settings.xml
-    let config_file = project_root.join("lazymvn.toml");
-    fs::write(
-        &config_file,
-        format!("maven_settings = \"{}\"", maven_settings.to_str().unwrap()),
-    )
-    .unwrap();
+    // Create config.toml to point to maven_settings.xml (using centralized location)
+    let config_content = format!("maven_settings = \"{}\"", maven_settings.to_str().unwrap());
+    match crate::config::create_project_config(project_root) {
+        Ok(config_path) => {
+            // Overwrite with test config that points to maven_settings.xml
+            fs::write(&config_path, config_content).unwrap();
+        }
+        Err(e) => {
+            panic!("Failed to create test config: {}", e);
+        }
+    }
 
     // Also need a pom.xml so it's a valid Maven project
     let pom = project_root.join("pom.xml");

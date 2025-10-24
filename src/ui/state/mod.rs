@@ -1596,9 +1596,10 @@ impl TuiState {
         debug_info.push(String::new());
         
         // Configuration file
-        debug_info.push("=== Configuration (lazymvn.toml) ===".to_string());
-        let config_path = self.get_active_tab().project_root.join("lazymvn.toml");
+        debug_info.push("=== Configuration (config.toml) ===".to_string());
+        let config_path = crate::config::get_project_config_path(&self.get_active_tab().project_root);
         if config_path.exists() {
+            debug_info.push(format!("Location: {}", config_path.display()));
             match std::fs::read_to_string(&config_path) {
                 Ok(content) => {
                     debug_info.push(content);
@@ -1608,7 +1609,9 @@ impl TuiState {
                 }
             }
         } else {
-            debug_info.push("(No lazymvn.toml configuration file found)".to_string());
+            debug_info.push("(No config.toml configuration file found)".to_string());
+            debug_info.push(format!("Expected location: {}", config_path.display()));
+            debug_info.push("Run 'lazymvn --setup' to create configuration".to_string());
         }
         debug_info.push(String::new());
         
@@ -2253,21 +2256,27 @@ impl TuiState {
     pub fn edit_config(&mut self) {
         let config_path = {
             let tab = self.get_active_tab();
-            tab.project_root.join("lazymvn.toml")
+            crate::config::get_project_config_path(&tab.project_root)
         };
 
         // Generate config if it doesn't exist
         if !config_path.exists() {
             log::info!("Configuration file not found, creating: {:?}", config_path);
-            if let Err(e) = self.generate_config_file(&config_path) {
-                log::error!("Failed to generate config file: {}", e);
-                let tab = self.get_active_tab_mut();
-                tab.command_output = vec![
-                    format!("❌ Failed to generate config file: {}", e),
-                    String::new(),
-                    "Please create the file manually or check permissions".to_string(),
-                ];
-                return;
+            let project_root = self.get_active_tab().project_root.clone();
+            match crate::config::create_project_config(&project_root) {
+                Ok(path) => {
+                    log::info!("Created config file at: {:?}", path);
+                }
+                Err(e) => {
+                    log::error!("Failed to generate config file: {}", e);
+                    let tab = self.get_active_tab_mut();
+                    tab.command_output = vec![
+                        format!("❌ Failed to generate config file: {}", e),
+                        String::new(),
+                        "Please run 'lazymvn --setup' to create configuration".to_string(),
+                    ];
+                    return;
+                }
             }
         }
 
@@ -2436,71 +2445,6 @@ impl TuiState {
         }
 
         changed
-    }
-
-    fn generate_config_file(&self, config_path: &std::path::Path) -> Result<(), std::io::Error> {
-        use std::fs;
-
-        let config_template = r#"# LazyMVN Configuration File
-# Generated automatically
-
-# Maven settings file path (optional)
-# Uncomment to use a custom settings.xml
-# maven_settings = "settings.xml"
-
-# Launch mode for Spring Boot applications
-# Options:
-#   "auto"       - Auto-detect: use spring-boot:run if available, fallback to exec:java
-#   "force-run"  - Always use spring-boot:run
-#   "force-exec" - Always use exec:java
-# Default: "auto"
-launch_mode = "auto"
-
-# Enable desktop notifications (optional)
-# notifications_enabled = true
-
-# Control log verbosity for specific packages
-# Useful to reduce noise from Spring Boot, Hibernate, etc.
-# [logging]
-# packages = [
-#     # Reduce Spring Framework verbosity
-#     { name = "org.springframework", level = "WARN" },
-#     { name = "org.hibernate", level = "WARN" },
-#     
-#     # Keep your application logs verbose
-#     { name = "com.mycompany", level = "DEBUG" },
-# ]
-
-# File watching configuration for auto-reload
-[watch]
-# Enable file watching (set to true to activate)
-enabled = false
-
-# Commands that should trigger auto-reload when files change
-commands = ["test", "start"]
-
-# File patterns to watch (glob syntax)
-patterns = [
-    "src/**/*.java",
-    "src/**/*.kt",
-    "src/**/*.properties",
-    "src/**/*.yaml",
-    "src/**/*.yml",
-    "src/**/*.xml",
-]
-
-# Debounce delay in milliseconds
-debounce_ms = 500
-
-# Output buffer configuration
-[output]
-max_lines = 10000
-max_updates_per_poll = 100
-"#;
-
-        fs::write(config_path, config_template)?;
-        log::info!("Generated config file: {:?}", config_path);
-        Ok(())
     }
 
     /// Apply a history entry: select module, set profiles, flags, and run command

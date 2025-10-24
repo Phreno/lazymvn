@@ -1,0 +1,229 @@
+# LazyMVN Configuration File
+# This file is stored in: ~/.config/lazymvn/projects/<hash>/config.toml
+# It contains all configuration for this specific Maven project
+
+# =============================================================================
+# MAVEN SETTINGS
+# =============================================================================
+
+# Custom Maven settings file path (optional)
+# If not specified, LazyMVN searches in this order:
+# 1. settings.xml in project directory
+# 2. maven_settings.xml in project directory  
+# 3. ~/.m2/settings.xml in user home
+#
+# maven_settings = "./settings.xml"
+
+# =============================================================================
+# SPRING BOOT LAUNCH MODE
+# =============================================================================
+
+# Launch mode for Spring Boot applications (default: "auto")
+# Options:
+#   "auto"       - Auto-detect: use spring-boot:run if available, fallback to exec:java
+#   "force-run"  - Always use spring-boot:run
+#   "force-exec" - Always use exec:java with mainClass
+#
+# Auto mode detection criteria (executed before launch):
+# 1. Checks effective-pom for spring-boot-maven-plugin
+# 2. Validates packaging is jar/war (compatible with spring-boot:run)
+# 3. Looks for mainClass configuration if available
+# 4. Falls back to exec:java if Spring Boot not detected
+#
+# launch_mode = "auto"
+
+# =============================================================================
+# NOTIFICATIONS
+# =============================================================================
+
+# Enable desktop notifications when Maven commands complete (default: true)
+# Set to false to disable all notifications
+# Notifications show when builds complete successfully or fail
+#
+# notifications_enabled = true
+
+# =============================================================================
+# FILE WATCHING (AUTO-RELOAD)
+# =============================================================================
+
+# [watch]
+# # Enable file watching (set to true to activate)
+# enabled = false
+#
+# # Commands that should trigger auto-reload when files change
+# # Default: ["test", "start"]
+# commands = ["test", "start", "compile"]
+#
+# # File patterns to watch (glob syntax)
+# # Default: ["src/**/*.java", "src/**/*.properties", "src/**/*.xml"]
+# patterns = [
+#     "src/**/*.java",
+#     "src/**/*.kt",
+#     "src/**/*.properties",
+#     "src/**/*.yaml",
+#     "src/**/*.yml",
+#     "src/**/*.xml",
+# ]
+#
+# # Debounce delay in milliseconds (wait time before triggering reload)
+# # Default: 500
+# debounce_ms = 500
+
+# =============================================================================
+# OUTPUT BUFFER
+# =============================================================================
+
+# [output]
+# # Maximum number of lines to keep in output buffer (default: 10000)
+# # When exceeded, oldest lines are removed to prevent memory issues
+# # Useful for long-running commands with lots of output
+# max_lines = 10000
+#
+# # Maximum number of updates to process per poll cycle (default: 100)
+# # Limits updates processed per event loop iteration to prevent UI freeze
+# # Especially important on Windows with high log volume
+# max_updates_per_poll = 100
+
+# =============================================================================
+# LOGGING CONFIGURATION
+# =============================================================================
+
+# Control log verbosity for specific packages
+# Overrides are injected automatically as JVM arguments when launching apps
+# Works with Log4j 1.x, Log4j 2.x, Logback, SLF4J, and Spring Boot logging
+#
+# [logging]
+# packages = [
+#     # Reduce Spring Framework verbosity
+#     { name = "org.springframework.web", level = "WARN" },
+#     { name = "org.springframework.boot", level = "WARN" },
+#     { name = "org.springframework.data", level = "WARN" },
+#     
+#     # Reduce Hibernate verbosity
+#     { name = "org.hibernate", level = "WARN" },
+#     { name = "org.hibernate.SQL", level = "ERROR" },
+#     
+#     # Reduce other noisy frameworks
+#     { name = "com.couchbase", level = "WARN" },
+#     { name = "io.netty", level = "WARN" },
+#     { name = "org.apache.kafka", level = "WARN" },
+#     
+#     # Keep your application logs verbose
+#     { name = "com.mycompany", level = "DEBUG" },
+#     { name = "com.mycompany.critical", level = "TRACE" },
+# ]
+
+# Supported log levels: TRACE, DEBUG, INFO, WARN, ERROR, FATAL, OFF
+#
+# How it works:
+# - For Log4j 1.x: Generates ~/.config/lazymvn/log4j/log4j-override-<hash>.properties
+# - For Logback/Spring Boot: Injects -Dlogging.level.<package>=<level>
+# - Zero repository footprint (all files in ~/.config/lazymvn/)
+# - Changes apply immediately on next Maven command
+
+# =============================================================================
+# SPRING BOOT PROPERTIES OVERRIDE
+# =============================================================================
+
+# Override Spring Boot application.properties without modifying source code
+# Properties are injected with HIGHEST priority when launching Spring Boot apps
+# Generated file: ~/.config/lazymvn/spring/application-override-<hash>.properties
+#
+# [spring]
+# # List of Spring Boot properties to override
+# # These have HIGHEST priority - LazyMVN has the last word
+# properties = [
+#     # === SERVER CONFIGURATION ===
+#     { name = "server.port", value = "8081" },
+#     { name = "server.servlet.context-path", value = "/api" },
+#     
+#     # === DATABASE CONFIGURATION ===
+#     # Local PostgreSQL
+#     { name = "spring.datasource.url", value = "jdbc:postgresql://localhost:5432/myapp_dev" },
+#     { name = "spring.datasource.username", value = "dev_user" },
+#     { name = "spring.datasource.password", value = "dev_password" },
+#     
+#     # Or use H2 for local development
+#     # { name = "spring.datasource.url", value = "jdbc:h2:mem:testdb" },
+#     # { name = "spring.h2.console.enabled", value = "true" },
+#     
+#     # === JPA/HIBERNATE CONFIGURATION ===
+#     { name = "spring.jpa.show-sql", value = "true" },
+#     { name = "spring.jpa.hibernate.ddl-auto", value = "update" },
+#     { name = "spring.jpa.properties.hibernate.format_sql", value = "true" },
+#     { name = "spring.jpa.properties.hibernate.dialect", value = "org.hibernate.dialect.PostgreSQLDialect" },
+#     
+#     # === ACTUATOR ENDPOINTS ===
+#     { name = "management.endpoints.web.exposure.include", value = "health,info,metrics,env" },
+#     { name = "management.endpoint.health.show-details", value = "always" },
+#     
+#     # === LOGGING (Spring Boot Logback style) ===
+#     { name = "logging.level.root", value = "INFO" },
+#     { name = "logging.level.com.mycompany", value = "DEBUG" },
+#     { name = "logging.level.org.springframework.web", value = "DEBUG" },
+#     { name = "logging.level.org.hibernate.SQL", value = "DEBUG" },
+#     
+#     # === EXTERNAL API CONFIGURATION ===
+#     { name = "api.external.url", value = "http://localhost:3000" },
+#     { name = "api.external.timeout", value = "5000" },
+#     { name = "api.external.retry.enabled", value = "true" },
+#     
+#     # === FEATURE TOGGLES ===
+#     { name = "feature.new-api.enabled", value = "true" },
+#     { name = "feature.experimental.enabled", value = "false" },
+#     
+#     # === CACHE CONFIGURATION ===
+#     { name = "spring.cache.type", value = "simple" },
+#     { name = "spring.cache.cache-names", value = "users,products" },
+#     
+#     # === SECURITY (for local dev only!) ===
+#     # { name = "spring.security.user.name", value = "admin" },
+#     # { name = "spring.security.user.password", value = "admin" },
+# ]
+#
+# # Active Spring profiles (comma-separated values)
+# # Equivalent to -Dspring.profiles.active=dev,local
+# active_profiles = ["dev", "local"]
+
+# Common use cases for [spring] properties:
+#
+# 1. ENVIRONMENT SWITCHING
+#    Change between local/staging/production databases by editing this file
+#
+# 2. PORT CONFIGURATION  
+#    Avoid port conflicts when running multiple applications
+#
+# 3. FEATURE TOGGLES
+#    Enable/disable features per developer without modifying source
+#
+# 4. EXTERNAL APIS
+#    Point to local mock servers for development
+#
+# 5. DATABASE CREDENTIALS
+#    Use local database credentials without committing them
+#
+# Benefits:
+# - Zero repository footprint (config stored in ~/.config/lazymvn/)
+# - Per-developer preferences
+# - Easy environment switching (just edit this file and relaunch)
+# - Strong override (LazyMVN has the last word - highest priority)
+# - All overrides visible in debug logs (lazymvn --debug)
+# - No risk of accidental commits
+
+# =============================================================================
+# ADDITIONAL NOTES
+# =============================================================================
+
+# This configuration file is specific to this project.
+# Each Maven project has its own isolated configuration in:
+#   ~/.config/lazymvn/projects/<hash>/config.toml
+#
+# Generated files (also project-specific):
+#   ~/.config/lazymvn/projects/<hash>/     (this directory)
+#   ~/.config/lazymvn/log4j/log4j-override-<hash>.properties
+#   ~/.config/lazymvn/spring/application-override-<hash>.properties
+#
+# To edit this file again: Press 'e' in LazyMVN or run 'lazymvn --setup'
+# To reset to defaults: Delete this file and run 'lazymvn --setup' again
+#
+# For more information: https://github.com/Phreno/lazymvn

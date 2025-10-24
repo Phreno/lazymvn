@@ -398,18 +398,28 @@ fn run<B: ratatui::backend::Backend>(
     Ok(())
 }
 
-/// Generate a lazymvn.toml configuration file in the current directory
+/// Generate or recreate a configuration file for the current project
 fn setup_config() -> Result<(), Box<dyn std::error::Error>> {
-    use std::fs;
-    use std::path::Path;
+    use std::io::{self, Write};
 
-    let config_path = Path::new("lazymvn.toml");
+    let current_dir = std::env::current_dir()?;
+    
+    // Check if current directory is a valid Maven project
+    let pom_path = current_dir.join("pom.xml");
+    if !pom_path.exists() {
+        eprintln!("❌ Error: No pom.xml found in current directory");
+        eprintln!("   LazyMVN requires a Maven project (must contain pom.xml)");
+        eprintln!("   Navigate to your Maven project root and run 'lazymvn --setup' again");
+        return Ok(());
+    }
 
-    // Check if file already exists
-    if config_path.exists() {
-        eprintln!("⚠️  lazymvn.toml already exists in current directory");
-        eprint!("   Overwrite? [y/N]: ");
-        use std::io::{self, Write};
+    // Check if config already exists
+    let config_exists = crate::config::has_project_config(&current_dir);
+    
+    if config_exists {
+        eprintln!("⚠️  Configuration already exists for this project");
+        eprintln!("   Location: ~/.config/lazymvn/projects/<hash>/config.toml");
+        eprint!("   Recreate from template? [y/N]: ");
         io::stdout().flush()?;
 
         let mut input = String::new();
@@ -417,131 +427,34 @@ fn setup_config() -> Result<(), Box<dyn std::error::Error>> {
 
         if !input.trim().eq_ignore_ascii_case("y") {
             eprintln!("❌ Setup cancelled");
+            eprintln!();
+            eprintln!("   To edit existing config:");
+            eprintln!("   - Open LazyMVN and press 'e' (Edit config)");
+            eprintln!("   - Or manually edit: ~/.config/lazymvn/projects/<hash>/config.toml");
             return Ok(());
         }
     }
 
-    let config_template = r#"# LazyMVN Configuration File
-# Generated with: lazymvn --setup
-
-# Maven settings file path (optional)
-# Uncomment to use a custom settings.xml
-# maven_settings = "settings.xml"
-
-# Launch mode for Spring Boot applications
-# Options:
-#   "auto"       - Auto-detect: use spring-boot:run if available, fallback to exec:java
-#   "force-run"  - Always use spring-boot:run
-#   "force-exec" - Always use exec:java
-# Default: "auto"
-launch_mode = "auto"
-
-# Enable desktop notifications (optional)
-# notifications_enabled = true
-
-# Control log verbosity for specific packages
-# Useful to reduce noise from Spring Boot, Hibernate, etc.
-# Uncomment and customize to control logging levels
-# [logging]
-# packages = [
-#     # Reduce Spring Framework verbosity
-#     { name = "org.springframework", level = "WARN" },
-#     { name = "org.springframework.boot.autoconfigure", level = "WARN" },
-#     
-#     # Reduce Hibernate/JPA verbosity  
-#     { name = "org.hibernate", level = "WARN" },
-#     { name = "org.hibernate.SQL", level = "WARN" },
-#     
-#     # Reduce embedded server verbosity
-#     { name = "org.apache.catalina", level = "WARN" },
-#     { name = "org.apache.tomcat", level = "WARN" },
-#     
-#     # Keep your application logs verbose for debugging
-#     { name = "com.mycompany", level = "DEBUG" },
-# ]
-# Available levels: TRACE, DEBUG, INFO, WARN, ERROR, OFF
-
-# File watching configuration for auto-reload
-[watch]
-# Enable file watching (set to true to activate)
-# When enabled, LazyMVN will automatically re-run certain commands
-# when source files change
-enabled = false
-
-# Commands that should trigger auto-reload when files change
-# Common values: ["test", "start", "compile", "package"]
-# When you run these commands, any matching file change will re-run the command
-commands = ["test", "start"]
-
-# File patterns to watch (glob syntax)
-# Patterns support:
-#   *.ext         - Any file with extension .ext
-#   path/*.ext    - Files in specific path (not subdirs)
-#   path/**/*.ext - Files in path and all subdirectories
-#   **/name.ext   - Files anywhere with specific name
-patterns = [
-    "src/**/*.java",           # Java source files
-    "src/**/*.kt",             # Kotlin source files
-    "src/**/*.properties",     # Properties files
-    "src/**/*.yaml",           # YAML configuration
-    "src/**/*.yml",            # YAML configuration
-    "src/**/*.xml",            # XML files (excluding pom.xml)
-]
-
-# Debounce delay in milliseconds
-# Waits this long after the last file change before triggering reload
-# Prevents multiple reloads when saving multiple files at once
-# Recommended: 500-1000ms
-debounce_ms = 500
-
-# Example: Enable watch mode for TDD workflow
-# [watch]
-# enabled = true
-# commands = ["test"]
-# patterns = ["src/**/*.java", "src/**/*.properties"]
-# debounce_ms = 500
-
-# Example: Enable watch mode for Spring Boot development
-# [watch]
-# enabled = true
-# commands = ["start"]
-# patterns = ["src/**/*.java", "src/**/*.properties", "src/**/*.yaml"]
-# debounce_ms = 1000
-
-# Output buffer configuration
-[output]
-# Maximum number of lines to keep in output buffer (default: 10000)
-# When exceeded, oldest lines are removed to prevent memory issues
-max_lines = 10000
-
-# Maximum number of updates to process per poll cycle (default: 100)
-# Limits updates per event loop iteration to prevent UI freeze
-# Increase if you have a very fast machine, decrease for slower systems
-max_updates_per_poll = 100
-"#;
-
-    fs::write(config_path, config_template)?;
-
-    println!("✅ Successfully created lazymvn.toml");
+    // Create the configuration file
+    let config_path = crate::config::create_project_config(&current_dir)?;
+    
+    println!("✅ Successfully created configuration file");
     println!();
-    println!("📁 Location: {}", config_path.canonicalize()?.display());
+    println!("   Location: {}", config_path.display());
+    println!("   Project:  {}", current_dir.display());
     println!();
-    println!("🎯 Next steps:");
-    println!("   1. Edit lazymvn.toml to customize your settings");
-    println!("   2. Enable watch mode if you want auto-reload");
-    println!("   3. Run 'lazymvn' to start");
+    println!("📝 Next steps:");
+    println!("   1. Edit the config file to customize your settings:");
+    println!("      - Logging levels (reduce noisy frameworks)");
+    println!("      - Spring Boot properties (database, ports, etc.)");
+    println!("      - Maven settings, profiles, watch mode, etc.");
     println!();
-    println!("📖 Configuration options:");
-    println!("   • maven_settings          - Path to custom settings.xml");
-    println!("   • launch_mode             - How to launch Spring Boot apps");
-    println!("   • logging.packages        - Control log verbosity per package");
-    println!("   • watch.enabled           - Enable file watching for auto-reload");
-    println!("   • watch.commands          - Commands that trigger auto-reload");
-    println!("   • watch.patterns          - File patterns to watch");
-    println!("   • output.max_lines        - Max output buffer size");
-    println!("   • output.max_updates_per_poll - Output processing rate limit");
+    println!("   2. Launch LazyMVN: lazymvn --project .");
     println!();
-    println!("💡 Tip: Use 'lazymvn --debug' to see detailed logs");
+    println!("   3. Press 'e' anytime to edit configuration");
+    println!();
+    println!("💡 Tip: All configuration is stored in ~/.config/lazymvn/");
+    println!("   No files are created in your project directory!");
 
     Ok(())
 }
