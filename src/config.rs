@@ -244,7 +244,17 @@ pub fn load_config(project_root: &Path) -> Config {
         log::debug!("Checking for config file at: {:?}", config_path);
         if let Ok(content) = fs::read_to_string(&config_path) {
             log::info!("Found lazymvn.toml, parsing configuration");
-            toml::from_str(&content).unwrap_or_default()
+            match toml::from_str(&content) {
+                Ok(cfg) => {
+                    log::debug!("Successfully parsed lazymvn.toml");
+                    cfg
+                }
+                Err(e) => {
+                    log::error!("Failed to parse lazymvn.toml: {}", e);
+                    log::error!("Using default configuration instead");
+                    Config::default()
+                }
+            }
         } else {
             log::debug!("No lazymvn.toml found, using defaults");
             Config::default()
@@ -261,6 +271,16 @@ pub fn load_config(project_root: &Path) -> Config {
         log::info!("Using Maven settings file: {}", settings);
     } else {
         log::debug!("No Maven settings file found");
+    }
+
+    // Log what we loaded
+    if let Some(ref logging) = config.logging {
+        log::debug!("Loaded logging config with {} packages:", logging.packages.len());
+        for pkg in &logging.packages {
+            log::debug!("  {} = {}", pkg.name, pkg.level);
+        }
+    } else {
+        log::debug!("No logging configuration found in lazymvn.toml");
     }
 
     config

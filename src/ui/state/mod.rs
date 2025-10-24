@@ -2527,6 +2527,7 @@ max_updates_per_poll = 100
 
                 // Build JVM args from logging configuration
                 let jvm_args: Vec<String> = if let Some(ref logging_config) = tab.config.logging {
+                    log::debug!("Found logging config with {} packages", logging_config.packages.len());
                     logging_config
                         .packages
                         .iter()
@@ -2539,8 +2540,14 @@ max_updates_per_poll = 100
                         })
                         .collect()
                 } else {
+                    log::debug!("No logging config found in tab.config");
                     Vec::new()
                 };
+
+                log::debug!("Generated {} JVM args from logging config", jvm_args.len());
+                for arg in &jvm_args {
+                    log::debug!("  JVM arg: {}", arg);
+                }
 
                 // Build launch command with the strategy
                 let command_parts = crate::maven::build_launch_command(
