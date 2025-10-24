@@ -23,6 +23,7 @@ This directory contains detailed documentation for LazyMVN features, implementat
 ### Configuration & Profiles
 - **[PROFILE_ACTIVATION.md](PROFILE_ACTIVATION.md)** - Maven profile activation
 - **[LOGGING_CONFIG.md](LOGGING_CONFIG.md)** - Logging configuration system
+- **[LOG4J_AUTO_CONFIG.md](LOG4J_AUTO_CONFIG.md)** - Automatic Log4j 1.x configuration override
 - **[LIVE_CONFIG_RELOAD.md](LIVE_CONFIG_RELOAD.md)** - Live configuration reloading
 - **[LIVE_RELOAD_IMPLEMENTATION.md](LIVE_RELOAD_IMPLEMENTATION.md)** - Implementation details
 

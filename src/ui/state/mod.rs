@@ -2807,23 +2807,55 @@ max_updates_per_poll = 100
                     .collect();
 
                 // Build JVM args from logging configuration
-                let jvm_args: Vec<String> = if let Some(ref logging_config) = tab.config.logging {
+                let mut jvm_args: Vec<String> = if let Some(ref logging_config) = tab.config.logging {
                     log::debug!("Found logging config with {} packages", logging_config.packages.len());
-                    logging_config
+                    
+                    // Convert LoggingPackage to (String, String) tuples for Log4j generation
+                    let logging_overrides: Vec<(String, String)> = logging_config
                         .packages
                         .iter()
-                        .flat_map(|pkg| {
-                            // Generate args for both log4j and Spring Boot logging
-                            vec![
-                                format!("-Dlog4j.logger.{}={}", pkg.name, pkg.level),
-                                format!("-Dlogging.level.{}={}", pkg.name, pkg.level),
-                            ]
-                        })
-                        .collect()
+                        .map(|pkg| (pkg.name.clone(), pkg.level.clone()))
+                        .collect();
+                    
+                    // Generate Log4j 1.x config file if logging overrides exist
+                    // This is automatically used by Log4j 1.x applications
+                    if !logging_overrides.is_empty() {
+                        if let Some(log4j_config_path) = crate::maven::generate_log4j_config(
+                            &tab.project_root,
+                            &logging_overrides,
+                        ) {
+                            // Convert path to URL format for Log4j configuration
+                            let config_url = if cfg!(windows) {
+                                // Windows: file:///C:/path/to/file
+                                format!("file:///{}", log4j_config_path.display().to_string().replace('\\', "/"))
+                            } else {
+                                // Unix: file:///path/to/file
+                                format!("file://{}", log4j_config_path.display())
+                            };
+                            
+                            log::info!("Injecting Log4j 1.x configuration: {}", config_url);
+                            
+                            // Add Log4j configuration argument at the beginning
+                            // This ensures Log4j 1.x picks it up before loading default config
+                            vec![format!("-Dlog4j.configuration={}", config_url)]
+                        } else {
+                            Vec::new()
+                        }
+                    } else {
+                        Vec::new()
+                    }
                 } else {
                     log::debug!("No logging config found in tab.config");
                     Vec::new()
                 };
+                
+                // Also add traditional JVM args for Spring Boot (Logback) compatibility
+                if let Some(ref logging_config) = tab.config.logging {
+                    for pkg in &logging_config.packages {
+                        // Add Logback/Spring Boot style logging levels
+                        jvm_args.push(format!("-Dlogging.level.{}={}", pkg.name, pkg.level));
+                    }
+                }
 
                 log::debug!("Generated {} JVM args from logging config", jvm_args.len());
                 for arg in &jvm_args {
