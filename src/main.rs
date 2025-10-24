@@ -22,13 +22,19 @@ use std::sync::atomic::{AtomicBool, Ordering};
 #[command(name = "lazymvn")]
 #[command(about = "A terminal UI for Maven projects")]
 struct Cli {
-    /// Enable debug logging to lazymvn-debug.log
-    #[arg(short, long)]
-    debug: bool,
-
     /// Path to the Maven project (defaults to current directory)
     #[arg(short, long)]
     project: Option<String>,
+
+    /// Log level: off, error, warn, info, debug, trace
+    /// (default: debug in unstable builds, off in release)
+    #[arg(short, long)]
+    log_level: Option<String>,
+
+    /// Enable debug logging (deprecated, use --log-level debug instead)
+    #[arg(short, long)]
+    #[deprecated(since = "0.4.0", note = "Use --log-level debug instead")]
+    debug: bool,
 
     /// Force spring-boot:run for launching applications (overrides auto-detection)
     #[arg(long)]
@@ -51,18 +57,40 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return setup_config();
     }
 
-    // Initialize logger based on debug flag
-    if let Err(e) = logger::init(cli.debug) {
+    // Determine log level from CLI args or config
+    #[allow(deprecated)]
+    let log_level = if cli.debug {
+        // Support legacy --debug flag
+        Some("debug")
+    } else {
+        cli.log_level.as_deref()
+    };
+
+    // Load config early to check for log_level setting
+    let config_log_level = if let Ok(current_dir) = std::env::current_dir() {
+        config::load_config(&current_dir).log_level
+    } else {
+        None
+    };
+
+    // Priority: CLI arg > config file > default (debug in unstable, off in release)
+    let final_log_level = log_level.or(config_log_level.as_deref());
+
+    // Initialize logger
+    if let Err(e) = logger::init(final_log_level) {
         eprintln!("Failed to initialize logger: {}", e);
     }
 
-    // Show log location if debug is enabled
-    if cli.debug {
+    // Show log location if logging is enabled
+    if final_log_level.is_some() && final_log_level != Some("off") {
         if let Some(debug_log) = logger::get_debug_log_path() {
             eprintln!("📝 Debug logs: {}", debug_log.display());
         }
         if let Some(error_log) = logger::get_error_log_path() {
             eprintln!("❌ Error logs: {}", error_log.display());
+        }
+        if let Some(session_id) = logger::get_session_id() {
+            eprintln!("🔖 Session ID: {}", session_id);
         }
     }
 

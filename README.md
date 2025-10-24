@@ -171,6 +171,7 @@ I want to credit both the project and its author for the idea and for shaping ho
 | `n` | Next search match |
 | `N` | Previous search match |
 | `y` | **Yank** (copy) output to clipboard |
+| `Y` | **Yank** (copy) debug logs to clipboard (current session) |
 | `Esc` | Exit search mode |
 
 ### General
@@ -200,11 +201,12 @@ lazymvn
 lazymvn [OPTIONS]
 
 Options:
-  -d, --debug              Enable debug logging to lazymvn-debug.log
-  -p, --project <PROJECT>  Path to the Maven project
-      --force-run          Force spring-boot:run for launching (overrides auto)
-      --force-exec         Force exec:java for launching (overrides auto)
-  -h, --help               Print help
+  -d, --debug                  Enable debug logging (deprecated, use --log-level debug)
+      --log-level <LEVEL>      Set log verbosity: off, error, warn, info, debug, trace
+  -p, --project <PROJECT>      Path to the Maven project
+      --force-run              Force spring-boot:run for launching (overrides auto)
+      --force-exec             Force exec:java for launching (overrides auto)
+  -h, --help                   Print help
 ```
 
 **Examples:**
@@ -297,9 +299,10 @@ When you have multiple tabs open, a tab bar appears at the top:
 lazymvn [OPTIONS]
 
 Options:
-  -d, --debug              Enable debug logging to lazymvn-debug.log
-  -p, --project <PATH>     Path to Maven project (defaults to current directory)
-  -h, --help               Print help information
+  -d, --debug                  Enable debug logging (deprecated, use --log-level debug)
+      --log-level <LEVEL>      Set log verbosity: off, error, warn, info, debug, trace
+  -p, --project <PATH>         Path to Maven project (defaults to current directory)
+  -h, --help                   Print help information
 ```
 
 ### Demo Projects
@@ -356,13 +359,33 @@ The application will log detected changes and recreate the file watcher if watch
 
 ### Debug Logging
 
-When troubleshooting issues, enable detailed debug logging:
+**Automatic in Development:** LazyMVN automatically enables debug logging in development builds (versions containing "unstable"). Logs are written to `~/.local/share/lazymvn/logs/` (or platform equivalent).
+
+**Configure Log Level:**
+
+You can control logging verbosity via command-line, configuration file, or default:
 
 ```bash
-lazymvn --debug
+# Command line (highest priority)
+lazymvn --log-level debug
+lazymvn --log-level error
+lazymvn --log-level off
+
+# Configuration file: lazymvn.toml
+log_level = "debug"   # trace, debug, info, warn, error, off
+
+# Default (if not specified):
+# - Development builds (unstable): debug
+# - Release builds: off
 ```
 
-This creates a `lazymvn-debug.log` file in the current directory with timestamped entries at INFO, DEBUG, and ERROR levels. The log file doesn't interfere with the TUI and can be monitored in a separate terminal:
+**Session-Based Logs:** Each LazyMVN session gets a unique ID, making it easy to isolate logs. Press `Y` (Shift+y) in the app to copy the current session's logs to your clipboard for sharing or debugging.
+
+**Log Files:**
+- `debug.log` - All log levels (debug, info, warn, error)
+- `error.log` - Only error messages
+
+The log files don't interfere with the TUI and can be monitored in a separate terminal:
 
 ```bash
 tail -f lazymvn-debug.log

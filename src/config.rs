@@ -10,6 +10,9 @@ pub struct Config {
     pub watch: Option<WatchConfig>,
     pub output: Option<OutputConfig>,
     pub logging: Option<LoggingConfig>,
+    /// Log verbosity level for LazyMVN itself (not Maven logs)
+    /// Options: "off", "error", "info", "debug" (default: "debug" in development)
+    pub log_level: Option<String>,
 }
 
 /// Logging configuration for controlling log verbosity via JVM arguments
