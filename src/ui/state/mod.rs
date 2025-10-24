@@ -1556,6 +1556,284 @@ impl TuiState {
         }
     }
 
+    /// Yank (copy) comprehensive debug information to clipboard
+    /// Includes: version info, git hash, logs, output from all tabs, and config file
+    pub fn yank_debug_info(&mut self) {
+        log::info!("Collecting comprehensive debug information");
+        
+        let mut debug_info = Vec::new();
+        
+        // Header
+        debug_info.push("=".repeat(80));
+        debug_info.push("LazyMVN Debug Report".to_string());
+        debug_info.push("=".repeat(80));
+        debug_info.push(format!("Generated: {}", chrono::Local::now().format("%Y-%m-%d %H:%M:%S")));
+        debug_info.push(String::new());
+        
+        // Version information
+        debug_info.push("=== Version Information ===".to_string());
+        debug_info.push(format!("LazyMVN Version: {}", env!("CARGO_PKG_VERSION")));
+        
+        // Git information (if available from build)
+        if let Some(date) = option_env!("VERGEN_BUILD_DATE") {
+            debug_info.push(format!("Build Date: {}", date));
+        }
+        if let Some(branch) = option_env!("VERGEN_GIT_BRANCH") {
+            debug_info.push(format!("Git Branch: {}", branch));
+        }
+        if let Some(sha) = option_env!("VERGEN_GIT_SHA") {
+            debug_info.push(format!("Git Commit: {}", sha));
+        }
+        debug_info.push(String::new());
+        
+        // System information
+        debug_info.push("=== System Information ===".to_string());
+        debug_info.push(format!("OS: {}", std::env::consts::OS));
+        debug_info.push(format!("Architecture: {}", std::env::consts::ARCH));
+        debug_info.push(String::new());
+        
+        // Configuration file
+        debug_info.push("=== Configuration (lazymvn.toml) ===".to_string());
+        let config_path = self.get_active_tab().project_root.join("lazymvn.toml");
+        if config_path.exists() {
+            match std::fs::read_to_string(&config_path) {
+                Ok(content) => {
+                    debug_info.push(content);
+                }
+                Err(e) => {
+                    debug_info.push(format!("Error reading config file: {}", e));
+                }
+            }
+        } else {
+            debug_info.push("(No lazymvn.toml configuration file found)".to_string());
+        }
+        debug_info.push(String::new());
+        
+        // Output from all tabs
+        debug_info.push("=== Output from All Tabs ===".to_string());
+        for (idx, tab) in self.tabs.iter().enumerate() {
+            let is_active = idx == self.active_tab_index;
+            let marker = if is_active { " [ACTIVE]" } else { "" };
+            let tab_name = tab.project_root.file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("Unknown");
+            debug_info.push(format!("--- Tab {}: {}{} ---", idx + 1, tab_name, marker));
+            debug_info.push(format!("Project Root: {}", tab.project_root.display()));
+            
+            // Get selected module for this tab
+            let selected_module = tab.modules_list_state
+                .selected()
+                .and_then(|i| tab.modules.get(i))
+                .map(|s| s.as_str())
+                .unwrap_or("<none>");
+            debug_info.push(format!("Module: {}", selected_module));
+            debug_info.push(format!("Output Lines: {}", tab.command_output.len()));
+            
+            if tab.command_output.is_empty() {
+                debug_info.push("(No output)".to_string());
+            } else {
+                // Include the last 100 lines of output to keep it manageable
+                let start_idx = if tab.command_output.len() > 100 {
+                    tab.command_output.len() - 100
+                } else {
+                    0
+                };
+                if start_idx > 0 {
+                    debug_info.push(format!("(Showing last {} lines of {})", 
+                        tab.command_output.len() - start_idx, 
+                        tab.command_output.len()));
+                }
+                for line in &tab.command_output[start_idx..] {
+                    debug_info.push(line.clone());
+                }
+            }
+            debug_info.push(String::new());
+        }
+        
+        // LazyMVN logs
+        debug_info.push("=== LazyMVN Logs ===".to_string());
+        let logs = crate::logger::get_all_logs();
+        debug_info.push(logs);
+        debug_info.push(String::new());
+        
+        // Footer
+        debug_info.push("=".repeat(80));
+        debug_info.push("End of Debug Report".to_string());
+        debug_info.push("=".repeat(80));
+        
+        let debug_text = debug_info.join("\n");
+        let lines = debug_info.len();
+        
+        log::info!("Collected {} lines of debug information", lines);
+        
+        // Copy to clipboard using the same mechanism as yank_output
+        #[cfg(target_os = "linux")]
+        {
+            use std::io::Write;
+            use std::process::{Command, Stdio};
+
+            // Try wl-copy (Wayland) first
+            if let Ok(mut child) = Command::new("wl-copy").stdin(Stdio::piped()).spawn()
+                && let Some(mut stdin) = child.stdin.take()
+                && stdin.write_all(debug_text.as_bytes()).is_ok()
+            {
+                drop(stdin);
+                if child.wait().is_ok() {
+                    log::info!("Copied debug info via wl-copy");
+                    let tab = self.get_active_tab_mut();
+                    tab.command_output.push(String::new());
+                    tab.command_output
+                        .push(format!("✓ Copied debug report ({} lines) to clipboard", lines));
+                    return;
+                }
+            }
+
+            // Try xclip (X11) as fallback
+            if let Ok(mut child) = Command::new("xclip")
+                .arg("-selection")
+                .arg("clipboard")
+                .stdin(Stdio::piped())
+                .spawn()
+                && let Some(mut stdin) = child.stdin.take()
+                && stdin.write_all(debug_text.as_bytes()).is_ok()
+            {
+                drop(stdin);
+                if child.wait().is_ok() {
+                    log::info!("Copied debug info via xclip");
+                    let tab = self.get_active_tab_mut();
+                    tab.command_output.push(String::new());
+                    tab.command_output
+                        .push(format!("✓ Copied debug report ({} lines) to clipboard", lines));
+                    return;
+                }
+            }
+
+            // Try xsel as another X11 fallback
+            if let Ok(mut child) = Command::new("xsel")
+                .arg("--clipboard")
+                .stdin(Stdio::piped())
+                .spawn()
+                && let Some(mut stdin) = child.stdin.take()
+                && stdin.write_all(debug_text.as_bytes()).is_ok()
+            {
+                drop(stdin);
+                if child.wait().is_ok() {
+                    log::info!("Copied debug info via xsel");
+                    let tab = self.get_active_tab_mut();
+                    tab.command_output.push(String::new());
+                    tab.command_output
+                        .push(format!("✓ Copied debug report ({} lines) to clipboard", lines));
+                    return;
+                }
+            }
+        }
+
+        // Windows: Use PowerShell Set-Clipboard
+        #[cfg(target_os = "windows")]
+        {
+            use std::io::Write;
+            use std::process::{Command, Stdio};
+
+            // Try PowerShell Set-Clipboard
+            if let Ok(mut child) = Command::new("powershell")
+                .arg("-Command")
+                .arg("$input | Set-Clipboard")
+                .stdin(Stdio::piped())
+                .spawn()
+            {
+                if let Some(mut stdin) = child.stdin.take() {
+                    if stdin.write_all(debug_text.as_bytes()).is_ok() {
+                        drop(stdin);
+                        if child.wait().is_ok() {
+                            log::info!("Copied debug info via PowerShell Set-Clipboard");
+                            let tab = self.get_active_tab_mut();
+                            tab.command_output.push(String::new());
+                            tab.command_output
+                                .push(format!("✓ Copied debug report ({} lines) to clipboard", lines));
+                            return;
+                        }
+                    }
+                }
+            }
+
+            // Try clip.exe as fallback (built-in Windows command)
+            if let Ok(mut child) = Command::new("clip").stdin(Stdio::piped()).spawn() {
+                if let Some(mut stdin) = child.stdin.take() {
+                    if stdin.write_all(debug_text.as_bytes()).is_ok() {
+                        drop(stdin);
+                        if child.wait().is_ok() {
+                            log::info!("Copied debug info via clip.exe");
+                            let tab = self.get_active_tab_mut();
+                            tab.command_output.push(String::new());
+                            tab.command_output
+                                .push(format!("✓ Copied debug report ({} lines) to clipboard", lines));
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+
+        // macOS: Use pbcopy
+        #[cfg(target_os = "macos")]
+        {
+            use std::io::Write;
+            use std::process::{Command, Stdio};
+
+            if let Ok(mut child) = Command::new("pbcopy").stdin(Stdio::piped()).spawn() {
+                if let Some(mut stdin) = child.stdin.take() {
+                    if stdin.write_all(debug_text.as_bytes()).is_ok() {
+                        drop(stdin);
+                        if child.wait().is_ok() {
+                            log::info!("Copied debug info via pbcopy");
+                            let tab = self.get_active_tab_mut();
+                            tab.command_output.push(String::new());
+                            tab.command_output
+                                .push(format!("✓ Copied debug report ({} lines) to clipboard", lines));
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Fallback to arboard if all system tools failed
+        let clipboard_result = if let Some(ref mut clipboard) = self.clipboard {
+            clipboard.set_text(debug_text)
+        } else {
+            match arboard::Clipboard::new() {
+                Ok(mut clipboard) => {
+                    let result = clipboard.set_text(debug_text);
+                    self.clipboard = Some(clipboard);
+                    result
+                }
+                Err(e) => {
+                    log::error!("Failed to initialize clipboard: {}", e);
+                    let tab = self.get_active_tab_mut();
+                    tab.command_output.push(String::new());
+                    tab.command_output
+                        .push(format!("✗ Clipboard not available: {}", e));
+                    return;
+                }
+            }
+        };
+
+        let tab = self.get_active_tab_mut();
+        match clipboard_result {
+            Ok(()) => {
+                log::info!("Copied debug report to clipboard via arboard");
+                tab.command_output.push(String::new());
+                tab.command_output
+                    .push(format!("✓ Copied debug report ({} lines) to clipboard", lines));
+            }
+            Err(e) => {
+                log::error!("Failed to copy debug report to clipboard: {}", e);
+                tab.command_output.push(String::new());
+                tab.command_output.push(format!("✗ Failed to copy debug report: {}", e));
+            }
+        }
+    }
+
     /// Get elapsed time of current command in seconds
     pub fn command_elapsed_seconds(&self) -> Option<u64> {
         let tab = self.get_active_tab();

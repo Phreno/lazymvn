@@ -250,3 +250,68 @@ pub fn init(log_level: Option<&str>) -> Result<(), SetLoggerError> {
 
     Ok(())
 }
+
+/// Read the last N lines from a file (tail-like functionality)
+fn read_last_lines(path: &PathBuf, max_lines: usize) -> Result<Vec<String>, std::io::Error> {
+    use std::io::{BufRead, BufReader};
+    
+    let file = File::open(path)?;
+    let reader = BufReader::new(file);
+    
+    // Read all lines and keep the last N
+    let all_lines: Vec<String> = reader.lines().collect::<Result<Vec<_>, _>>()?;
+    
+    let start_idx = if all_lines.len() > max_lines {
+        all_lines.len() - max_lines
+    } else {
+        0
+    };
+    
+    Ok(all_lines[start_idx..].to_vec())
+}
+
+/// Get all available logs (last 500 lines from debug and error logs)
+pub fn get_all_logs() -> String {
+    let mut output = Vec::new();
+    
+    // Add debug logs
+    if let Some(debug_path) = get_debug_log_path()
+        && debug_path.exists()
+    {
+        output.push("=== Debug Logs (last 500 lines) ===".to_string());
+        match read_last_lines(&debug_path, 500) {
+            Ok(lines) => {
+                if lines.is_empty() {
+                    output.push("(No debug logs)".to_string());
+                } else {
+                    output.extend(lines);
+                }
+            }
+            Err(e) => {
+                output.push(format!("Error reading debug logs: {}", e));
+            }
+        }
+        output.push(String::new());
+    }
+    
+    // Add error logs
+    if let Some(error_path) = get_error_log_path()
+        && error_path.exists()
+    {
+        output.push("=== Error Logs (last 500 lines) ===".to_string());
+        match read_last_lines(&error_path, 500) {
+            Ok(lines) => {
+                if lines.is_empty() {
+                    output.push("(No error logs)".to_string());
+                } else {
+                    output.extend(lines);
+                }
+            }
+            Err(e) => {
+                output.push(format!("Error reading error logs: {}", e));
+            }
+        }
+    }
+    
+    output.join("\n")
+}

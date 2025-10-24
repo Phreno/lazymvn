@@ -594,6 +594,10 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
             log::info!("Yank (copy) output to clipboard");
             state.yank_output();
         }
+        KeyCode::Char('Y') => {
+            log::info!("Yank (copy) debug report to clipboard");
+            state.yank_debug_info();
+        }
         KeyCode::Esc => {
             log::info!("Kill running process with Escape");
             state.kill_running_process();
