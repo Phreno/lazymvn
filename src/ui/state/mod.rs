@@ -117,8 +117,7 @@ pub struct TuiState {
     pub projects_list_state: ListState,
     pub show_projects_popup: bool,
 
-    // Spring Boot starters (global cache)
-    pub starters_cache: crate::starters::StartersCache,
+    // Spring Boot starters UI (global UI state, cache is per-tab)
     pub show_starter_selector: bool,
     pub show_starter_manager: bool,
     pub starter_candidates: Vec<String>,
@@ -279,7 +278,6 @@ impl TuiState {
             projects_list_state: ListState::default(),
             show_projects_popup: false,
 
-            starters_cache: crate::starters::StartersCache::new(),
             show_starter_selector: false,
             show_starter_manager: false,
             starter_candidates: Vec::new(),
@@ -2434,7 +2432,8 @@ max_updates_per_poll = 100
         log::info!("Showing starter manager");
         self.show_starter_manager = true;
 
-        if !self.starters_cache.starters.is_empty() {
+        let tab = self.get_active_tab();
+        if !tab.starters_cache.starters.is_empty() {
             self.starters_list_state.select(Some(0));
         }
     }
@@ -2452,10 +2451,11 @@ max_updates_per_poll = 100
                 log::info!("Selected starter: {}", fqcn);
 
                 let fqcn_clone = fqcn.clone();
-                let project_root = self.get_active_tab().project_root.clone();
+                let tab = self.get_active_tab_mut();
+                let project_root = tab.project_root.clone();
 
                 // Create a new starter entry if not already cached
-                if !self
+                if !tab
                     .starters_cache
                     .starters
                     .iter()
@@ -2466,20 +2466,20 @@ max_updates_per_poll = 100
                         .next_back()
                         .unwrap_or(&fqcn_clone)
                         .to_string();
-                    let is_default = self.starters_cache.starters.is_empty();
+                    let is_default = tab.starters_cache.starters.is_empty();
                     let starter =
                         crate::starters::Starter::new(fqcn_clone.clone(), label, is_default);
-                    self.starters_cache.add_starter(starter);
+                    tab.starters_cache.add_starter(starter);
 
                     // Save the cache
-                    if let Err(e) = self.starters_cache.save(&project_root) {
+                    if let Err(e) = tab.starters_cache.save(&project_root) {
                         log::error!("Failed to save starters cache: {}", e);
                     }
                 }
 
                 // Update last used
-                self.starters_cache.set_last_used(fqcn_clone.clone());
-                if let Err(e) = self.starters_cache.save(&project_root) {
+                tab.starters_cache.set_last_used(fqcn_clone.clone());
+                if let Err(e) = tab.starters_cache.save(&project_root) {
                     log::error!("Failed to save last used starter: {}", e);
                 }
 
@@ -2563,12 +2563,11 @@ max_updates_per_poll = 100
     }
 
     pub fn run_preferred_starter(&mut self) {
-        if let Some(starter) = self.starters_cache.get_preferred_starter() {
-            log::info!(
-                "Running preferred starter: {}",
-                starter.fully_qualified_class_name
-            );
-            self.run_spring_boot_starter(&starter.fully_qualified_class_name.clone());
+        let tab = self.get_active_tab();
+        if let Some(starter) = tab.starters_cache.get_preferred_starter() {
+            let fqcn = starter.fully_qualified_class_name.clone();
+            log::info!("Running preferred starter: {}", fqcn);
+            self.run_spring_boot_starter(&fqcn);
         } else {
             // No cached starter, show selector
             log::info!("No preferred starter found, showing selector");
@@ -2618,7 +2617,8 @@ max_updates_per_poll = 100
         let candidates = if self.show_starter_selector {
             self.get_filtered_starter_candidates()
         } else {
-            self.starters_cache
+            let tab = self.get_active_tab();
+            tab.starters_cache
                 .starters
                 .iter()
                 .map(|s| s.fully_qualified_class_name.clone())
@@ -2640,7 +2640,8 @@ max_updates_per_poll = 100
         let candidates = if self.show_starter_selector {
             self.get_filtered_starter_candidates()
         } else {
-            self.starters_cache
+            let tab = self.get_active_tab();
+            tab.starters_cache
                 .starters
                 .iter()
                 .map(|s| s.fully_qualified_class_name.clone())
@@ -2665,38 +2666,49 @@ max_updates_per_poll = 100
     }
 
     pub fn toggle_starter_default(&mut self) {
-        if let Some(idx) = self.starters_list_state.selected()
-            && let Some(starter) = self.starters_cache.starters.get(idx)
-        {
-            let fqcn = starter.fully_qualified_class_name.clone();
-            let project_root = self.get_active_tab().project_root.clone();
-            self.starters_cache.set_default(&fqcn);
+        if let Some(idx) = self.starters_list_state.selected() {
+            let tab = self.get_active_tab_mut();
+            if let Some(starter) = tab.starters_cache.starters.get(idx) {
+                let fqcn = starter.fully_qualified_class_name.clone();
+                let project_root = tab.project_root.clone();
+                tab.starters_cache.set_default(&fqcn);
 
-            if let Err(e) = self.starters_cache.save(&project_root) {
-                log::error!("Failed to save starters cache: {}", e);
+                if let Err(e) = tab.starters_cache.save(&project_root) {
+                    log::error!("Failed to save starters cache: {}", e);
+                }
             }
         }
     }
 
     pub fn remove_selected_starter(&mut self) {
-        if let Some(idx) = self.starters_list_state.selected()
-            && let Some(starter) = self.starters_cache.starters.get(idx)
-        {
-            let fqcn = starter.fully_qualified_class_name.clone();
-            let project_root = self.get_active_tab().project_root.clone();
-            if self.starters_cache.remove_starter(&fqcn) {
-                log::info!("Removed starter: {}", fqcn);
-
-                if let Err(e) = self.starters_cache.save(&project_root) {
-                    log::error!("Failed to save starters cache: {}", e);
+        if let Some(idx) = self.starters_list_state.selected() {
+            // First, try to remove the starter and get the resulting state
+            let (removed, new_len) = {
+                let tab = self.get_active_tab_mut();
+                if let Some(starter) = tab.starters_cache.starters.get(idx) {
+                    let fqcn = starter.fully_qualified_class_name.clone();
+                    let project_root = tab.project_root.clone();
+                    let removed = tab.starters_cache.remove_starter(&fqcn);
+                    
+                    if removed {
+                        log::info!("Removed starter: {}", fqcn);
+                        if let Err(e) = tab.starters_cache.save(&project_root) {
+                            log::error!("Failed to save starters cache: {}", e);
+                        }
+                    }
+                    
+                    (removed, tab.starters_cache.starters.len())
+                } else {
+                    (false, 0)
                 }
-
-                // Adjust selection
-                if self.starters_cache.starters.is_empty() {
+            };
+            
+            // Now adjust selection without holding a borrow to tab
+            if removed {
+                if new_len == 0 {
                     self.starters_list_state.select(None);
-                } else if idx >= self.starters_cache.starters.len() {
-                    self.starters_list_state
-                        .select(Some(self.starters_cache.starters.len() - 1));
+                } else if idx >= new_len {
+                    self.starters_list_state.select(Some(new_len - 1));
                 }
             }
         }

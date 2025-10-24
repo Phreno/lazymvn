@@ -56,6 +56,9 @@ pub struct ProjectTab {
     pub output_view_height: u16,
     pub output_area_width: u16,
     pub output_metrics: Option<OutputMetrics>,
+
+    // Spring Boot starters (tab-specific)
+    pub starters_cache: crate::starters::StartersCache,
 }
 
 impl ProjectTab {
@@ -144,6 +147,8 @@ impl ProjectTab {
         } else {
             (None, false)
         };
+        // Load starters cache for this project
+        let starters_cache = crate::starters::StartersCache::load(&project_root);
 
         Self {
             id,
@@ -170,6 +175,7 @@ impl ProjectTab {
             output_view_height: 0,
             output_area_width: 0,
             output_metrics: None,
+            starters_cache,
         }
     }
 

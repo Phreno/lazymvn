@@ -171,9 +171,10 @@ pub fn draw<B: Backend>(
 
         // Render starter manager popup if shown
         if state.show_starter_manager {
+            let starters = state.get_active_tab().starters_cache.starters.clone();
             render_starter_manager_popup(
                 f,
-                &state.starters_cache.starters,
+                &starters,
                 &mut state.starters_list_state,
             );
         }

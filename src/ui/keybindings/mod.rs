@@ -390,8 +390,9 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
             }
             KeyCode::Enter => {
                 log::info!("Run selected starter from manager");
+                let tab = state.get_active_tab();
                 if let Some(idx) = state.starters_list_state.selected()
-                    && let Some(starter) = state.starters_cache.starters.get(idx)
+                    && let Some(starter) = tab.starters_cache.starters.get(idx)
                 {
                     let fqcn = starter.fully_qualified_class_name.clone();
                     state.run_spring_boot_starter(&fqcn);
@@ -960,7 +961,7 @@ mod tests {
         let mut state = TuiState::new(vec!["module1".to_string()], PathBuf::from("."), config);
 
         // Ensure no cached starters
-        state.starters_cache.starters.clear();
+        state.get_active_tab_mut().starters_cache.starters.clear();
 
         // Simulate 's' key
         let s_event = KeyEvent {
@@ -1095,16 +1096,15 @@ mod tests {
         );
 
         // Clear any loaded starters and add fresh ones
-        state.starters_cache.starters.clear();
-        state
-            .starters_cache
+        let tab = state.get_active_tab_mut();
+        tab.starters_cache.starters.clear();
+        tab.starters_cache
             .add_starter(crate::starters::Starter::new(
                 "com.example.App1".to_string(),
                 "App1".to_string(),
                 false,
             ));
-        state
-            .starters_cache
+        tab.starters_cache
             .add_starter(crate::starters::Starter::new(
                 "com.example.App2".to_string(),
                 "App2".to_string(),
@@ -1123,8 +1123,9 @@ mod tests {
         };
 
         handle_key_event(space_event, &mut state);
-        assert!(state.starters_cache.starters[1].is_default);
-        assert!(!state.starters_cache.starters[0].is_default);
+        let tab = state.get_active_tab();
+        assert!(tab.starters_cache.starters[1].is_default);
+        assert!(!tab.starters_cache.starters[0].is_default);
     }
 
     #[test]
@@ -1138,9 +1139,9 @@ mod tests {
         );
 
         // Clear any loaded starters and add fresh one
-        state.starters_cache.starters.clear();
-        state
-            .starters_cache
+        let tab = state.get_active_tab_mut();
+        tab.starters_cache.starters.clear();
+        tab.starters_cache
             .add_starter(crate::starters::Starter::new(
                 "com.example.App1".to_string(),
                 "App1".to_string(),
@@ -1159,7 +1160,8 @@ mod tests {
         };
 
         handle_key_event(d_event, &mut state);
-        assert_eq!(state.starters_cache.starters.len(), 0);
+        let tab = state.get_active_tab();
+        assert_eq!(tab.starters_cache.starters.len(), 0);
     }
 
     #[test]
