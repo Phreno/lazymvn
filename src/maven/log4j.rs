@@ -9,28 +9,49 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-/// Generate a temporary Log4j 1.x properties file with the specified logging overrides
+/// Generate a Log4j 1.x configuration file with logging overrides
 ///
-/// Returns the path to the generated file, or None if generation failed
+/// This function creates a Log4j properties file in LazyMVN's config directory
+/// that overrides the default log4j.properties bundled in the application JAR.
+///
+/// # Arguments
+/// * `project_root` - The root directory of the Maven project (used for hashing)
+/// * `logging_overrides` - List of (package, level) tuples to override
+///
+/// # Returns
+/// * `Some(PathBuf)` - Path to the generated config file
+/// * `None` - If file creation failed
 pub fn generate_log4j_config(
     project_root: &Path,
     logging_overrides: &[(String, String)],
 ) -> Option<PathBuf> {
-    if logging_overrides.is_empty() {
+    // Use LazyMVN's config directory (~/.config/lazymvn/)
+    let config_dir = dirs::config_dir()
+        .unwrap_or_else(|| dirs::home_dir().unwrap_or_else(|| PathBuf::from(".")))
+        .join("lazymvn")
+        .join("log4j");
+    
+    if let Err(e) = fs::create_dir_all(&config_dir) {
+        log::error!("Failed to create log4j config directory: {}", e);
         return None;
     }
+    
+    // Create a hash of the project root path for unique filename
+    let hash = format!(
+        "{:x}",
+        md5::compute(project_root.to_string_lossy().as_bytes())
+    )
+    .chars()
+    .take(8)
+    .collect::<String>();
 
-    // Create .lazymvn directory in project root for temp files
-    let temp_dir = project_root.join(".lazymvn");
-    if let Err(e) = fs::create_dir_all(&temp_dir) {
-        log::error!("Failed to create .lazymvn directory: {}", e);
-        return None;
-    }
-
-    let config_path = temp_dir.join("log4j-override.properties");
+    let config_path = config_dir.join(format!("log4j-override-{}.properties", hash));
 
     // Generate Log4j 1.x properties content
     let mut content = String::new();
+    content.push_str("# LazyMVN Generated Log4j 1.x Configuration\n");
+    content.push_str("# This file is auto-generated and managed by LazyMVN\n");
+    content.push('\n');
     
     // Root logger configuration
     content.push_str("# LazyMVN Generated Log4j 1.x Configuration\n");

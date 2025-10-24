@@ -64,7 +64,7 @@ When launching a Spring Boot application (`s` key):
 
 1. **Read configuration**: LazyMVN reads `[logging]` section from `lazymvn.toml`
 
-2. **Generate Log4j file**: Creates `.lazymvn/log4j-override.properties` in project root:
+2. **Generate Log4j file**: Creates configuration in `~/.config/lazymvn/log4j/`:
    ```properties
    # LazyMVN Generated Log4j 1.x Configuration
    log4j.rootLogger=INFO, CONSOLE
@@ -79,21 +79,29 @@ When launching a Spring Boot application (`s` key):
    # ... etc
    ```
 
-3. **Inject configuration**: Adds JVM argument:
+3. **Inject configuration**: Adds JVM argument pointing to the config directory:
    ```bash
-   -Dlog4j.configuration=file:///absolute/path/to/.lazymvn/log4j-override.properties
+   -Dlog4j.configuration=file:///home/user/.config/lazymvn/log4j/log4j-override-a1b2c3d4.properties
    ```
 
 4. **Backward compatibility**: Also adds `-Dlogging.level.*` for Logback/Spring Boot 2+
 
 ### File Location
 
-The generated Log4j configuration is stored in:
+The generated Log4j configuration is stored in LazyMVN's config directory:
 ```
-<project-root>/.lazymvn/log4j-override.properties
+~/.config/lazymvn/log4j/log4j-override-<hash>.properties
 ```
 
-This directory is automatically created and is added to `.gitignore` so it doesn't pollute the repository.
+Where:
+- **Linux/macOS**: `~/.config/lazymvn/log4j/`
+- **Windows**: `%APPDATA%\lazymvn\log4j\`
+- **Hash**: First 8 characters of MD5 hash of project path (to support multiple projects)
+
+This keeps all LazyMVN configuration in one place, alongside:
+- `~/.config/lazymvn/cache.json` - Module cache
+- `~/.config/lazymvn/recent.json` - Recent projects
+- `~/.config/lazymvn/starters/` - Spring Boot starter cache
 
 ## Implementation Details
 
@@ -109,12 +117,13 @@ pub fn generate_log4j_config(
 ) -> Option<PathBuf>
 ```
 
-Generates a temporary Log4j 1.x properties file with:
+Generates a Log4j 1.x properties file with:
 - Standard console appender
 - Root logger at INFO level
 - All logging overrides as `log4j.logger.<package>=<level>`
+- Unique filename based on project path hash
 
-Returns the path to the generated file.
+Returns the path to the generated file in `~/.config/lazymvn/log4j/`.
 
 #### `detect_log4j1_usage()` (for future use)
 ```rust
@@ -194,13 +203,13 @@ src/maven/
 3. Launch the app (press `s`)
 
 4. **Expected results:**
-   - File `.lazymvn/log4j-override.properties` is created
+   - File `~/.config/lazymvn/log4j/log4j-override-<hash>.properties` is created
    - Application logs show reduced Spring Framework output
    - Debug log shows: `"Injecting Log4j 1.x configuration: file:///..."`
 
 5. Check the generated file:
    ```bash
-   cat /path/to/project/.lazymvn/log4j-override.properties
+   cat ~/.config/lazymvn/log4j/log4j-override-*.properties
    ```
 
 ### Automated Tests
@@ -237,10 +246,12 @@ Tests verify:
 ## Benefits
 
 1. **Zero user effort**: Just configure `lazymvn.toml` and it works
-2. **No repository pollution**: `.lazymvn/` directory is gitignored
-3. **Backward compatible**: Works with both Log4j 1.x and Logback
-4. **Safe**: If not needed, generated file is simply ignored
-5. **Flexible**: User can still override by providing their own `log4j.configuration`
+2. **No repository pollution**: Config stored in system directory (`~/.config/lazymvn/`)
+3. **Multi-project support**: Unique file per project using path hash
+4. **Backward compatible**: Works with both Log4j 1.x and Logback
+5. **Safe**: If not needed, generated file is simply ignored
+6. **Flexible**: User can still override by providing their own `log4j.configuration`
+7. **Centralized**: All LazyMVN config in one place
 
 ## Future Enhancements
 
@@ -267,7 +278,6 @@ Tests verify:
 - `src/maven/log4j.rs` - NEW: Log4j configuration generation
 - `src/maven/mod.rs` - Export new Log4j module
 - `src/ui/state/mod.rs` - Integrate Log4j config generation in launch flow
-- `.gitignore` - Ignore `.lazymvn/` directory
 
 ## Status
 

@@ -1,9 +1,6 @@
 /target
 lazymvn-*.log
 
-# LazyMVN generated files
-.lazymvn/
-
 # Development environment
 .devcontainer/cargo-cache/
 .vscode/settings.json
