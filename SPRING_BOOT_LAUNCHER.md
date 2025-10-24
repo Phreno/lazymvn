@@ -87,7 +87,7 @@ mvn "-Dspring-boot.run.profiles=dev,debug" \
 ### Avec `exec:java` (fallback ou force-exec)
 
 ```bash
-mvn "-Dexec.mainClass=fr.laposte.app.ApplicationStarter" \
+mvn "-Dexec.mainClass=fr.company.app.ApplicationStarter" \
     "-Dfoo=bar" \
     -pl war \
     --settings maven_settings.xml \
@@ -198,7 +198,7 @@ Quand `--debug` est activé :
 [INFO] Detecting Spring Boot capabilities for module: Some("war")
 [DEBUG] Found spring-boot-maven-plugin
 [DEBUG] Found packaging: jar
-[DEBUG] Found mainClass 'fr.laposte.app.App' in spring-boot-maven-plugin
+[DEBUG] Found mainClass 'fr.company.app.App' in spring-boot-maven-plugin
 [INFO] Spring Boot detection results: plugin=true, exec=false, mainClass=Some("..."), packaging=Some("jar")
 [INFO] Auto mode: Spring Boot plugin detected, using spring-boot:run
 [INFO] Built spring-boot:run command with 1 profile(s) and 2 JVM arg(s)
@@ -234,7 +234,7 @@ Quand `--debug` est activé :
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-maven-plugin</artifactId>
             <configuration>
-                <mainClass>fr.laposte.app.ApplicationStarter</mainClass>
+                <mainClass>fr.company.app.ApplicationStarter</mainClass>
             </configuration>
         </plugin>
     </plugins>

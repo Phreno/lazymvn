@@ -202,12 +202,12 @@ mvn "-Dspring-boot.run.profiles=dev,debug" `
 
 **Entrée :**
 - Strategy: ExecJava
-- Main class: "fr.laposte.app.ApplicationStarter"
+- Main class: "fr.company.app.ApplicationStarter"
 - JVM args: ["-Dfoo=bar"]
 
 **Sortie (Unix) :**
 ```bash
-mvn -Dexec.mainClass=fr.laposte.app.ApplicationStarter \
+mvn -Dexec.mainClass=fr.company.app.ApplicationStarter \
     -Dfoo=bar \
     -pl my-module \
     exec:java
@@ -215,7 +215,7 @@ mvn -Dexec.mainClass=fr.laposte.app.ApplicationStarter \
 
 **Sortie (Windows) :**
 ```powershell
-mvn "-Dexec.mainClass=fr.laposte.app.ApplicationStarter" `
+mvn "-Dexec.mainClass=fr.company.app.ApplicationStarter" `
     "-Dfoo=bar" `
     -pl my-module `
     exec:java
