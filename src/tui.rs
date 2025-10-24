@@ -342,6 +342,7 @@ mod tests {
             watch: None,
             output: None,
             logging: None,
+            spring: None,
         }
     }
 

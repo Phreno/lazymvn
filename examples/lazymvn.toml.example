@@ -98,3 +98,34 @@ packages = [
 # - Easily reversible (remove from config)
 # - Works across all modules without finding the right log4j.properties
 
+# Spring Boot properties override
+# These properties are automatically injected when launching Spring Boot apps
+# Generated file location: ~/.config/lazymvn/spring/application-override-<hash>.properties
+[spring]
+# List of Spring Boot properties to override
+# These have HIGHEST priority - LazyMVN has the last word
+properties = [
+    { name = "server.port", value = "8081" },
+    { name = "spring.datasource.url", value = "jdbc:postgresql://localhost:5432/mydb" },
+    { name = "spring.datasource.username", value = "dev" },
+    { name = "spring.jpa.show-sql", value = "false" },
+    { name = "management.endpoints.web.exposure.include", value = "health,info,metrics" },
+]
+
+# Active Spring profiles (comma-separated values)
+# Equivalent to -Dspring.profiles.active=dev,local
+active_profiles = ["dev", "local"]
+
+# Use cases:
+# - Switch between local/staging/production databases
+# - Change server ports for local development
+# - Enable/disable features per environment
+# - Override any Spring Boot property without modifying source
+#
+# Benefits:
+# - Zero repository footprint (config stored in ~/.config/lazymvn/)
+# - Per-developer preferences
+# - Easy environment switching
+# - Properties visible in debug logs
+# - Strong override (LazyMVN has the last word)
+

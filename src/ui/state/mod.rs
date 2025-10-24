@@ -2862,6 +2862,54 @@ max_updates_per_poll = 100
                     log::debug!("  JVM arg: {}", arg);
                 }
 
+                // Generate Spring Boot properties override file if [spring] config exists
+                if let Some(ref spring_config) = tab.config.spring {
+                    log::debug!("Found spring config with {} properties and {} profiles", 
+                        spring_config.properties.len(),
+                        spring_config.active_profiles.len()
+                    );
+                    
+                    // Convert SpringProperty to (String, String) tuples
+                    let spring_properties: Vec<(String, String)> = spring_config
+                        .properties
+                        .iter()
+                        .map(|prop| (prop.name.clone(), prop.value.clone()))
+                        .collect();
+                    
+                    // Generate Spring properties file
+                    if let Some(spring_config_path) = crate::maven::generate_spring_properties(
+                        &tab.project_root,
+                        &spring_properties,
+                        &spring_config.active_profiles,
+                    ) {
+                        // Convert path to URL format for Spring configuration
+                        let config_url = if cfg!(windows) {
+                            // Windows: file:///C:/path/to/file
+                            format!("file:///{}", spring_config_path.display().to_string().replace('\\', "/"))
+                        } else {
+                            // Unix: file:///path/to/file
+                            format!("file://{}", spring_config_path.display())
+                        };
+                        
+                        log::info!("Injecting Spring Boot properties override: {}", config_url);
+                        log::debug!("Spring properties will OVERRIDE project defaults (LazyMVN has the last word)");
+                        
+                        // Add Spring config location argument
+                        // Using spring.config.additional-location ensures our config has highest priority
+                        jvm_args.push(format!("-Dspring.config.additional-location={}", config_url));
+                        
+                        // Log each property for debugging
+                        for (name, value) in &spring_properties {
+                            log::debug!("  Spring property override: {}={}", name, value);
+                        }
+                        if !spring_config.active_profiles.is_empty() {
+                            log::debug!("  Spring active profiles: {}", spring_config.active_profiles.join(","));
+                        }
+                    }
+                } else {
+                    log::debug!("No spring config found in tab.config");
+                }
+
                 // Build launch command with the strategy
                 let command_parts = crate::maven::build_launch_command(
                     strategy,

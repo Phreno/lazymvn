@@ -21,6 +21,12 @@ This directory contains example configuration files for LazyMVN.
   - spring-boot:run launch mode
   - Common Spring Boot logging configuration
 
+- **[lazymvn.toml.spring-properties-example](lazymvn.toml.spring-properties-example)** - Spring Boot properties override
+  - Override application.properties without modifying source
+  - Environment switching (local/staging/production)
+  - Database configuration overrides
+  - Strong override priority (LazyMVN has the last word)
+
 - **[lazymvn.toml.watch-example](lazymvn.toml.watch-example)** - File watching configuration
   - Auto-reload on file changes
   - Configurable file patterns

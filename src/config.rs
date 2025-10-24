@@ -10,6 +10,7 @@ pub struct Config {
     pub watch: Option<WatchConfig>,
     pub output: Option<OutputConfig>,
     pub logging: Option<LoggingConfig>,
+    pub spring: Option<SpringConfig>,
 }
 
 /// Logging configuration for controlling log verbosity via JVM arguments
@@ -27,6 +28,27 @@ pub struct PackageLogLevel {
     pub name: String,
     /// Log level (e.g., "ERROR", "WARN", "INFO", "DEBUG", "TRACE")
     pub level: String,
+}
+
+/// Spring Boot configuration overrides
+#[derive(Deserialize, Clone, Debug, Default, PartialEq)]
+pub struct SpringConfig {
+    /// List of Spring Boot properties to override
+    #[serde(default)]
+    pub properties: Vec<SpringProperty>,
+    
+    /// Active profiles (alternative to -Dspring.profiles.active)
+    #[serde(default)]
+    pub active_profiles: Vec<String>,
+}
+
+/// Spring Boot property override
+#[derive(Deserialize, Clone, Debug, PartialEq)]
+pub struct SpringProperty {
+    /// Property name (e.g., "server.port")
+    pub name: String,
+    /// Property value (e.g., "8081")
+    pub value: String,
 }
 
 /// Output buffer configuration

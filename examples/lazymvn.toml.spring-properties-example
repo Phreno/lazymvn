@@ -1,0 +1,101 @@
+# LazyMVN Spring Boot Properties Override Example
+# This example shows how to use the [spring] section to override
+# Spring Boot application.properties without modifying your codebase
+
+# Spring Boot properties override
+[spring]
+# Properties to override (highest priority)
+properties = [
+    # Server configuration
+    { name = "server.port", value = "8081" },
+    { name = "server.servlet.context-path", value = "/api" },
+    
+    # Database configuration - Local PostgreSQL
+    { name = "spring.datasource.url", value = "jdbc:postgresql://localhost:5432/myapp_dev" },
+    { name = "spring.datasource.username", value = "dev_user" },
+    { name = "spring.datasource.password", value = "dev_password" },
+    
+    # JPA/Hibernate configuration
+    { name = "spring.jpa.show-sql", value = "true" },
+    { name = "spring.jpa.hibernate.ddl-auto", value = "update" },
+    { name = "spring.jpa.properties.hibernate.format_sql", value = "true" },
+    
+    # Actuator endpoints
+    { name = "management.endpoints.web.exposure.include", value = "health,info,metrics,env" },
+    { name = "management.endpoint.health.show-details", value = "always" },
+    
+    # Logging (Spring Boot Logback style)
+    { name = "logging.level.org.springframework.web", value = "DEBUG" },
+    { name = "logging.level.org.hibernate.SQL", value = "DEBUG" },
+]
+
+# Active Spring profiles
+# These are activated when launching the application
+active_profiles = ["dev", "local", "h2"]
+
+# ============================================================================
+# COMMON USE CASES
+# ============================================================================
+
+# Example 1: Switch to staging database
+# [spring]
+# properties = [
+#     { name = "spring.datasource.url", value = "jdbc:postgresql://staging-db.example.com:5432/myapp" },
+#     { name = "spring.datasource.username", value = "staging_user" },
+# ]
+# active_profiles = ["staging"]
+
+# Example 2: Local development with H2
+# [spring]
+# properties = [
+#     { name = "spring.datasource.url", value = "jdbc:h2:mem:testdb" },
+#     { name = "spring.h2.console.enabled", value = "true" },
+#     { name = "spring.jpa.show-sql", value = "true" },
+# ]
+# active_profiles = ["dev", "h2"]
+
+# Example 3: Debug mode with verbose logging
+# [spring]
+# properties = [
+#     { name = "logging.level.root", value = "DEBUG" },
+#     { name = "logging.level.com.mycompany", value = "TRACE" },
+#     { name = "spring.jpa.show-sql", value = "true" },
+# ]
+# active_profiles = ["dev", "debug"]
+
+# Example 4: External API configuration
+# [spring]
+# properties = [
+#     { name = "api.external.url", value = "http://localhost:3000" },
+#     { name = "api.external.timeout", value = "5000" },
+#     { name = "api.external.retry.enabled", value = "true" },
+# ]
+
+# ============================================================================
+# HOW IT WORKS
+# ============================================================================
+# 
+# 1. LazyMVN reads [spring] section from lazymvn.toml
+# 2. Generates: ~/.config/lazymvn/spring/application-override-<hash>.properties
+# 3. Injects: -Dspring.config.additional-location=file:///path/to/override.properties
+# 4. Spring Boot loads this config with HIGHEST priority
+# 5. Your overrides take precedence over project defaults
+#
+# Benefits:
+# - Zero repository footprint (no .gitignore needed)
+# - Per-developer configuration
+# - Easy environment switching
+# - Visible in debug logs (lazymvn --debug)
+# - Strong override (LazyMVN has the last word)
+#
+# File location:
+# - Linux/macOS: ~/.config/lazymvn/spring/
+# - Windows: %APPDATA%\lazymvn\spring\
+#
+# The generated file contains something like:
+#
+#   # LazyMVN Generated Spring Boot Configuration
+#   spring.profiles.active=dev,local
+#   server.port=8081
+#   spring.datasource.url=jdbc:postgresql://localhost:5432/myapp_dev
+#   ...
