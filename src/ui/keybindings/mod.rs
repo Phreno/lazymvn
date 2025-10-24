@@ -16,7 +16,7 @@ struct ModuleAction {
     suffix: &'static str,
 }
 
-const MODULE_ACTIONS: [ModuleAction; 10] = [
+const MODULE_ACTIONS: [ModuleAction; 9] = [
     ModuleAction {
         key_display: "b",
         prefix: "",
@@ -61,11 +61,6 @@ const MODULE_ACTIONS: [ModuleAction; 10] = [
         key_display: "y",
         prefix: "",
         suffix: "ank output",
-    },
-    ModuleAction {
-        key_display: "Y",
-        prefix: "",
-        suffix: "ank logs",
     },
 ];
 
@@ -598,10 +593,6 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
         KeyCode::Char('y') => {
             log::info!("Yank (copy) output to clipboard");
             state.yank_output();
-        }
-        KeyCode::Char('Y') => {
-            log::info!("Yank (copy) debug logs to clipboard");
-            state.yank_logs();
         }
         KeyCode::Esc => {
             log::info!("Kill running process with Escape");

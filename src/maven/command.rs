@@ -132,12 +132,9 @@ pub fn build_command_string_with_options(
         parts.push(flag.to_string());
     }
 
-    // Add logging overrides as JVM arguments
-    for (package, level) in logging_overrides {
-        // Support multiple logging frameworks
-        parts.push(format!("-Dlog4j.logger.{}={}", package, level));
-        parts.push(format!("-Dlogging.level.{}={}", package, level));
-    }
+    // Note: logging_overrides are handled by the caller and included in args
+    // (either as spring-boot.run.jvmArguments or exec.args)
+    // We don't add them here to avoid duplication
 
     for arg in args {
         parts.push(arg.to_string());

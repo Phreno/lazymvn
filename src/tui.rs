@@ -342,7 +342,6 @@ mod tests {
             watch: None,
             output: None,
             logging: None,
-            log_level: None,
         }
     }
 
