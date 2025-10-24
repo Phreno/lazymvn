@@ -347,6 +347,9 @@ impl TuiState {
         recent.add(resolved_root);
         self.recent_projects = recent.get_projects();
 
+        // Load profiles asynchronously for the new tab
+        self.start_loading_profiles();
+
         Ok(self.active_tab_index)
     }
 
