@@ -52,7 +52,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Initialize logger based on debug flag
-    if let Err(e) = logger::init(cli.debug) {
+    let log_level = if cli.debug { Some("debug") } else { None };
+    if let Err(e) = logger::init(log_level) {
         eprintln!("Failed to initialize logger: {}", e);
     }
 

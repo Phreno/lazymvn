@@ -93,11 +93,13 @@ pub fn get_error_log_path() -> Option<PathBuf> {
 }
 
 /// Get the current session ID
+#[allow(dead_code)]
 pub fn get_session_id() -> Option<String> {
     LOGGER.session_id.lock().ok()?.clone()
 }
 
 /// Extract logs for the current session from a log file
+#[allow(dead_code)]
 fn extract_session_logs(log_path: &PathBuf, session_id: &str) -> Result<Vec<String>, std::io::Error> {
     use std::io::{BufRead, BufReader};
     
@@ -128,6 +130,7 @@ fn extract_session_logs(log_path: &PathBuf, session_id: &str) -> Result<Vec<Stri
 }
 
 /// Get concatenated logs from the current session (debug + error logs)
+#[allow(dead_code)]
 pub fn get_current_session_logs() -> Result<String, String> {
     let session_id = get_session_id().ok_or("No session ID available")?;
     

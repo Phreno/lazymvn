@@ -93,7 +93,7 @@ pub fn build_command_string_with_options(
     flags: &[String],
     use_file_flag: bool,
     project_root: &Path,
-    logging_overrides: &[(String, String)],
+    _logging_overrides: &[(String, String)],
 ) -> String {
     let mut parts = vec![maven_command.to_string()];
 
@@ -447,10 +447,18 @@ pub fn execute_maven_command_async_with_options(
     }
 
     // Add logging overrides
-    for (package, level) in &logging_overrides {
-        command.arg(format!("-Dlog4j.logger.{}={}", package, level));
-        command.arg(format!("-Dlogging.level.{}={}", package, level));
-        log::debug!("Added logging override: {} = {}", package, level);
+    // Note: For spring-boot:run, logging overrides are already included in
+    // -Dspring-boot.run.jvmArguments= (see build_launch_command in detection.rs).
+    // We only add them as Maven system properties for other launch strategies.
+    let has_spring_boot_jvm_args = args.iter().any(|arg| arg.starts_with("-Dspring-boot.run.jvmArguments="));
+    if !has_spring_boot_jvm_args {
+        for (package, level) in &logging_overrides {
+            command.arg(format!("-Dlog4j.logger.{}={}", package, level));
+            command.arg(format!("-Dlogging.level.{}={}", package, level));
+            log::debug!("Added logging override: {} = {}", package, level);
+        }
+    } else {
+        log::debug!("Skipping logging overrides as Maven properties (already in spring-boot.run.jvmArguments)");
     }
 
     let project_root = project_root.to_path_buf();
