@@ -237,28 +237,29 @@ fn get_config_dir() -> PathBuf {
     config_dir
 }
 
-pub fn load_config(project_root: &Path) -> Config {
+/// Load configuration from project root, returning Result with parse errors
+pub fn load_config_with_result(project_root: &Path) -> Result<Config, String> {
     log::debug!("Loading config from project root: {:?}", project_root);
-    let mut config: Config = {
-        let config_path = project_root.join("lazymvn.toml");
-        log::debug!("Checking for config file at: {:?}", config_path);
-        if let Ok(content) = fs::read_to_string(&config_path) {
-            log::info!("Found lazymvn.toml, parsing configuration");
-            match toml::from_str(&content) {
-                Ok(cfg) => {
-                    log::debug!("Successfully parsed lazymvn.toml");
-                    cfg
-                }
-                Err(e) => {
-                    log::error!("Failed to parse lazymvn.toml: {}", e);
-                    log::error!("Using default configuration instead");
-                    Config::default()
-                }
+    let config_path = project_root.join("lazymvn.toml");
+    log::debug!("Checking for config file at: {:?}", config_path);
+    
+    let mut config: Config = if let Ok(content) = fs::read_to_string(&config_path) {
+        log::info!("Found lazymvn.toml, parsing configuration");
+        match toml::from_str(&content) {
+            Ok(cfg) => {
+                log::debug!("Successfully parsed lazymvn.toml");
+                cfg
             }
-        } else {
-            log::debug!("No lazymvn.toml found, using defaults");
-            Config::default()
+            Err(e) => {
+                let error_msg = format!("Failed to parse lazymvn.toml: {}", e);
+                log::error!("{}", error_msg);
+                log::error!("Using default configuration instead");
+                return Err(error_msg);
+            }
         }
+    } else {
+        log::debug!("No lazymvn.toml found, using defaults");
+        Config::default()
     };
 
     if config.maven_settings.is_none() {
@@ -283,7 +284,15 @@ pub fn load_config(project_root: &Path) -> Config {
         log::debug!("No logging configuration found in lazymvn.toml");
     }
 
-    config
+    Ok(config)
+}
+
+/// Load configuration from project root (legacy compatibility, swallows errors)
+pub fn load_config(project_root: &Path) -> Config {
+    load_config_with_result(project_root).unwrap_or_else(|e| {
+        log::warn!("Using default config due to error: {}", e);
+        Config::default()
+    })
 }
 
 fn find_maven_settings(project_root: &Path) -> Option<PathBuf> {

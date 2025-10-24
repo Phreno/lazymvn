@@ -197,7 +197,11 @@ fn run<B: ratatui::backend::Backend>(
     recent_projects.add(project_root.clone());
 
     // Load config and apply CLI overrides for launch mode
-    let mut config = config::load_config(&project_root);
+    let config_result = config::load_config_with_result(&project_root);
+    let mut config = match &config_result {
+        Ok(cfg) => cfg.clone(),
+        Err(_) => config::Config::default(),
+    };
 
     // CLI flags override config file
     if cli.force_run {
@@ -216,6 +220,19 @@ fn run<B: ratatui::backend::Backend>(
     loading_step!(progress, terminal, 3, 5, "Initializing UI state...");
 
     let mut state = tui::TuiState::new(modules, project_root.clone(), config);
+    
+    // Show configuration error if parsing failed
+    if let Err(parse_error) = config_result {
+        let tab = state.get_active_tab_mut();
+        tab.command_output = vec![
+            "⚠️  Configuration file has syntax errors!".to_string(),
+            String::new(),
+            parse_error,
+            String::new(),
+            "Using default configuration instead.".to_string(),
+            "Press 'E' to edit lazymvn.toml and fix the errors.".to_string(),
+        ];
+    }
 
     // Step 4: Discovering Maven profiles (asynchronous)
     loading_step!(progress, terminal, 4, 5, "Starting profile discovery...");
@@ -284,7 +301,11 @@ fn run<B: ratatui::backend::Backend>(
                     recent_projects.add(new_project_root.clone());
 
                     // Load config and apply CLI overrides
-                    let mut new_config = config::load_config(&new_project_root);
+                    let config_result = config::load_config_with_result(&new_project_root);
+                    let mut new_config = match &config_result {
+                        Ok(cfg) => cfg.clone(),
+                        Err(_) => config::Config::default(),
+                    };
                     if cli.force_run {
                         new_config.launch_mode = Some(config::LaunchMode::ForceRun);
                     } else if cli.force_exec {
@@ -296,6 +317,19 @@ fn run<B: ratatui::backend::Backend>(
 
                     // Create new state
                     state = tui::TuiState::new(new_modules, new_project_root.clone(), new_config);
+                    
+                    // Show configuration error if parsing failed
+                    if let Err(parse_error) = config_result {
+                        let tab = state.get_active_tab_mut();
+                        tab.command_output = vec![
+                            "⚠️  Configuration file has syntax errors!".to_string(),
+                            String::new(),
+                            parse_error,
+                            String::new(),
+                            "Using default configuration instead.".to_string(),
+                            "Press 'E' to edit lazymvn.toml and fix the errors.".to_string(),
+                        ];
+                    }
 
                     // Load profiles asynchronously
                     state.start_loading_profiles();
@@ -331,25 +365,39 @@ fn run<B: ratatui::backend::Backend>(
 
                         // Reload configuration
                         let project_root = state.get_active_tab().project_root.clone();
-                        let new_config = config::load_config(&project_root);
+                        match config::load_config_with_result(&project_root) {
+                            Ok(new_config) => {
+                                // Apply configuration changes
+                                let config_changed = state.reload_config(new_config);
 
-                        // Apply configuration changes
-                        let config_changed = state.reload_config(new_config);
-
-                        if config_changed {
-                            let tab = state.get_active_tab_mut();
-                            tab.command_output = vec![
-                                "✅ Configuration file saved and reloaded.".to_string(),
-                                String::new(),
-                                "Changes have been applied successfully.".to_string(),
-                            ];
-                            log::info!("Configuration reloaded successfully");
-                        } else {
-                            let tab = state.get_active_tab_mut();
-                            tab.command_output = vec![
-                                "✅ Configuration file saved (no changes detected).".to_string(),
-                            ];
-                            log::info!("Configuration unchanged");
+                                if config_changed {
+                                    let tab = state.get_active_tab_mut();
+                                    tab.command_output = vec![
+                                        "✅ Configuration file saved and reloaded.".to_string(),
+                                        String::new(),
+                                        "Changes have been applied successfully.".to_string(),
+                                    ];
+                                    log::info!("Configuration reloaded successfully");
+                                } else {
+                                    let tab = state.get_active_tab_mut();
+                                    tab.command_output = vec![
+                                        "✅ Configuration file saved (no changes detected).".to_string(),
+                                    ];
+                                    log::info!("Configuration unchanged");
+                                }
+                            }
+                            Err(parse_error) => {
+                                let tab = state.get_active_tab_mut();
+                                tab.command_output = vec![
+                                    "❌ Configuration file has syntax errors!".to_string(),
+                                    String::new(),
+                                    parse_error,
+                                    String::new(),
+                                    "Using default configuration instead.".to_string(),
+                                    "Please fix the TOML syntax and save again.".to_string(),
+                                ];
+                                log::error!("Configuration reload failed due to parse error");
+                            }
                         }
                     } else {
                         log::warn!("Editor exited with non-zero status: {:?}", exit_status);
