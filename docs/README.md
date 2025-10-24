@@ -37,6 +37,7 @@ This directory contains detailed documentation for LazyMVN features, implementat
 
 ### Bug Fixes
 - **[FIX_SHARED_STARTER.md](FIX_SHARED_STARTER.md)** - Fix for shared Spring Boot starter cache
+- **[FIX_PROFILE_LOADING_NEW_TAB.md](FIX_PROFILE_LOADING_NEW_TAB.md)** - Fix for profile loading in new tabs
 
 ## Contributing
 
