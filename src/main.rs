@@ -453,7 +453,7 @@ fn setup_config() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-// Maven tests are kept separate to avoid visibility issues
-#[cfg(test)]
-#[path = "maven_tests.rs"]
-mod maven_tests;
+
+// Maven tests have been moved to tests/ directory
+// See: tests/command_tests.rs, tests/profile_tests.rs, etc.
+

@@ -298,7 +298,7 @@ pub fn detect_spring_boot_capabilities(
 }
 
 /// Quote arguments appropriately for the platform (especially PowerShell on Windows)
-pub(crate) fn quote_arg_for_platform(arg: &str) -> String {
+pub fn quote_arg_for_platform(arg: &str) -> String {
     #[cfg(windows)]
     {
         // On Windows (PowerShell), quote -D arguments
@@ -315,7 +315,7 @@ pub(crate) fn quote_arg_for_platform(arg: &str) -> String {
 }
 
 /// Extract content from an XML tag
-pub(crate) fn extract_tag_content(line: &str, tag_name: &str) -> Option<String> {
+pub fn extract_tag_content(line: &str, tag_name: &str) -> Option<String> {
     let open_tag = format!("<{}>", tag_name);
     let close_tag = format!("</{}>", tag_name);
 

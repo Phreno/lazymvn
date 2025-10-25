@@ -181,7 +181,7 @@ pub fn get_profile_xml(project_root: &Path, profile_id: &str) -> Option<(String,
 }
 
 /// Extract profile IDs from settings.xml content
-pub(crate) fn extract_profiles_from_settings_xml(xml_content: &str) -> Result<Vec<String>, String> {
+pub fn extract_profiles_from_settings_xml(xml_content: &str) -> Result<Vec<String>, String> {
     let mut profiles = Vec::new();
     let lines: Vec<&str> = xml_content.lines().collect();
 
