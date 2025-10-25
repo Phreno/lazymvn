@@ -97,14 +97,15 @@ I want to credit both the project and its author for the idea and for shaping ho
 - Global configuration in `~/.config/lazymvn/` (Linux/macOS) or `%APPDATA%\lazymvn\` (Windows)
 - Recent projects list stored in `recent.json` (automatically maintained)
 
-## Technical Stack
+### Technical Stack
 
-- **Language:** Rust (edition 2024)
-- **CLI:** `clap` (argument parsing)
-- **TUI:** `ratatui` + `crossterm` (terminal rendering)
-- **Search:** `fuzzy-matcher` + `regex` (fuzzy search and pattern matching)
-- **XML:** `quick-xml` (POM parsing)
-- **Config:** `toml` + `serde` (configuration)
+- **Language**: Rust (Edition 2024)
+- **Architecture**: Modular design with 22+ specialized modules for maintainability and code quality
+- **Terminal UI**: [ratatui](https://github.com/ratatui-org/ratatui) for rendering
+- **XML Parsing**: [quick-xml](https://github.com/tafia/quick-xml) for POM processing
+- **Terminal Backend**: [crossterm](https://github.com/crossterm-rs/crossterm) for cross-platform terminal control
+- **Config**: [toml](https://github.com/toml-rs/toml) for configuration file parsing
+- **Performance**: Caching system to avoid repeated POM parsing
 
 
 ## Key Bindings

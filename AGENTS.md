@@ -46,14 +46,37 @@ lazymvn/
 │       ├── mod.rs
 │       ├── keybindings/  # Key event handling
 │       │   ├── mod.rs
-│       │   └── types.rs
-│       ├── state/        # Application state management
-│       │   ├── mod.rs
-│       │   └── project_tab.rs  # Per-tab state
-│       ├── panes/        # UI pane rendering
-│       │   └── mod.rs
+│       │   ├── types.rs
+│       │   ├── popup_keys.rs
+│       │   ├── search_keys.rs
+│       │   ├── output_keys.rs
+│       │   ├── command_keys.rs
+│       │   └── navigation_keys.rs
+│       ├── state/        # Application state management (REFACTORED)
+│       │   ├── mod.rs              # Main state (1,694 lines, -48% from original)
+│       │   ├── project_tab.rs      # Per-tab state
+│       │   ├── commands.rs         # Command execution
+│       │   ├── output.rs           # Output management
+│       │   ├── search.rs           # Search state
+│       │   ├── navigation.rs       # Navigation logic
+│       │   ├── profiles.rs         # Profile management
+│       │   ├── flags.rs            # Flag management
+│       │   ├── tabs.rs             # Tab management
+│       │   ├── launcher_config.rs  # JVM/Spring config helpers (NEW - Phase 6)
+│       │   └── config_reload.rs    # Config reload helpers (NEW - Phase 6)
+│       ├── panes/        # UI pane rendering (REFACTORED)
+│       │   ├── mod.rs              # Pane coordination (123 lines, -91%)
+│       │   ├── basic_panes.rs      # Basic pane rendering
+│       │   ├── layout.rs           # Layout management
+│       │   ├── tab_footer.rs       # Tab footer rendering
+│       │   └── popups.rs           # Popup rendering
 │       ├── search.rs     # Search functionality
 │       └── theme.rs      # Colors and styles
+│
+├── tui/                  # TUI coordination (NEW - Phase 5)
+│   ├── mod.rs            # Main coordination (540 lines)
+│   ├── renderer.rs       # TUI rendering (194 lines)
+│   └── mouse.rs          # Mouse event handling (122 lines)
 │
 ├── docs/                 # Documentation (features, implementations, design)
 │   ├── README.md         # Documentation index
@@ -172,16 +195,51 @@ let history = CommandHistory::load();
 ### UI Components (`src/ui/`)
 **Responsibility**: Terminal user interface
 
-- `state/` - Application state management (TuiState, per-tab state)
-- `keybindings/` - Keyboard event handling
-- `panes/` - UI rendering (layouts, module list, output)
-- `theme.rs` - Color schemes and styles
+- `state/` - Application state management (12 modules, refactored in Phases 1 & 6)
+  - `mod.rs` - Main TuiState (1,694 lines, -48% from original)
+  - `project_tab.rs` - Per-tab state
+  - `commands.rs` - Command execution
+  - `output.rs` - Output management
+  - `search.rs` - Search state
+  - `navigation.rs` - Navigation logic
+  - `profiles.rs` - Profile management
+  - `flags.rs` - Flag management
+  - `tabs.rs` - Tab management
+  - `launcher_config.rs` - JVM/Spring config helpers (Phase 6)
+  - `config_reload.rs` - Config reload helpers (Phase 6)
+- `keybindings/` - Keyboard event handling (6 modules, refactored in Phase 4)
+- `panes/` - UI rendering (5 modules, refactored in Phase 3)
 - `search.rs` - Search functionality
+- `theme.rs` - Color schemes and styles
 
-**Large files** (consider splitting if modifying extensively):
-- `state/mod.rs` - 3255 lines
-- `panes/mod.rs` - 1418 lines
-- `keybindings/mod.rs` - 1203 lines
+**Large files status** (after Phase 6):
+- `state/mod.rs` - 1,694 lines (optimal, coordinator pattern, -48% from original 3,255)
+- `keybindings/mod.rs` - 745 lines (event coordination, -38% from original 1,203)
+- `panes/mod.rs` - 123 lines (well modularized, -91% from original 1,418)
+- `core/config.rs` - 773 lines (configuration management, candidate for Phase 7)
+- `maven/command.rs` - 571 lines (Maven commands, candidate for Phase 7)
+
+**Refactoring Summary (Phases 1-6):**
+- **22 modules created** (8 in Phase 1, 4 in Phase 3, 5 in Phase 4, 3 in Phase 5, 2 in Phase 6)
+- **~7,000 lines reorganized** across all phases
+- **3 major functions micro-refactored** in Phase 6 (568 → 55 lines, -90.3% complexity)
+- **100% tests maintained** (219/219 passing throughout)
+- **Architecture philosophy**: Macroscopic (modules) + Microscopic (functions) refactoring
+
+### TUI Coordination (`src/tui/`)
+**Responsibility**: TUI rendering and event coordination (NEW - Phase 5)
+
+- `mod.rs` - Main coordination and tests (540 lines)
+- `renderer.rs` - TUI rendering logic (194 lines)
+- `mouse.rs` - Mouse event handling (122 lines)
+
+**Usage**:
+```rust
+use crate::tui;
+
+tui::draw(&mut terminal, &mut state)?;
+tui::handle_key_event(&mut state, key)?;
+```
 
 ### Utilities (`src/utils/`)
 **Responsibility**: Shared utility functions
@@ -310,6 +368,60 @@ fn feature_expected_outcome() {
 - Test happy paths and error cases
 - Test edge cases (empty inputs, boundary conditions)
 - Mock external dependencies (Maven commands) in unit tests
+
+## Refactoring Guidelines
+
+### When to Extract Modules
+Extract code into separate modules when:
+- ✅ File exceeds ~1,000 lines
+- ✅ Clear functional boundaries exist
+- ✅ Code can be grouped by domain/responsibility
+- ✅ Module can be tested independently
+
+**Example**: Phase 1 - Split `state/mod.rs` (3,255 lines) into 8 modules
+
+### When to Extract Functions (Micro-refactoring)
+Extract helper functions when:
+- ✅ Function exceeds 100 lines
+- ✅ Logic is mixed or hard to follow
+- ✅ Code has extractable sections (loops, if blocks)
+- ✅ Function names would improve readability
+
+**Example**: Phase 6 - Extract `yank_debug_info()` (281 → 21 lines)
+
+### When to Create Helper Modules
+Create dedicated helper modules when:
+- ✅ **Functions are coherent** (same domain)
+- ✅ **Numerous helpers** (5+ functions)
+- ✅ **Reusability potential** exists
+- ✅ **Goal: actually reduce main file size**
+
+**Example**: Phase 6 - Create `launcher_config.rs` for JVM config helpers
+
+### Refactoring Pattern (Proven)
+1. **Analyze**: Identify large files (>1,000 lines) or complex functions (>100 lines)
+2. **Extract Modules**: Split into domain-specific modules (Phases 1-5)
+3. **Micro-refactor**: Extract helper functions for readability (Phase 6.1-6.2)
+4. **Helper Modules**: Group coherent helpers into dedicated modules (Phase 6.3)
+5. **Validate**: Ensure all tests pass (219/219)
+6. **Commit**: Atomic commits with clear documentation
+
+### Key Insights
+- **Module extraction** → Architecture improvement (Phases 1-5)
+- **Function extraction** → Readability improvement (Phase 6 steps 1-2)
+- **Helper modules** → Readability + Size reduction (Phase 6 step 3)
+- **Always maintain** 100% test pass rate
+- **Combine approaches**: Extract functions first, then group coherent ones into modules
+
+### Refactoring Results (Phases 1-6)
+| Phase | Approach | Files | Impact | Modules Created |
+|-------|----------|-------|--------|-----------------|
+| 1 | Module extraction | state/mod.rs | -42% (-1,366 lines) | 8 modules |
+| 3 | Module extraction | panes/mod.rs | -91% (-1,295 lines) | 4 modules |
+| 4 | Module extraction | keybindings/mod.rs | -38% (-458 lines) | 5 modules |
+| 5 | Architectural split | tui.rs | ±0 (separated) | 3 modules |
+| 6 | Micro-refactoring + Helpers | state/mod.rs | -10.3% (-195 lines) | 2 modules + 23 helpers |
+| **Total** | **Combined** | **Multiple** | **~7,000 lines reorganized** | **22 modules** |
 
 ## Commit Guidelines
 

@@ -180,13 +180,12 @@ pub fn parse_modules_from_str(content: &str) -> Vec<String> {
 
 ## Project Structure
 
-Understanding the modular codebase:
+Understanding the modular codebase (after Phases 1-6 refactoring):
 
 ```
 src/
 ├── main.rs              # Entry point, CLI argument parsing
 ├── lib.rs               # Public API (for library usage)
-├── tui.rs               # TUI coordination and rendering
 ├── maven_tests.rs       # Maven integration tests
 │
 ├── core/                # Core functionality
@@ -211,24 +210,110 @@ src/
 │
 ├── utils/               # Shared utilities
 │   ├── mod.rs
-│   ├── text.rs          # Text processing (colorization, ANSI stripping)
+│   ├── text.rs          # Text processing
 │   ├── logger.rs        # Logging system
 │   ├── watcher.rs       # File watching for live reload
 │   ├── loading.rs       # Loading screen animations
 │   └── git.rs           # Git repository operations
 │
-└── ui/                  # UI components
-    ├── mod.rs
-    ├── keybindings/     # Key event handling
-    │   ├── mod.rs
-    │   └── types.rs
-    ├── state/           # Application state management
-    │   ├── mod.rs
-    │   └── project_tab.rs  # Per-tab state
-    ├── panes/           # UI pane rendering
-    │   └── mod.rs
-    ├── search.rs        # Search functionality
-    └── theme.rs         # Colors and styles
+├── ui/                  # UI components (12 modules in state/)
+│   ├── mod.rs
+│   ├── keybindings/     # Key event handling (6 modules)
+│   │   ├── mod.rs
+│   │   ├── types.rs
+│   │   ├── popup_keys.rs
+│   │   ├── search_keys.rs
+│   │   ├── output_keys.rs
+│   │   ├── command_keys.rs
+│   │   └── navigation_keys.rs
+│   ├── state/           # Application state (12 modules)
+│   │   ├── mod.rs               # Main TuiState (1,694 lines)
+│   │   ├── project_tab.rs
+│   │   ├── commands.rs
+│   │   ├── output.rs
+│   │   ├── search.rs
+│   │   ├── navigation.rs
+│   │   ├── profiles.rs
+│   │   ├── flags.rs
+│   │   ├── tabs.rs
+│   │   ├── launcher_config.rs   # JVM/Spring config helpers
+│   │   └── config_reload.rs     # Config reload helpers
+│   ├── panes/           # UI pane rendering (5 modules)
+│   │   ├── mod.rs
+│   │   ├── basic_panes.rs
+│   │   ├── layout.rs
+│   │   ├── tab_footer.rs
+│   │   └── popups.rs
+│   ├── search.rs
+│   └── theme.rs
+│
+└── tui/                 # TUI coordination (3 modules)
+    ├── mod.rs           # Main coordination
+    ├── renderer.rs      # TUI rendering logic
+    └── mouse.rs         # Mouse event handling
+```
+
+### Key Architectural Decisions
+
+**22 modules created** across 6 refactoring phases:
+- Phase 1: `ui/state/` split into 8 modules (-42%, 1,366 lines)
+- Phase 3: `ui/panes/` split into 4 modules (-91%, 1,295 lines)
+- Phase 4: `ui/keybindings/` split into 5 modules (-38%, 458 lines)
+- Phase 5: `tui.rs` split into 3 modules (architectural separation)
+- Phase 6: Added 2 helper modules + micro-refactored 3 functions (-10.3%, 195 lines)
+
+**Phase 6 Innovation - Micro-refactoring**:
+- `yank_debug_info()`: 281 → 21 lines (-92.5%, 14 helpers)
+- `run_spring_boot_starter()`: 176 → 22 lines (-87.5%, 9 helpers)
+- `reload_config()`: 111 → 12 lines (-89.2%, 7 helpers in module)
+- **Total complexity reduction**: 568 → 55 lines (-90.3%)
+
+**Benefits**:
+- Clear separation of concerns (22 modules)
+- Easier to test individual components
+- Reduced file sizes (largest file: 1,694 lines, -48% from 3,255)
+- Improved code readability via micro-refactoring
+- Reusable helper functions and modules
+
+## Refactoring Best Practices
+
+When modifying or extending the codebase, follow these proven patterns:
+
+### Module Extraction (Architecture)
+Extract code into separate modules when:
+- ✅ File exceeds ~1,000 lines
+- ✅ Clear functional boundaries exist
+- ✅ Code can be grouped by domain/responsibility
+- ✅ Module can be tested independently
+
+**Example**: `ui/state/mod.rs` (3,255 lines) → 12 modules
+
+### Function Extraction (Readability)
+Extract helper functions when:
+- ✅ Function exceeds 100 lines
+- ✅ Logic is mixed or hard to follow
+- ✅ Code has extractable sections (loops, if blocks)
+- ✅ Function names would improve readability
+
+**Example**: `yank_debug_info()` (281 lines) → 21 lines + 14 helpers
+
+### Helper Module Creation (Reusability)
+Create dedicated helper modules when:
+- ✅ Functions are coherent (same domain)
+- ✅ Numerous helpers (5+ functions)
+- ✅ Reusability potential exists
+- ✅ Goal: actually reduce main file size
+
+**Example**: `launcher_config.rs` for JVM config helpers (120 lines)
+
+### Refactoring Workflow
+1. **Analyze**: Identify large files or complex functions
+2. **Extract**: Split into smaller, focused pieces
+3. **Validate**: Run all tests (`cargo test`)
+4. **Commit**: Atomic commits with clear messages
+5. **Document**: Update AGENTS.md and relevant docs
+
+**Key Rule**: Always maintain 100% test pass rate during refactoring
 ```
 
 ### Module Architecture
