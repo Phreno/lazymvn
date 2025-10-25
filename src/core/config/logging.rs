@@ -18,6 +18,7 @@ pub struct PackageLogLevel {
     pub level: String,
 }
 
+#[allow(dead_code)] // Public API methods not yet used
 impl LoggingConfig {
     /// Validate that all log levels are valid
     pub fn validate(&self) -> Result<(), String> {
@@ -42,6 +43,7 @@ impl LoggingConfig {
 }
 
 /// Validate a log level string
+#[allow(dead_code)] // Used by public API methods
 fn validate_log_level(level: &str) -> Result<(), String> {
     let valid_levels = ["OFF", "ERROR", "WARN", "INFO", "DEBUG", "TRACE", "ALL"];
     let level_upper = level.to_uppercase();

@@ -370,8 +370,6 @@ impl TuiState {
 
 
 
-    /// Start loading profiles asynchronously
-
     /// Kill the currently running Maven process
     pub fn kill_running_process(&mut self) {
         let tab = self.get_active_tab_mut();
@@ -438,9 +436,6 @@ impl TuiState {
             }
         }
     }
-
-    /// Yank (copy) the output to clipboard
-
 
     /// Yank (copy) comprehensive debug information to clipboard
     /// Includes: version info, git hash, logs, output from all tabs, and config file
@@ -672,10 +667,7 @@ impl TuiState {
             }
         }
         
-        Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            format!("{} failed", tool)
-        ))
+        Err(std::io::Error::other(format!("{} failed", tool)))
     }
 
     /// Copy via arboard library (fallback)

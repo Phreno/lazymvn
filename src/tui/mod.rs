@@ -11,7 +11,6 @@ pub use mouse::handle_mouse_event;
 pub use renderer::draw;
 
 // Re-export commonly used types for backward compatibility
-pub use crate::ui::keybindings::Focus;
 pub use crate::ui::state::TuiState;
 
 use crossterm::event::KeyEvent;
@@ -24,7 +23,7 @@ pub fn handle_key_event(key: KeyEvent, state: &mut TuiState) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ui::keybindings::CurrentView;
+    use crate::ui::keybindings::{CurrentView, Focus};
     use ratatui::{backend::TestBackend, Terminal};
     use std::path::PathBuf;
     use tempfile::tempdir;

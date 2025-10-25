@@ -28,31 +28,23 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
     log::debug!("Key event: {:?}", key);
 
     // Handle save favorite popup separately
-    if state.show_save_favorite_popup {
-        if popup_keys::handle_save_favorite_popup(key, state) {
-            return;
-        }
+    if state.show_save_favorite_popup && popup_keys::handle_save_favorite_popup(key, state) {
+        return;
     }
 
     // Handle favorites popup separately
-    if state.show_favorites_popup {
-        if popup_keys::handle_favorites_popup(key, state) {
-            return;
-        }
+    if state.show_favorites_popup && popup_keys::handle_favorites_popup(key, state) {
+        return;
     }
 
     // Handle command history popup separately
-    if state.show_history_popup {
-        if popup_keys::handle_history_popup(key, state) {
-            return;
-        }
+    if state.show_history_popup && popup_keys::handle_history_popup(key, state) {
+        return;
     }
 
     // Handle projects popup separately
-    if state.show_projects_popup {
-        if popup_keys::handle_projects_popup(key, state) {
-            return;
-        }
+    if state.show_projects_popup && popup_keys::handle_projects_popup(key, state) {
+        return;
     }
 
     if let Some(search_mod) = state.search_mod.take() {
@@ -75,17 +67,13 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
     }
 
     // Handle starter selector popup
-    if state.show_starter_selector {
-        if popup_keys::handle_starter_selector(key, state) {
-            return;
-        }
+    if state.show_starter_selector && popup_keys::handle_starter_selector(key, state) {
+        return;
     }
 
     // Handle starter manager popup
-    if state.show_starter_manager {
-        if popup_keys::handle_starter_manager(key, state) {
-            return;
-        }
+    if state.show_starter_manager && popup_keys::handle_starter_manager(key, state) {
+        return;
     }
 
     // Direct command execution - no menu navigation needed

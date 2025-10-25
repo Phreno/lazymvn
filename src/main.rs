@@ -1,3 +1,6 @@
+// Allow unused imports from modules - they're used by integration tests
+#![allow(unused_imports)]
+
 mod core;
 mod features;
 mod maven;

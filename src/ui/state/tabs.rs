@@ -90,6 +90,7 @@ impl TuiState {
     }
 
     /// Switch to a specific tab by index
+    #[allow(dead_code)] // Public API - may be used by future features
     pub fn switch_to_tab(&mut self, index: usize) {
         if index < self.tabs.len() {
             log::debug!(
@@ -147,11 +148,13 @@ impl TuiState {
     }
 
     /// Check if any tab has a running process
+    #[allow(dead_code)] // Public API - may be used by future features
     pub fn has_running_processes(&self) -> bool {
         self.tabs.iter().any(|tab| tab.has_running_process())
     }
 
     /// Count running processes across all tabs
+    #[allow(dead_code)] // Public API - may be used by future features
     pub fn count_running_processes(&self) -> usize {
         self.tabs
             .iter()
@@ -167,6 +170,7 @@ impl TuiState {
     }
 
     /// Cleanup all tabs (kill all processes, save all preferences)
+    #[allow(dead_code)] // Public API - may be used by future features
     pub fn cleanup_all_tabs(&mut self) {
         log::info!("Cleaning up all {} tabs", self.tabs.len());
 

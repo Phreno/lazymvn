@@ -10,11 +10,10 @@ mod types;
 
 // Re-export main types
 pub use types::{
-    Config, LaunchMode, ModulePreferences, OutputConfig, ProjectPreferences, RecentProjects,
-    SpringConfig, SpringProperty, WatchConfig,
+    Config, LaunchMode, ModulePreferences, ProjectPreferences, RecentProjects, WatchConfig,
 };
 
-pub use logging::{LoggingConfig, PackageLogLevel};
+pub use logging::LoggingConfig;
 
 // Re-export main functions
 pub use io::{

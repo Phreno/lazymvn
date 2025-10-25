@@ -16,8 +16,9 @@ pub use command::{
     execute_maven_command_with_options, get_maven_command,
 };
 pub use detection::{
-    extract_tag_content, quote_arg_for_platform, LaunchStrategy, SpringBootDetection,
+    LaunchStrategy, SpringBootDetection,
     build_launch_command, decide_launch_strategy, detect_spring_boot_capabilities,
+    extract_tag_content, quote_arg_for_platform,
 };
 pub use process::{CommandUpdate, kill_process};
 pub use profiles::{extract_profiles_from_settings_xml, get_active_profiles, get_profile_xml, get_profiles};
