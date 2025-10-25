@@ -1,0 +1,317 @@
+use log::{LevelFilter, Metadata, Record, SetLoggerError};
+use std::fs::{File, OpenOptions};
+use std::io::Write;
+use std::path::PathBuf;
+use std::sync::Mutex;
+
+static LOGGER: Logger = Logger {
+    file: Mutex::new(None),
+    error_file: Mutex::new(None),
+    session_id: Mutex::new(None),
+};
+
+struct Logger {
+    file: Mutex<Option<File>>,
+    error_file: Mutex<Option<File>>,
+    session_id: Mutex<Option<String>>,
+}
+
+impl log::Log for Logger {
+    fn enabled(&self, _metadata: &Metadata) -> bool {
+        true
+    }
+
+    fn log(&self, record: &Record) {
+        if self.enabled(record.metadata()) {
+            let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
+            let session_id = self.session_id.lock().unwrap();
+            let session_prefix = session_id
+                .as_ref()
+                .map(|id| format!("[SESSION:{}] ", id))
+                .unwrap_or_default();
+            let log_line = format!(
+                "{}[{}] {} - {}",
+                session_prefix,
+                timestamp,
+                record.level(),
+                record.args()
+            );
+
+            // Log to main debug file
+            let mut file_guard = self.file.lock().unwrap();
+            if let Some(file) = file_guard.as_mut() {
+                let _ = writeln!(file, "{}", log_line);
+            }
+
+            // Also log errors to dedicated error file
+            if record.level() == log::Level::Error {
+                let mut error_file_guard = self.error_file.lock().unwrap();
+                if let Some(error_file) = error_file_guard.as_mut() {
+                    let _ = writeln!(error_file, "{}", log_line);
+                }
+            }
+        }
+    }
+
+    fn flush(&self) {
+        let mut file_guard = self.file.lock().unwrap();
+        if let Some(file) = file_guard.as_mut() {
+            let _ = file.flush();
+        }
+        let mut error_file_guard = self.error_file.lock().unwrap();
+        if let Some(error_file) = error_file_guard.as_mut() {
+            let _ = error_file.flush();
+        }
+    }
+}
+
+/// Get the system log directory for LazyMVN
+fn get_log_dir() -> Result<PathBuf, std::io::Error> {
+    let dirs = directories::ProjectDirs::from("com", "lazymvn", "lazymvn").ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "Could not determine home directory",
+        )
+    })?;
+
+    let log_dir = dirs.data_local_dir().join("logs");
+
+    // Create the log directory if it doesn't exist
+    std::fs::create_dir_all(&log_dir)?;
+
+    Ok(log_dir)
+}
+
+/// Get the path to the debug log file
+pub fn get_debug_log_path() -> Option<PathBuf> {
+    get_log_dir().ok().map(|dir| dir.join("debug.log"))
+}
+
+/// Get the path to the error log file
+pub fn get_error_log_path() -> Option<PathBuf> {
+    get_log_dir().ok().map(|dir| dir.join("error.log"))
+}
+
+/// Get the current session ID
+#[allow(dead_code)]
+pub fn get_session_id() -> Option<String> {
+    LOGGER.session_id.lock().ok()?.clone()
+}
+
+/// Extract logs for the current session from a log file
+#[allow(dead_code)]
+fn extract_session_logs(log_path: &PathBuf, session_id: &str) -> Result<Vec<String>, std::io::Error> {
+    use std::io::{BufRead, BufReader};
+    
+    let file = File::open(log_path)?;
+    let reader = BufReader::new(file);
+    let session_marker = format!("[SESSION:{}]", session_id);
+    
+    let mut session_logs = Vec::new();
+    let mut in_session = false;
+    
+    for line in reader.lines() {
+        let line = line?;
+        
+        // Check if this line belongs to our session
+        if line.contains(&session_marker) {
+            in_session = true;
+            session_logs.push(line);
+        } else if in_session {
+            // Check if we've hit a new session
+            if line.contains("[SESSION:") && !line.contains(&session_marker) {
+                break;
+            }
+            session_logs.push(line);
+        }
+    }
+    
+    Ok(session_logs)
+}
+
+/// Get concatenated logs from the current session (debug + error logs)
+#[allow(dead_code)]
+pub fn get_current_session_logs() -> Result<String, String> {
+    let session_id = get_session_id().ok_or("No session ID available")?;
+    
+    let mut all_logs = Vec::new();
+    
+    // Add header
+    all_logs.push("=== LazyMVN Session Logs ===".to_string());
+    all_logs.push(format!("Session ID: {}", session_id));
+    all_logs.push(format!("Timestamp: {}", chrono::Local::now().format("%Y-%m-%d %H:%M:%S")));
+    all_logs.push(String::new());
+    
+    // Extract debug logs
+    if let Some(debug_path) = get_debug_log_path()
+        && debug_path.exists()
+    {
+            all_logs.push("=== Debug Logs ===".to_string());
+            match extract_session_logs(&debug_path, &session_id) {
+                Ok(logs) => {
+                    if logs.is_empty() {
+                        all_logs.push("(No debug logs for this session)".to_string());
+                    } else {
+                        all_logs.extend(logs);
+                    }
+                }
+                Err(e) => {
+                    all_logs.push(format!("Error reading debug logs: {}", e));
+                }
+            }
+            all_logs.push(String::new());
+    }
+    
+    // Extract error logs
+    if let Some(error_path) = get_error_log_path()
+        && error_path.exists()
+    {
+            all_logs.push("=== Error Logs ===".to_string());
+            match extract_session_logs(&error_path, &session_id) {
+                Ok(logs) => {
+                    if logs.is_empty() {
+                        all_logs.push("(No errors for this session)".to_string());
+                    } else {
+                        all_logs.extend(logs);
+                    }
+                }
+                Err(e) => {
+                    all_logs.push(format!("Error reading error logs: {}", e));
+                }
+            }
+    }
+    
+    Ok(all_logs.join("\n"))
+}
+
+/// Initialize the logger with the specified log level
+/// Level can be: "off", "error", "warn", "info", "debug", "trace"
+/// In development mode, defaults to "debug" if None is provided
+pub fn init(log_level: Option<&str>) -> Result<(), SetLoggerError> {
+    // Determine the log level filter
+    let level_filter = match log_level {
+        Some("off") => LevelFilter::Off,
+        Some("error") => LevelFilter::Error,
+        Some("warn") => LevelFilter::Warn,
+        Some("info") => LevelFilter::Info,
+        Some("debug") => LevelFilter::Debug,
+        Some("trace") => LevelFilter::Trace,
+        None => {
+            // Default to Debug in development mode (when version contains "unstable")
+            if env!("CARGO_PKG_VERSION").contains("unstable") {
+                LevelFilter::Debug
+            } else {
+                LevelFilter::Off
+            }
+        }
+        Some(other) => {
+            eprintln!("Warning: Unknown log level '{}', defaulting to 'info'", other);
+            LevelFilter::Info
+        }
+    };
+
+    if level_filter != LevelFilter::Off {
+        let log_dir = get_log_dir().expect("Failed to get log directory");
+
+        let debug_log_path = log_dir.join("debug.log");
+        let error_log_path = log_dir.join("error.log");
+
+        let file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&debug_log_path)
+            .expect("Failed to open log file");
+
+        let error_file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&error_log_path)
+            .expect("Failed to open error log file");
+
+        // Generate a unique session ID
+        let session_id = format!("{}", chrono::Local::now().format("%Y%m%d-%H%M%S-%3f"));
+
+        *LOGGER.file.lock().unwrap() = Some(file);
+        *LOGGER.error_file.lock().unwrap() = Some(error_file);
+        *LOGGER.session_id.lock().unwrap() = Some(session_id.clone());
+
+        log::set_logger(&LOGGER)?;
+        log::set_max_level(level_filter);
+
+        log::info!("=== LazyMVN Session Started ===");
+        log::info!("Session ID: {}", session_id);
+        log::info!("Log level: {:?}", level_filter);
+        log::info!("Log directory: {}", log_dir.display());
+        log::info!("Debug log: {}", debug_log_path.display());
+        log::info!("Error log: {}", error_log_path.display());
+    } else {
+        log::set_max_level(LevelFilter::Off);
+    }
+
+    Ok(())
+}
+
+/// Read the last N lines from a file (tail-like functionality)
+fn read_last_lines(path: &PathBuf, max_lines: usize) -> Result<Vec<String>, std::io::Error> {
+    use std::io::{BufRead, BufReader};
+    
+    let file = File::open(path)?;
+    let reader = BufReader::new(file);
+    
+    // Read all lines and keep the last N
+    let all_lines: Vec<String> = reader.lines().collect::<Result<Vec<_>, _>>()?;
+    
+    let start_idx = if all_lines.len() > max_lines {
+        all_lines.len() - max_lines
+    } else {
+        0
+    };
+    
+    Ok(all_lines[start_idx..].to_vec())
+}
+
+/// Get all available logs (last 500 lines from debug and error logs)
+pub fn get_all_logs() -> String {
+    let mut output = Vec::new();
+    
+    // Add debug logs
+    if let Some(debug_path) = get_debug_log_path()
+        && debug_path.exists()
+    {
+        output.push("=== Debug Logs (last 500 lines) ===".to_string());
+        match read_last_lines(&debug_path, 500) {
+            Ok(lines) => {
+                if lines.is_empty() {
+                    output.push("(No debug logs)".to_string());
+                } else {
+                    output.extend(lines);
+                }
+            }
+            Err(e) => {
+                output.push(format!("Error reading debug logs: {}", e));
+            }
+        }
+        output.push(String::new());
+    }
+    
+    // Add error logs
+    if let Some(error_path) = get_error_log_path()
+        && error_path.exists()
+    {
+        output.push("=== Error Logs (last 500 lines) ===".to_string());
+        match read_last_lines(&error_path, 500) {
+            Ok(lines) => {
+                if lines.is_empty() {
+                    output.push("(No error logs)".to_string());
+                } else {
+                    output.extend(lines);
+                }
+            }
+            Err(e) => {
+                output.push(format!("Error reading error logs: {}", e));
+            }
+        }
+    }
+    
+    output.join("\n")
+}
