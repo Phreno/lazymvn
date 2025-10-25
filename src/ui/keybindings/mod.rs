@@ -4,6 +4,7 @@
 
 mod types;
 mod popup_keys;
+mod search_keys;
 
 pub use types::{CurrentView, Focus, SearchMode};
 
@@ -112,80 +113,15 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
                 SearchMode::Cycling => "Cycling",
             }
         );
-        match search_mod {
-            SearchMode::Input => {
-                match key.code {
-                    KeyCode::Char(ch) => {
-                        log::debug!("Search input: '{}'", ch);
-                        state.push_search_char(ch);
-                        state.live_search();
-                        state.search_mod = Some(SearchMode::Input);
-                    }
-                    KeyCode::Backspace => {
-                        log::debug!("Search backspace");
-                        state.backspace_search_char();
-                        state.live_search();
-                        state.search_mod = Some(SearchMode::Input);
-                    }
-                    KeyCode::Up => {
-                        log::debug!("Search recall previous");
-                        state.recall_previous_search();
-                        state.live_search();
-                        state.search_mod = Some(SearchMode::Input);
-                    }
-                    KeyCode::Down => {
-                        log::debug!("Search recall next");
-                        state.recall_next_search();
-                        state.live_search();
-                        state.search_mod = Some(SearchMode::Input);
-                    }
-                    KeyCode::Enter => {
-                        log::debug!("Search submit");
-                        state.submit_search();
-                        if state.has_search_results() {
-                            log::debug!("Search has results, entering cycling mode");
-                            state.search_mod = Some(SearchMode::Cycling);
-                        } else {
-                            log::debug!("No search results, exiting search");
-                            state.search_mod = None;
-                        }
-                    }
-                    KeyCode::Esc => {
-                        log::debug!("Search cancelled");
-                        state.cancel_search_input();
-                        state.search_mod = None;
-                    }
-                    _ => {
-                        state.search_mod = Some(SearchMode::Input);
-                    }
-                }
-                return;
-            }
-            SearchMode::Cycling => {
-                match key.code {
-                    KeyCode::Char('n') => {
-                        state.next_search_match();
-                        state.search_mod = Some(SearchMode::Cycling);
-                    }
-                    KeyCode::Char('N') => {
-                        state.previous_search_match();
-                        state.search_mod = Some(SearchMode::Cycling);
-                    }
-                    KeyCode::Char('/') => {
-                        state.begin_search_input();
-                        state.search_mod = Some(SearchMode::Input);
-                    }
-                    KeyCode::Enter | KeyCode::Esc => {
-                        state.search_mod = None;
-                    }
-                    _ => {
-                        state.search_mod = None;
-                        handle_key_event(key, state);
-                    }
-                }
-                return;
-            }
+        let handled = match search_mod {
+            SearchMode::Input => search_keys::handle_search_input(key, state),
+            SearchMode::Cycling => search_keys::handle_search_cycling(key, state),
+        };
+        
+        if handled {
+            return;
         }
+        // If not handled (search cycling with unrecognized key), fall through to normal handling
     }
 
     // Handle starter selector popup
