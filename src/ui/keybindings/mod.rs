@@ -7,6 +7,7 @@ mod popup_keys;
 mod search_keys;
 mod output_keys;
 mod command_keys;
+mod navigation_keys;
 
 pub use types::{CurrentView, Focus, SearchMode};
 
@@ -147,159 +148,46 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
         return;
     }
     
+    // Try tab operations (Ctrl+T/W/Left/Right)
+    if navigation_keys::handle_tab_operations(key, state) {
+        return;
+    }
+    
+    // Try popup triggers (Ctrl+F/S/H/R/E)
+    if navigation_keys::handle_popup_triggers(key, state) {
+        return;
+    }
+    
+    // Try view switching (0-4)
+    if navigation_keys::handle_view_switching(key, state) {
+        return;
+    }
+    
+    // Try focus cycling (Left/Right arrows)
+    if navigation_keys::handle_focus_cycling(key, state) {
+        return;
+    }
+    
+    // Try search operations (/, n, N)
+    if navigation_keys::handle_search_operations(key, state) {
+        return;
+    }
+    
+    // Try special actions (Esc, Enter, Space)
+    if navigation_keys::handle_special_actions(key, state) {
+        return;
+    }
+    
+    // Handle remaining output operations and scrolling
     match key.code {
-        KeyCode::Char('f')
-            if key
-                .modifiers
-                .contains(crossterm::event::KeyModifiers::CONTROL) =>
-        {
-            log::info!("Show favorites");
-            state.show_favorites_popup = true;
-            if !state.favorites.is_empty() {
-                state.favorites_list_state.select(Some(0));
-            }
-        }
-        KeyCode::Char('s')
-            if key
-                .modifiers
-                .contains(crossterm::event::KeyModifiers::CONTROL) =>
-        {
-            log::info!("Save current as favorite");
-            state.show_save_favorite_dialog_from_current();
-        }
-        KeyCode::Char('h')
-            if key
-                .modifiers
-                .contains(crossterm::event::KeyModifiers::CONTROL) =>
-        {
-            log::info!("Show command history");
-            state.show_history_popup = true;
-            // Reset selection to first item
-            if !state.command_history.entries().is_empty() {
-                state.history_list_state.select(Some(0));
-            }
-        }
-        KeyCode::Char('r')
-            if key
-                .modifiers
-                .contains(crossterm::event::KeyModifiers::CONTROL) =>
-        {
-            log::info!("Show recent projects");
-            state.show_recent_projects();
-        }
-        KeyCode::Char('e')
-            if key
-                .modifiers
-                .contains(crossterm::event::KeyModifiers::CONTROL) =>
-        {
-            log::info!("Edit configuration");
-            state.edit_config();
-        }
-        KeyCode::Char('t')
-            if key
-                .modifiers
-                .contains(crossterm::event::KeyModifiers::CONTROL) =>
-        {
-            log::info!("Create new tab (Ctrl+T)");
-            state.show_recent_projects();
-        }
-        KeyCode::Char('w')
-            if key
-                .modifiers
-                .contains(crossterm::event::KeyModifiers::CONTROL) =>
-        {
-            log::info!("Close current tab (Ctrl+W)");
-            // Only close if not the last tab
-            if state.get_tab_count() > 1 {
-                let active_index = state.get_active_tab_index();
-                match state.close_tab(active_index) {
-                    Ok(()) => {
-                        log::info!("Tab closed successfully");
-                    }
-                    Err(e) => {
-                        log::error!("Failed to close tab: {}", e);
-                    }
-                }
-            } else {
-                log::warn!("Cannot close last tab");
-            }
-        }
-        KeyCode::Left
-            if key
-                .modifiers
-                .contains(crossterm::event::KeyModifiers::CONTROL) =>
-        {
-            log::info!("Switch to previous tab (Ctrl+Left)");
-            state.prev_tab();
-        }
-        KeyCode::Right
-            if key
-                .modifiers
-                .contains(crossterm::event::KeyModifiers::CONTROL) =>
-        {
-            log::info!("Switch to next tab (Ctrl+Right)");
-            state.next_tab();
-        }
-        KeyCode::Left => {
-            log::debug!("Cycle focus left");
-            state.cycle_focus_left();
-        }
-        KeyCode::Right => {
-            log::debug!("Cycle focus right");
-            state.cycle_focus_right();
-        }
         KeyCode::Down => output_keys::handle_scroll_down(state, state.focus),
         KeyCode::Up => output_keys::handle_scroll_up(state, state.focus),
-        KeyCode::Char('0') => {
-            log::info!("Focus output pane");
-            state.focus_output();
-        }
-        KeyCode::Char('1') => {
-            log::info!("Switch to projects view");
-            state.switch_to_projects();
-        }
-        KeyCode::Char('2') => {
-            log::info!("Switch to modules view");
-            state.switch_to_modules();
-        }
-        KeyCode::Char('y') => output_keys::handle_yank_output(state),
-        KeyCode::Char('Y') => output_keys::handle_yank_debug_info(state),
-        KeyCode::Esc => {
-            log::info!("Kill running process with Escape");
-            state.kill_running_process();
-        }
-        KeyCode::Char('3') => {
-            log::info!("Switch to profiles view");
-            state.switch_to_profiles();
-        }
-        KeyCode::Char('4') => {
-            log::info!("Switch to flags view");
-            state.switch_to_flags();
-        }
-        KeyCode::Char('/') => {
-            log::info!("Begin search input");
-            state.begin_search_input();
-            state.search_mod = Some(SearchMode::Input);
-        }
-        KeyCode::Char('n') => {
-            log::debug!("Next search match");
-            state.next_search_match();
-        }
-        KeyCode::Char('N') => {
-            log::debug!("Previous search match");
-            state.previous_search_match();
-        }
         KeyCode::PageUp => output_keys::handle_page_up(state),
         KeyCode::PageDown => output_keys::handle_page_down(state),
         KeyCode::Home => output_keys::handle_scroll_to_start(state),
         KeyCode::End => output_keys::handle_scroll_to_end(state),
-        KeyCode::Enter | KeyCode::Char(' ') => {
-            if state.focus == Focus::Profiles {
-                state.toggle_profile();
-            } else if state.focus == Focus::Flags {
-                state.toggle_flag();
-            }
-        }
+        KeyCode::Char('y') => output_keys::handle_yank_output(state),
+        KeyCode::Char('Y') => output_keys::handle_yank_debug_info(state),
         _ => {}
     }
 }
