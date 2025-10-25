@@ -6,6 +6,7 @@ mod types;
 mod popup_keys;
 mod search_keys;
 mod output_keys;
+mod command_keys;
 
 pub use types::{CurrentView, Focus, SearchMode};
 
@@ -140,6 +141,12 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
     }
 
     // Direct command execution - no menu navigation needed
+    
+    // Try Maven command keys first
+    if command_keys::handle_maven_command(key, state) {
+        return;
+    }
+    
     match key.code {
         KeyCode::Char('f')
             if key
@@ -254,46 +261,6 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
         KeyCode::Char('2') => {
             log::info!("Switch to modules view");
             state.switch_to_modules();
-        }
-        KeyCode::Char('b') => {
-            log::info!("Execute: clean install");
-            state.run_selected_module_command(&["clean", "install"]);
-        }
-        KeyCode::Char('C') => {
-            log::info!("Execute: clean");
-            state.run_selected_module_command(&["clean"]);
-        }
-        KeyCode::Char('c') => {
-            log::info!("Execute: compile");
-            state.run_selected_module_command(&["compile"]);
-        }
-        KeyCode::Char('k') => {
-            log::info!("Execute: package");
-            state.run_selected_module_command(&["package"]);
-        }
-        KeyCode::Char('t') => {
-            log::info!("Execute: test");
-            state.run_selected_module_command(&["test"]);
-        }
-        KeyCode::Char('i') => {
-            log::info!("Execute: install");
-            state.run_selected_module_command(&["install"]);
-        }
-        KeyCode::Char('d') => {
-            log::info!("Execute: dependency:tree");
-            state.run_selected_module_command(&["dependency:tree"]);
-        }
-        KeyCode::Char('s') => {
-            log::info!("Run Spring Boot starter");
-            state.run_preferred_starter();
-        }
-        KeyCode::Char('S')
-            if key.modifiers.contains(
-                crossterm::event::KeyModifiers::CONTROL | crossterm::event::KeyModifiers::SHIFT,
-            ) =>
-        {
-            log::info!("Open starter manager");
-            state.show_starter_manager();
         }
         KeyCode::Char('y') => output_keys::handle_yank_output(state),
         KeyCode::Char('Y') => output_keys::handle_yank_debug_info(state),
