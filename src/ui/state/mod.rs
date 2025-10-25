@@ -9,6 +9,7 @@ mod tabs;
 mod navigation;
 mod commands;
 mod profiles;
+mod flags;
 
 pub use project_tab::ProjectTab;
 
@@ -317,26 +318,7 @@ impl TuiState {
 
 
 
-    pub fn toggle_flag(&mut self) {
-        if self.focus != Focus::Flags {
-            return;
-        }
-        let tab = self.get_active_tab_mut();
-        if let Some(selected) = tab.flags_list_state.selected()
-            && let Some(flag) = tab.flags.get_mut(selected)
-        {
-            flag.enabled = !flag.enabled;
-            log::info!(
-                "Toggled flag '{}' ({}): {}",
-                flag.name,
-                flag.flag,
-                flag.enabled
-            );
 
-            // Save preferences after toggling
-            self.save_module_preferences();
-        }
-    }
 
 
 
