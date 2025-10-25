@@ -1,7 +1,11 @@
+// Configuration types and structures
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use super::logging::LoggingConfig;
+
+/// Main configuration structure
 #[derive(Deserialize, Default, Clone)]
 pub struct Config {
     pub maven_settings: Option<String>,
@@ -13,30 +17,13 @@ pub struct Config {
     pub spring: Option<SpringConfig>,
 }
 
-/// Logging configuration for controlling log verbosity via JVM arguments
-#[derive(Deserialize, Clone, Debug, Default, PartialEq)]
-pub struct LoggingConfig {
-    /// List of packages with custom log levels
-    #[serde(default)]
-    pub packages: Vec<PackageLogLevel>,
-}
-
-/// Package-specific log level configuration
-#[derive(Deserialize, Clone, Debug, PartialEq)]
-pub struct PackageLogLevel {
-    /// Package name (e.g., "com.mycompany.api.service")
-    pub name: String,
-    /// Log level (e.g., "ERROR", "WARN", "INFO", "DEBUG", "TRACE")
-    pub level: String,
-}
-
 /// Spring Boot configuration overrides
 #[derive(Deserialize, Clone, Debug, Default, PartialEq)]
 pub struct SpringConfig {
     /// List of Spring Boot properties to override
     #[serde(default)]
     pub properties: Vec<SpringProperty>,
-    
+
     /// Active profiles (alternative to -Dspring.profiles.active)
     #[serde(default)]
     pub active_profiles: Vec<String>,
@@ -129,9 +116,9 @@ impl Default for WatchConfig {
     }
 }
 
-/// Strategy for launching Spring Boot applications
-#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, Default)]
-#[serde(rename_all = "kebab-case")]
+/// Launch mode for running Maven applications
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
 pub enum LaunchMode {
     /// Auto-detect: use spring-boot:run if available, fallback to exec:java
     #[default]
@@ -142,6 +129,7 @@ pub enum LaunchMode {
     ForceExec,
 }
 
+/// Recent projects tracking
 #[derive(Serialize, Deserialize, Default)]
 pub struct RecentProjects {
     projects: Vec<String>,
@@ -155,7 +143,7 @@ impl RecentProjects {
     }
 
     pub fn load() -> Self {
-        let config_dir = get_config_dir();
+        let config_dir = super::io::get_config_dir();
         let recent_file = config_dir.join("recent.json");
 
         if let Ok(content) = fs::read_to_string(&recent_file)
@@ -174,7 +162,7 @@ impl RecentProjects {
     }
 
     pub fn save(&self) -> Result<(), String> {
-        let config_dir = get_config_dir();
+        let config_dir = super::io::get_config_dir();
         fs::create_dir_all(&config_dir)
             .map_err(|e| format!("Failed to create config directory: {}", e))?;
 
@@ -247,158 +235,6 @@ impl RecentProjects {
     }
 }
 
-fn get_config_dir() -> PathBuf {
-    let config_dir = dirs::config_dir()
-        .unwrap_or_else(|| {
-            log::warn!("Could not determine config directory, using home");
-            dirs::home_dir().unwrap_or_else(|| PathBuf::from("."))
-        })
-        .join("lazymvn");
-
-    log::debug!("Config directory: {:?}", config_dir);
-    config_dir
-}
-
-/// Get the configuration file path for a specific project
-/// Returns ~/.config/lazymvn/projects/<hash>/config.toml
-pub fn get_project_config_path(project_root: &Path) -> PathBuf {
-    let config_dir = get_config_dir();
-    let project_hash = format!(
-        "{:x}",
-        md5::compute(project_root.to_string_lossy().as_bytes())
-    )
-    .chars()
-    .take(8)
-    .collect::<String>();
-    
-    config_dir
-        .join("projects")
-        .join(&project_hash)
-        .join("config.toml")
-}
-
-/// Check if a project has a configuration file
-pub fn has_project_config(project_root: &Path) -> bool {
-    get_project_config_path(project_root).exists()
-}
-
-/// Create a project configuration file from template
-/// Returns the path to the created configuration file
-pub fn create_project_config(project_root: &Path) -> Result<PathBuf, String> {
-    use std::fs;
-    
-    // Get config path
-    let config_path = get_project_config_path(project_root);
-    let config_dir = config_path.parent().unwrap();
-    
-    // Create directory structure
-    fs::create_dir_all(config_dir)
-        .map_err(|e| format!("Failed to create config directory: {}", e))?;
-    
-    // Read template file
-    let template_content = include_str!("../../config_template.toml");
-    
-    // Write to config path
-    fs::write(&config_path, template_content)
-        .map_err(|e| format!("Failed to write config file: {}", e))?;
-    
-    Ok(config_path)
-}
-
-pub fn load_config(project_root: &Path) -> Config {
-    log::debug!("Loading config from project root: {:?}", project_root);
-    let mut config: Config = {
-        // First try the new centralized location
-        let config_path = get_project_config_path(project_root);
-        log::debug!("Checking for config file at: {:?}", config_path);
-        
-        if let Ok(content) = fs::read_to_string(&config_path) {
-            log::info!("Found config.toml in centralized location, parsing configuration");
-            match toml::from_str(&content) {
-                Ok(cfg) => {
-                    log::debug!("Successfully parsed config.toml");
-                    cfg
-                }
-                Err(e) => {
-                    log::error!("Failed to parse config.toml: {}", e);
-                    log::error!("Using default configuration instead");
-                    Config::default()
-                }
-            }
-        } else {
-            // Fallback: try legacy location (project_root/lazymvn.toml) for backward compatibility
-            let legacy_config_path = project_root.join("lazymvn.toml");
-            log::debug!("Checking legacy config file at: {:?}", legacy_config_path);
-            
-            if let Ok(content) = fs::read_to_string(&legacy_config_path) {
-                log::warn!("Found lazymvn.toml in project root (legacy location)");
-                log::warn!("Consider running 'lazymvn --setup' to migrate to centralized config");
-                match toml::from_str(&content) {
-                    Ok(cfg) => {
-                        log::debug!("Successfully parsed legacy lazymvn.toml");
-                        cfg
-                    }
-                    Err(e) => {
-                        log::error!("Failed to parse lazymvn.toml: {}", e);
-                        log::error!("Using default configuration instead");
-                        Config::default()
-                    }
-                }
-            } else {
-                log::debug!("No config file found, using defaults");
-                Config::default()
-            }
-        }
-    };
-
-    if config.maven_settings.is_none() {
-        log::debug!("No maven_settings in config, searching for settings.xml");
-        config.maven_settings =
-            find_maven_settings(project_root).map(|p| p.to_str().unwrap().to_string());
-    }
-
-    if let Some(ref settings) = config.maven_settings {
-        log::info!("Using Maven settings file: {}", settings);
-    } else {
-        log::debug!("No Maven settings file found");
-    }
-
-    // Log what we loaded
-    if let Some(ref logging) = config.logging {
-        log::debug!("Loaded logging config with {} packages:", logging.packages.len());
-        for pkg in &logging.packages {
-            log::debug!("  {} = {}", pkg.name, pkg.level);
-        }
-    } else {
-        log::debug!("No logging configuration found in lazymvn.toml");
-    }
-
-    config
-}
-
-fn find_maven_settings(project_root: &Path) -> Option<PathBuf> {
-    let filenames = ["maven_settings.xml", "settings.xml"];
-    let dirs = [
-        project_root.to_path_buf(),
-        dirs::home_dir().unwrap().join(".m2"),
-    ];
-
-    log::debug!("Searching for Maven settings in:");
-    for dir in &dirs {
-        log::debug!("  - {:?}", dir);
-        for filename in &filenames {
-            let path = dir.join(filename);
-            if path.exists() {
-                log::info!("Found Maven settings at: {:?}", path);
-                return Some(path);
-            }
-        }
-    }
-
-    log::debug!("No Maven settings file found");
-    None
-}
-
 /// Module preferences for saving selected profiles and flags per module
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ModulePreferences {
@@ -459,7 +295,7 @@ impl ProjectPreferences {
 
     /// Get the preferences file path for a project
     fn get_prefs_file(project_root: &Path) -> PathBuf {
-        let config_dir = get_config_dir();
+        let config_dir = super::io::get_config_dir();
         let project_hash = format!(
             "{:x}",
             md5::compute(project_root.to_string_lossy().as_bytes())
@@ -473,7 +309,6 @@ impl ProjectPreferences {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
     use tempfile::tempdir;
 
     #[test]
@@ -601,96 +436,8 @@ mod tests {
 
         recent.remove_invalid();
 
-        assert_eq!(recent.projects.len(), 1, "Should remove invalid paths");
-        assert_eq!(recent.projects[0], valid_path.to_string_lossy());
-    }
-
-    #[test]
-    fn test_recent_projects_serialization_format() {
-        let mut recent = RecentProjects::new();
-        recent.add(PathBuf::from("/tmp/test"));
-
-        let json = serde_json::to_string(&recent).unwrap();
-
-        assert!(json.contains("\"projects\""));
-        assert!(json.contains("/tmp/test"));
-    }
-
-    #[test]
-    fn test_load_config_returns_default_when_no_file() {
-        let temp_dir = tempdir().unwrap();
-        let config = load_config(temp_dir.path());
-
-        // Should return default config without error
-        assert!(config.maven_settings.is_some() || config.maven_settings.is_none());
-    }
-
-    #[test]
-    fn test_load_config_parses_maven_settings() {
-        let temp_dir = tempdir().unwrap();
-        let config_file = temp_dir.path().join("lazymvn.toml");
-
-        fs::write(&config_file, r#"maven_settings = "/custom/settings.xml""#).unwrap();
-
-        let config = load_config(temp_dir.path());
-
-        assert_eq!(
-            config.maven_settings,
-            Some("/custom/settings.xml".to_string())
-        );
-    }
-}
-
-#[cfg(test)]
-mod module_prefs_tests {
-    use super::*;
-    use tempfile::tempdir;
-
-    #[test]
-    fn test_logging_config_deserialization() {
-        let toml_str = r#"
-[logging]
-packages = [
-    { name = "com.example.test", level = "ERROR" },
-    { name = "org.springframework", level = "WARN" },
-]
-"#;
-        let config: Config = toml::from_str(toml_str).unwrap();
-
-        assert!(config.logging.is_some());
-        let logging = config.logging.unwrap();
-        assert_eq!(logging.packages.len(), 2);
-        assert_eq!(logging.packages[0].name, "com.example.test");
-        assert_eq!(logging.packages[0].level, "ERROR");
-        assert_eq!(logging.packages[1].name, "org.springframework");
-        assert_eq!(logging.packages[1].level, "WARN");
-    }
-
-    #[test]
-    fn test_logging_config_optional() {
-        let toml_str = r#"
-maven_settings = "/path/to/settings.xml"
-"#;
-        let config: Config = toml::from_str(toml_str).unwrap();
-
-        assert!(config.logging.is_none());
-        assert_eq!(
-            config.maven_settings,
-            Some("/path/to/settings.xml".to_string())
-        );
-    }
-
-    #[test]
-    fn test_logging_config_empty_packages() {
-        let toml_str = r#"
-[logging]
-packages = []
-"#;
-        let config: Config = toml::from_str(toml_str).unwrap();
-
-        assert!(config.logging.is_some());
-        let logging = config.logging.unwrap();
-        assert_eq!(logging.packages.len(), 0);
+        assert_eq!(recent.projects.len(), 1);
+        assert_eq!(recent.projects[0], valid_path.to_string_lossy().to_string());
     }
 
     #[test]
