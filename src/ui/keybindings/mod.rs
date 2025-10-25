@@ -5,6 +5,7 @@
 mod types;
 mod popup_keys;
 mod search_keys;
+mod output_keys;
 
 pub use types::{CurrentView, Focus, SearchMode};
 
@@ -240,26 +241,8 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
             log::debug!("Cycle focus right");
             state.cycle_focus_right();
         }
-        KeyCode::Down => match state.focus {
-            Focus::Output => {
-                log::debug!("Scroll output down");
-                state.scroll_output_lines(1);
-            }
-            _ => {
-                log::debug!("Navigate down in list");
-                state.next_item();
-            }
-        },
-        KeyCode::Up => match state.focus {
-            Focus::Output => {
-                log::debug!("Scroll output up");
-                state.scroll_output_lines(-1);
-            }
-            _ => {
-                log::debug!("Navigate up in list");
-                state.previous_item();
-            }
-        },
+        KeyCode::Down => output_keys::handle_scroll_down(state, state.focus),
+        KeyCode::Up => output_keys::handle_scroll_up(state, state.focus),
         KeyCode::Char('0') => {
             log::info!("Focus output pane");
             state.focus_output();
@@ -312,14 +295,8 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
             log::info!("Open starter manager");
             state.show_starter_manager();
         }
-        KeyCode::Char('y') => {
-            log::info!("Yank (copy) output to clipboard");
-            state.yank_output();
-        }
-        KeyCode::Char('Y') => {
-            log::info!("Yank (copy) debug report to clipboard");
-            state.yank_debug_info();
-        }
+        KeyCode::Char('y') => output_keys::handle_yank_output(state),
+        KeyCode::Char('Y') => output_keys::handle_yank_debug_info(state),
         KeyCode::Esc => {
             log::info!("Kill running process with Escape");
             state.kill_running_process();
@@ -345,22 +322,10 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
             log::debug!("Previous search match");
             state.previous_search_match();
         }
-        KeyCode::PageUp => {
-            log::debug!("Page up");
-            state.scroll_output_pages(-1);
-        }
-        KeyCode::PageDown => {
-            log::debug!("Page down");
-            state.scroll_output_pages(1);
-        }
-        KeyCode::Home => {
-            log::debug!("Scroll to start");
-            state.scroll_output_to_start();
-        }
-        KeyCode::End => {
-            log::debug!("Scroll to end");
-            state.scroll_output_to_end();
-        }
+        KeyCode::PageUp => output_keys::handle_page_up(state),
+        KeyCode::PageDown => output_keys::handle_page_down(state),
+        KeyCode::Home => output_keys::handle_scroll_to_start(state),
+        KeyCode::End => output_keys::handle_scroll_to_end(state),
         KeyCode::Enter | KeyCode::Char(' ') => {
             if state.focus == Focus::Profiles {
                 state.toggle_profile();
