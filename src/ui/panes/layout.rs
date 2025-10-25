@@ -244,6 +244,7 @@ pub(super) fn create_two_column_layout(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ui::keybindings::Focus;
 
     #[test]
     fn test_adaptive_layout_narrow_terminal() {
