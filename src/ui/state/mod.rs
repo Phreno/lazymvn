@@ -18,6 +18,7 @@ pub use project_tab::ProjectTab;
 // Re-export types
 
 use crate::maven;
+use crate::maven::detection::SpringBootDetection;
 use crate::ui::keybindings::{CurrentView, Focus, SearchMode};
 use crate::ui::search::{SearchMatch, SearchState};
 use ratatui::widgets::ListState;
@@ -1352,177 +1353,201 @@ impl TuiState {
     pub fn run_spring_boot_starter(&mut self, fqcn: &str) {
         log::info!("Running Spring Boot starter: {}", fqcn);
 
-        // Get selected module
         let module = self.selected_module();
-
         let tab = self.get_active_tab();
         let project_root = tab.project_root.clone();
-        let config_clone = tab.config.clone();
 
-        // Detect Spring Boot capabilities for this module
+        // Detect Spring Boot capabilities and decide launch strategy
         match crate::maven::detect_spring_boot_capabilities(&project_root, module) {
             Ok(detection) => {
-                // Decide launch strategy based on detection and config
-                let launch_mode = config_clone
-                    .launch_mode
-                    .unwrap_or(crate::core::config::LaunchMode::Auto);
-                let strategy = crate::maven::decide_launch_strategy(&detection, launch_mode);
-
-                log::info!(
-                    "Launch strategy decided: {:?} (mode={:?}, has_sb_plugin={}, packaging={:?})",
-                    strategy,
-                    launch_mode,
-                    detection.has_spring_boot_plugin,
-                    detection.packaging
-                );
-
-                let tab = self.get_active_tab();
-                // Collect active profile names (those that need to be passed to Maven)
-                let active_profiles: Vec<String> = tab
-                    .profiles
-                    .iter()
-                    .filter_map(|p| p.to_maven_arg())
-                    .collect();
-
-                // Build JVM args from logging configuration
-                let mut jvm_args: Vec<String> = if let Some(ref logging_config) = tab.config.logging {
-                    log::debug!("Found logging config with {} packages", logging_config.packages.len());
-                    
-                    // Convert LoggingPackage to (String, String) tuples for Log4j generation
-                    let logging_overrides: Vec<(String, String)> = logging_config
-                        .packages
-                        .iter()
-                        .map(|pkg| (pkg.name.clone(), pkg.level.clone()))
-                        .collect();
-                    
-                    // Generate Log4j 1.x config file if logging overrides exist
-                    // This is automatically used by Log4j 1.x applications
-                    if !logging_overrides.is_empty() {
-                        if let Some(log4j_config_path) = crate::maven::generate_log4j_config(
-                            &tab.project_root,
-                            &logging_overrides,
-                        ) {
-                            // Convert path to URL format for Log4j configuration
-                            let config_url = if cfg!(windows) {
-                                // Windows: file:///C:/path/to/file
-                                format!("file:///{}", log4j_config_path.display().to_string().replace('\\', "/"))
-                            } else {
-                                // Unix: file:///path/to/file
-                                format!("file://{}", log4j_config_path.display())
-                            };
-                            
-                            log::info!("Injecting Log4j 1.x configuration: {}", config_url);
-                            
-                            // Add Log4j configuration argument at the beginning
-                            // This ensures Log4j 1.x picks it up before loading default config
-                            vec![format!("-Dlog4j.configuration={}", config_url)]
-                        } else {
-                            Vec::new()
-                        }
-                    } else {
-                        Vec::new()
-                    }
-                } else {
-                    log::debug!("No logging config found in tab.config");
-                    Vec::new()
-                };
+                let strategy = self.decide_launch_strategy(&detection);
+                let active_profiles = self.collect_active_maven_profiles();
+                let jvm_args = self.build_jvm_args_for_launcher();
                 
-                // Also add traditional JVM args for Spring Boot (Logback) compatibility
-                if let Some(ref logging_config) = tab.config.logging {
-                    for pkg in &logging_config.packages {
-                        // Add Logback/Spring Boot style logging levels
-                        jvm_args.push(format!("-Dlogging.level.{}={}", pkg.name, pkg.level));
-                    }
-                }
-
-                log::debug!("Generated {} JVM args from logging config", jvm_args.len());
-                for arg in &jvm_args {
-                    log::debug!("  JVM arg: {}", arg);
-                }
-
-                // Generate Spring Boot properties override file if [spring] config exists
-                if let Some(ref spring_config) = tab.config.spring {
-                    log::debug!("Found spring config with {} properties and {} profiles", 
-                        spring_config.properties.len(),
-                        spring_config.active_profiles.len()
-                    );
-                    
-                    // Convert SpringProperty to (String, String) tuples
-                    let spring_properties: Vec<(String, String)> = spring_config
-                        .properties
-                        .iter()
-                        .map(|prop| (prop.name.clone(), prop.value.clone()))
-                        .collect();
-                    
-                    // Generate Spring properties file
-                    if let Some(spring_config_path) = crate::maven::generate_spring_properties(
-                        &tab.project_root,
-                        &spring_properties,
-                        &spring_config.active_profiles,
-                    ) {
-                        // Convert path to URL format for Spring configuration
-                        let config_url = if cfg!(windows) {
-                            // Windows: file:///C:/path/to/file
-                            format!("file:///{}", spring_config_path.display().to_string().replace('\\', "/"))
-                        } else {
-                            // Unix: file:///path/to/file
-                            format!("file://{}", spring_config_path.display())
-                        };
-                        
-                        log::info!("Injecting Spring Boot properties override: {}", config_url);
-                        log::debug!("Spring properties will OVERRIDE project defaults (LazyMVN has the last word)");
-                        
-                        // Add Spring config location argument
-                        // Using spring.config.additional-location ensures our config has highest priority
-                        jvm_args.push(format!("-Dspring.config.additional-location={}", config_url));
-                        
-                        // Log each property for debugging
-                        for (name, value) in &spring_properties {
-                            log::debug!("  Spring property override: {}={}", name, value);
-                        }
-                        if !spring_config.active_profiles.is_empty() {
-                            log::debug!("  Spring active profiles: {}", spring_config.active_profiles.join(","));
-                        }
-                    }
-                } else {
-                    log::debug!("No spring config found in tab.config");
-                }
-
-                // Build launch command with the strategy
-                let command_parts = crate::maven::build_launch_command(
-                    strategy,
-                    Some(fqcn),
-                    &active_profiles,
-                    &jvm_args,
-                    detection.packaging.as_deref(),
-                );
-
-                // Convert to &str references
-                let args: Vec<&str> = command_parts.iter().map(|s| s.as_str()).collect();
-
-                // For Spring Boot projects, use -pl instead of -f to inherit parent plugin config
-                // but add --also-make to ensure dependencies are built
-                let use_file_flag = strategy == crate::maven::LaunchStrategy::ExecJava;
-                self.run_selected_module_command_with_options(&args, use_file_flag);
+                self.execute_launch_command(strategy, fqcn, &active_profiles, &jvm_args, detection.packaging.as_deref());
             }
             Err(e) => {
-                log::error!("Failed to detect Spring Boot capabilities: {}", e);
-                {
-                    let tab = self.get_active_tab_mut();
-                    tab.command_output = vec![
-                        format!("Error detecting launch strategy: {}", e),
-                        String::new(),
-                        "Falling back to spring-boot:run...".to_string(),
-                    ];
-                }
-
-                // Fallback to old behavior
-                let main_class_arg = format!("-Dspring-boot.run.mainClass={}", fqcn);
-                let args = vec!["spring-boot:run", &main_class_arg];
-                // Use -pl for spring-boot:run to inherit parent plugin config
-                self.run_selected_module_command_with_options(&args, false);
+                self.handle_detection_error(e.to_string(), fqcn);
             }
         }
+    }
+
+    /// Decide launch strategy based on detection and configuration
+    fn decide_launch_strategy(&self, detection: &SpringBootDetection) -> crate::maven::LaunchStrategy {
+        let tab = self.get_active_tab();
+        let launch_mode = tab.config.launch_mode.unwrap_or(crate::core::config::LaunchMode::Auto);
+        let strategy = crate::maven::decide_launch_strategy(detection, launch_mode);
+
+        log::info!(
+            "Launch strategy decided: {:?} (mode={:?}, has_sb_plugin={}, packaging={:?})",
+            strategy,
+            launch_mode,
+            detection.has_spring_boot_plugin,
+            detection.packaging
+        );
+
+        strategy
+    }
+
+    /// Collect active Maven profile names
+    fn collect_active_maven_profiles(&self) -> Vec<String> {
+        let tab = self.get_active_tab();
+        tab.profiles
+            .iter()
+            .filter_map(|p| p.to_maven_arg())
+            .collect()
+    }
+
+    /// Build JVM arguments from logging and Spring configurations
+    fn build_jvm_args_for_launcher(&self) -> Vec<String> {
+        let mut jvm_args = Vec::new();
+
+        // Add Log4j configuration arguments
+        if let Some(log4j_arg) = self.generate_log4j_jvm_arg() {
+            jvm_args.push(log4j_arg);
+        }
+
+        // Add Logback/Spring Boot logging level arguments
+        self.add_logback_logging_args(&mut jvm_args);
+
+        // Add Spring Boot properties configuration
+        if let Some(spring_arg) = self.generate_spring_properties_jvm_arg() {
+            jvm_args.push(spring_arg);
+        }
+
+        log::debug!("Generated {} JVM args total", jvm_args.len());
+        for arg in &jvm_args {
+            log::debug!("  JVM arg: {}", arg);
+        }
+
+        jvm_args
+    }
+
+    /// Generate Log4j configuration JVM argument
+    fn generate_log4j_jvm_arg(&self) -> Option<String> {
+        let tab = self.get_active_tab();
+        let logging_config = tab.config.logging.as_ref()?;
+        
+        log::debug!("Found logging config with {} packages", logging_config.packages.len());
+
+        let logging_overrides: Vec<(String, String)> = logging_config
+            .packages
+            .iter()
+            .map(|pkg| (pkg.name.clone(), pkg.level.clone()))
+            .collect();
+
+        if logging_overrides.is_empty() {
+            return None;
+        }
+
+        let log4j_config_path = crate::maven::generate_log4j_config(
+            &tab.project_root,
+            &logging_overrides,
+        )?;
+
+        let config_url = Self::path_to_file_url(&log4j_config_path);
+        log::info!("Injecting Log4j 1.x configuration: {}", config_url);
+
+        Some(format!("-Dlog4j.configuration={}", config_url))
+    }
+
+    /// Add Logback/Spring Boot logging level arguments
+    fn add_logback_logging_args(&self, jvm_args: &mut Vec<String>) {
+        let tab = self.get_active_tab();
+        if let Some(ref logging_config) = tab.config.logging {
+            for pkg in &logging_config.packages {
+                jvm_args.push(format!("-Dlogging.level.{}={}", pkg.name, pkg.level));
+            }
+        }
+    }
+
+    /// Generate Spring Boot properties JVM argument
+    fn generate_spring_properties_jvm_arg(&self) -> Option<String> {
+        let tab = self.get_active_tab();
+        let spring_config = tab.config.spring.as_ref()?;
+
+        log::debug!(
+            "Found spring config with {} properties and {} profiles",
+            spring_config.properties.len(),
+            spring_config.active_profiles.len()
+        );
+
+        let spring_properties: Vec<(String, String)> = spring_config
+            .properties
+            .iter()
+            .map(|prop| (prop.name.clone(), prop.value.clone()))
+            .collect();
+
+        let spring_config_path = crate::maven::generate_spring_properties(
+            &tab.project_root,
+            &spring_properties,
+            &spring_config.active_profiles,
+        )?;
+
+        let config_url = Self::path_to_file_url(&spring_config_path);
+        log::info!("Injecting Spring Boot properties override: {}", config_url);
+        log::debug!("Spring properties will OVERRIDE project defaults (LazyMVN has the last word)");
+
+        // Log each property for debugging
+        for (name, value) in &spring_properties {
+            log::debug!("  Spring property override: {}={}", name, value);
+        }
+        if !spring_config.active_profiles.is_empty() {
+            log::debug!("  Spring active profiles: {}", spring_config.active_profiles.join(","));
+        }
+
+        Some(format!("-Dspring.config.additional-location={}", config_url))
+    }
+
+    /// Convert file path to file:// URL (cross-platform)
+    fn path_to_file_url(path: &std::path::Path) -> String {
+        if cfg!(windows) {
+            format!("file:///{}", path.display().to_string().replace('\\', "/"))
+        } else {
+            format!("file://{}", path.display())
+        }
+    }
+
+    /// Execute the launch command with the given parameters
+    fn execute_launch_command(
+        &mut self,
+        strategy: crate::maven::LaunchStrategy,
+        fqcn: &str,
+        active_profiles: &[String],
+        jvm_args: &[String],
+        packaging: Option<&str>,
+    ) {
+        let command_parts = crate::maven::build_launch_command(
+            strategy,
+            Some(fqcn),
+            active_profiles,
+            jvm_args,
+            packaging,
+        );
+
+        let args: Vec<&str> = command_parts.iter().map(|s| s.as_str()).collect();
+        let use_file_flag = strategy == crate::maven::LaunchStrategy::ExecJava;
+        
+        self.run_selected_module_command_with_options(&args, use_file_flag);
+    }
+
+    /// Handle Spring Boot detection error with fallback
+    fn handle_detection_error(&mut self, error: String, fqcn: &str) {
+        log::error!("Failed to detect Spring Boot capabilities: {}", error);
+        
+        {
+            let tab = self.get_active_tab_mut();
+            tab.command_output = vec![
+                format!("Error detecting launch strategy: {}", error),
+                String::new(),
+                "Falling back to spring-boot:run...".to_string(),
+            ];
+        }
+
+        // Fallback to traditional spring-boot:run
+        let main_class_arg = format!("-Dspring-boot.run.mainClass={}", fqcn);
+        let args = vec!["spring-boot:run", &main_class_arg];
+        self.run_selected_module_command_with_options(&args, false);
     }
 
     pub fn run_preferred_starter(&mut self) {
