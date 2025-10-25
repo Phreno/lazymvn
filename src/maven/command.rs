@@ -1,6 +1,6 @@
 //! Maven command building and execution
 
-use crate::config::LoggingConfig;
+use crate::core::config::LoggingConfig;
 use crate::utils;
 use std::{
     io::{BufRead, BufReader},

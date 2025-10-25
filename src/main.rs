@@ -1,15 +1,9 @@
-mod config;
-mod favorites;
-mod history;
-mod loading;
-mod logger;
+mod core;
+mod features;
 mod maven;
-mod project;
-mod starters;
 mod tui;
 mod ui;
 mod utils;
-mod watcher;
 
 use clap::Parser;
 use crossterm::event;
@@ -53,16 +47,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Initialize logger based on debug flag
     let log_level = if cli.debug { Some("debug") } else { None };
-    if let Err(e) = logger::init(log_level) {
+    if let Err(e) = utils::logger::init(log_level) {
         eprintln!("Failed to initialize logger: {}", e);
     }
 
     // Show log location if debug is enabled
     if cli.debug {
-        if let Some(debug_log) = logger::get_debug_log_path() {
+        if let Some(debug_log) = utils::logger::get_debug_log_path() {
             eprintln!("📝 Debug logs: {}", debug_log.display());
         }
-        if let Some(error_log) = logger::get_error_log_path() {
+        if let Some(error_log) = utils::logger::get_error_log_path() {
             eprintln!("❌ Error logs: {}", error_log.display());
         }
     }
@@ -133,13 +127,13 @@ fn run<B: ratatui::backend::Backend>(
     cli: &Cli,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Initialize loading progress with 5 steps
-    let mut progress = loading::LoadingProgress::new(5);
+    let mut progress = utils::loading::LoadingProgress::new(5);
 
     // Step 1: Loading project structure
-    loading_step!(progress, terminal, 1, 5, "Searching for Maven project...");
+    crate::loading_step!(progress, terminal, 1, 5, "Searching for Maven project...");
 
     // Try to load project modules from current directory
-    let (modules, project_root) = match project::get_project_modules() {
+    let (modules, project_root) = match core::project::get_project_modules() {
         Ok(result) => {
             log::debug!("Loaded {} modules from {:?}", result.0.len(), result.1);
             result
@@ -148,7 +142,7 @@ fn run<B: ratatui::backend::Backend>(
             log::warn!("No POM found in current directory: {}", e);
 
             // Try to load most recent project as fallback
-            let recent_projects = config::RecentProjects::load();
+            let recent_projects = core::config::RecentProjects::load();
             let valid_projects = recent_projects.get_projects();
 
             if let Some(last_project) = valid_projects.first() {
@@ -165,7 +159,7 @@ fn run<B: ratatui::backend::Backend>(
                 }
 
                 // Try to load modules from recent project
-                match project::get_project_modules() {
+                match core::project::get_project_modules() {
                     Ok(result) => {
                         log::info!("Successfully loaded recent project: {:?}", result.1);
                         result
@@ -191,41 +185,41 @@ fn run<B: ratatui::backend::Backend>(
     };
 
     // Step 2: Loading configuration
-    loading_step!(progress, terminal, 2, 5, "Loading configuration...");
+    crate::loading_step!(progress, terminal, 2, 5, "Loading configuration...");
 
     // Add current project to recent projects
-    let mut recent_projects = config::RecentProjects::load();
+    let mut recent_projects = core::config::RecentProjects::load();
     recent_projects.add(project_root.clone());
 
     // Load config and apply CLI overrides for launch mode
-    let mut config = config::load_config(&project_root);
+    let mut config = core::config::load_config(&project_root);
 
     // CLI flags override config file
     if cli.force_run {
         log::info!("CLI override: using force-run mode");
-        config.launch_mode = Some(config::LaunchMode::ForceRun);
+        config.launch_mode = Some(core::config::LaunchMode::ForceRun);
     } else if cli.force_exec {
         log::info!("CLI override: using force-exec mode");
-        config.launch_mode = Some(config::LaunchMode::ForceExec);
+        config.launch_mode = Some(core::config::LaunchMode::ForceExec);
     }
     // If neither flag is set, use config value or default to Auto
     if config.launch_mode.is_none() {
-        config.launch_mode = Some(config::LaunchMode::Auto);
+        config.launch_mode = Some(core::config::LaunchMode::Auto);
     }
 
     // Step 3: Initializing UI state
-    loading_step!(progress, terminal, 3, 5, "Initializing UI state...");
+    crate::loading_step!(progress, terminal, 3, 5, "Initializing UI state...");
 
     let mut state = tui::TuiState::new(modules, project_root.clone(), config);
 
     // Step 4: Discovering Maven profiles (asynchronous)
-    loading_step!(progress, terminal, 4, 5, "Starting profile discovery...");
+    crate::loading_step!(progress, terminal, 4, 5, "Starting profile discovery...");
 
     // Start loading profiles asynchronously
     state.start_loading_profiles();
 
     // Step 5: Ready!
-    loading_step!(progress, terminal, 5, 5, "Starting LazyMVN...");
+    crate::loading_step!(progress, terminal, 5, 5, "Starting LazyMVN...");
 
     // Small delay to show completion
     std::thread::sleep(std::time::Duration::from_millis(300));
@@ -273,7 +267,7 @@ fn run<B: ratatui::backend::Backend>(
             }
 
             // Reload project
-            match project::get_project_modules() {
+            match core::project::get_project_modules() {
                 Ok((new_modules, new_project_root)) => {
                     log::info!(
                         "Loaded {} modules from {:?}",
@@ -285,14 +279,14 @@ fn run<B: ratatui::backend::Backend>(
                     recent_projects.add(new_project_root.clone());
 
                     // Load config and apply CLI overrides
-                    let mut new_config = config::load_config(&new_project_root);
+                    let mut new_config = core::config::load_config(&new_project_root);
                     if cli.force_run {
-                        new_config.launch_mode = Some(config::LaunchMode::ForceRun);
+                        new_config.launch_mode = Some(core::config::LaunchMode::ForceRun);
                     } else if cli.force_exec {
-                        new_config.launch_mode = Some(config::LaunchMode::ForceExec);
+                        new_config.launch_mode = Some(core::config::LaunchMode::ForceExec);
                     }
                     if new_config.launch_mode.is_none() {
-                        new_config.launch_mode = Some(config::LaunchMode::Auto);
+                        new_config.launch_mode = Some(core::config::LaunchMode::Auto);
                     }
 
                     // Create new state
@@ -332,7 +326,7 @@ fn run<B: ratatui::backend::Backend>(
 
                         // Reload configuration
                         let project_root = state.get_active_tab().project_root.clone();
-                        let new_config = config::load_config(&project_root);
+                        let new_config = core::config::load_config(&project_root);
 
                         // Apply configuration changes
                         let config_changed = state.reload_config(new_config);
@@ -414,7 +408,7 @@ fn setup_config() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Check if config already exists
-    let config_exists = crate::config::has_project_config(&current_dir);
+    let config_exists = crate::core::config::has_project_config(&current_dir);
     
     if config_exists {
         eprintln!("⚠️  Configuration already exists for this project");
@@ -436,7 +430,7 @@ fn setup_config() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Create the configuration file
-    let config_path = crate::config::create_project_config(&current_dir)?;
+    let config_path = crate::core::config::create_project_config(&current_dir)?;
     
     println!("✅ Successfully created configuration file");
     println!();

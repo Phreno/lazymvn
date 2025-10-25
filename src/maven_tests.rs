@@ -1,5 +1,5 @@
 // Maven module tests
-use crate::config::LaunchMode;
+use crate::core::config::LaunchMode;
 use crate::maven::command::{
     execute_maven_command, execute_maven_command_with_options, get_maven_command,
 };
@@ -368,7 +368,7 @@ fn test_get_profile_xml_with_maven_settings_xml() {
 
     // Create config.toml to point to maven_settings.xml (using centralized location)
     let config_content = format!("maven_settings = \"{}\"", maven_settings.to_str().unwrap());
-    match crate::config::create_project_config(project_root) {
+    match crate::core::config::create_project_config(project_root) {
         Ok(config_path) => {
             // Overwrite with test config that points to maven_settings.xml
             fs::write(&config_path, config_content).unwrap();

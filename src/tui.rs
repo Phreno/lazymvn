@@ -334,8 +334,8 @@ mod tests {
     use std::path::PathBuf;
     use tempfile::tempdir;
 
-    fn test_cfg() -> crate::config::Config {
-        crate::config::Config {
+    fn test_cfg() -> crate::core::config::Config {
+        crate::core::config::Config {
             maven_settings: None,
             launch_mode: None,
             notifications_enabled: None,

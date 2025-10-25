@@ -9,29 +9,52 @@ This file contains coding guidelines and conventions for contributors and AI age
 ```
 lazymvn/
 ├── src/                  # Source code
-│   ├── main.rs           # Entry point, TUI setup, main event loop
-│   ├── config.rs         # Configuration file loading (lazymvn.toml)
+│   ├── main.rs           # Entry point, CLI argument parsing
+│   ├── lib.rs            # Public API (NEW - for library usage)
+│   ├── tui.rs            # TUI coordination and rendering
+│   ├── maven_tests.rs    # Maven integration tests
+│   │
+│   ├── core/             # Core functionality (NEW)
+│   │   ├── mod.rs
+│   │   ├── config.rs     # Configuration file management (lazymvn.toml)
+│   │   └── project.rs    # POM parsing, module discovery, caching
+│   │
 │   ├── maven/            # Maven command execution and detection
+│   │   ├── mod.rs
 │   │   ├── command.rs    # Command building and execution
 │   │   ├── detection.rs  # Spring Boot/exec:java detection
 │   │   ├── process.rs    # Process management
-│   │   └── profiles.rs   # Profile loading
-│   ├── project.rs        # POM parsing, module discovery, caching
-│   ├── tui.rs            # TUI coordination and rendering
-│   ├── utils.rs          # Utilities (log parsing, cleaning)
-│   ├── logger.rs         # Logging system
-│   ├── watcher.rs        # File watching for live reload
-│   ├── starters.rs       # Spring Boot starter management
-│   ├── favorites.rs      # Favorites management
-│   ├── history.rs        # Command history
+│   │   ├── profiles.rs   # Profile loading
+│   │   ├── log4j.rs      # Log4j configuration override
+│   │   └── spring.rs     # Spring Boot properties override
+│   │
+│   ├── features/         # Optional features (NEW)
+│   │   ├── mod.rs
+│   │   ├── favorites.rs  # Favorites management
+│   │   ├── history.rs    # Command history
+│   │   └── starters.rs   # Spring Boot starter management
+│   │
+│   ├── utils/            # Shared utilities (NEW)
+│   │   ├── mod.rs
+│   │   ├── text.rs       # Text processing (colorization, ANSI stripping)
+│   │   ├── logger.rs     # Logging system
+│   │   ├── watcher.rs    # File watching for live reload
+│   │   ├── loading.rs    # Loading screen animations
+│   │   └── git.rs        # Git repository operations
+│   │
 │   └── ui/               # UI components
+│       ├── mod.rs
 │       ├── keybindings/  # Key event handling
+│       │   ├── mod.rs
+│       │   └── types.rs
 │       ├── state/        # Application state management
 │       │   ├── mod.rs
 │       │   └── project_tab.rs  # Per-tab state
 │       ├── panes/        # UI pane rendering
+│       │   └── mod.rs
 │       ├── search.rs     # Search functionality
 │       └── theme.rs      # Colors and styles
+│
 ├── docs/                 # Documentation (features, implementations, design)
 │   ├── README.md         # Documentation index
 │   ├── DEBUG_YANK.md     # Debug yank feature
@@ -48,6 +71,7 @@ lazymvn/
 │   ├── README.md         # Scripts documentation
 │   ├── test_debug_yank.sh    # Debug yank feature test
 │   ├── test-env.sh       # Environment validation
+│   ├── test-refactoring.sh   # Architecture validation (NEW)
 │   ├── test-live-reload.sh   # Live reload test
 │   └── ...               # Other test scripts
 ├── demo/                 # Demo Maven projects for testing
@@ -83,6 +107,109 @@ cargo fmt
 
 # Lint code
 cargo clippy -- -D warnings
+
+# Validate architecture
+./scripts/test-refactoring.sh
+```
+
+## Module Architecture
+
+LazyMVN follows a modular architecture with clear separation of concerns:
+
+### Core Modules (`src/core/`)
+**Responsibility**: Configuration and project management
+
+- `config.rs` - Configuration file loading and management
+  - Centralized config in `~/.config/lazymvn/projects/<hash>/config.toml`
+  - Template-based generation
+  - Hot reload support
+- `project.rs` - Maven POM parsing and module discovery
+  - Multi-module detection
+  - Caching with hash validation
+
+**Usage**:
+```rust
+use crate::core::config;
+use crate::core::project;
+
+let (modules, root) = project::get_project_modules()?;
+let config = config::load_config(&root);
+```
+
+### Maven Integration (`src/maven/`)
+**Responsibility**: Maven command execution and Spring Boot integration
+
+- `command.rs` - Maven command building and execution
+- `detection.rs` - Spring Boot/exec:java auto-detection
+- `profiles.rs` - Profile loading and activation
+- `process.rs` - Process management
+- `log4j.rs` - Log4j configuration override
+- `spring.rs` - Spring Boot properties override
+
+**Usage**:
+```rust
+use crate::maven;
+
+maven::execute_maven_command(&root, &args)?;
+```
+
+### Features (`src/features/`)
+**Responsibility**: Optional enhancement features
+
+- `favorites.rs` - Save/load favorite command configurations
+- `history.rs` - Track command execution history
+- `starters.rs` - Spring Boot starter dependency management
+
+**Usage**:
+```rust
+use crate::features::favorites::Favorites;
+use crate::features::history::CommandHistory;
+
+let favorites = Favorites::load();
+let history = CommandHistory::load();
+```
+
+### UI Components (`src/ui/`)
+**Responsibility**: Terminal user interface
+
+- `state/` - Application state management (TuiState, per-tab state)
+- `keybindings/` - Keyboard event handling
+- `panes/` - UI rendering (layouts, module list, output)
+- `theme.rs` - Color schemes and styles
+- `search.rs` - Search functionality
+
+**Large files** (consider splitting if modifying extensively):
+- `state/mod.rs` - 3255 lines
+- `panes/mod.rs` - 1418 lines
+- `keybindings/mod.rs` - 1203 lines
+
+### Utilities (`src/utils/`)
+**Responsibility**: Shared utility functions
+
+- `text.rs` - Text processing (colorization, ANSI stripping, XML formatting)
+- `logger.rs` - Logging system configuration
+- `watcher.rs` - File watching for live reload
+- `loading.rs` - Loading screen animations
+- `git.rs` - Git repository operations
+
+**Usage**:
+```rust
+use crate::utils::text::{clean_log_line, colorize_log_line};
+use crate::utils::logger;
+use crate::utils::watcher::FileWatcher;
+
+let cleaned = clean_log_line(&raw_line);
+logger::init(log_level)?;
+```
+
+### Public API (`src/lib.rs`)
+LazyMVN can be used as a library:
+
+```rust
+use lazymvn::core::project;
+
+let (modules, root) = project::get_project_modules()?;
+let config = lazymvn::core::config::load_config(&root);
 ```
 
 ## Project Organization
@@ -115,6 +242,7 @@ See [scripts/README.md](scripts/README.md) for usage instructions.
 ./scripts/test-env.sh           # Validate environment
 ./scripts/test_debug_yank.sh    # Test debug yank feature
 ./scripts/test-live-reload.sh   # Test live reload
+./scripts/test-refactoring.sh   # Validate architecture
 ```
 
 ### Root Directory Files
@@ -123,6 +251,7 @@ Only essential files remain in the root:
 - `CONTRIBUTING.md` - Contribution process
 - `README.md` - User-facing documentation
 - `CHANGELOG.md` - Version history
+- `REFACTORING_SUMMARY.md` - Architecture refactoring details
 - `Cargo.toml` / `Cargo.lock` - Rust project files
 
 ## Coding Style

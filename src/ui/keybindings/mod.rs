@@ -762,7 +762,7 @@ pub(crate) fn simplified_footer_body(_view: CurrentView) -> Line<'static> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::Config;
+    use crate::core::config::Config;
     use crate::ui::state::TuiState;
     use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
     use std::path::PathBuf;
@@ -1103,13 +1103,13 @@ mod tests {
         let tab = state.get_active_tab_mut();
         tab.starters_cache.starters.clear();
         tab.starters_cache
-            .add_starter(crate::starters::Starter::new(
+            .add_starter(crate::features::starters::Starter::new(
                 "com.example.App1".to_string(),
                 "App1".to_string(),
                 false,
             ));
         tab.starters_cache
-            .add_starter(crate::starters::Starter::new(
+            .add_starter(crate::features::starters::Starter::new(
                 "com.example.App2".to_string(),
                 "App2".to_string(),
                 false,
@@ -1146,7 +1146,7 @@ mod tests {
         let tab = state.get_active_tab_mut();
         tab.starters_cache.starters.clear();
         tab.starters_cache
-            .add_starter(crate::starters::Starter::new(
+            .add_starter(crate::features::starters::Starter::new(
                 "com.example.App1".to_string(),
                 "App1".to_string(),
                 false,

@@ -13,7 +13,7 @@ pub fn get_profiles(project_root: &Path) -> Result<Vec<String>, std::io::Error> 
         project_root
     );
     // Try to load config and use settings if available
-    let config = crate::config::load_config(project_root);
+    let config = crate::core::config::load_config(project_root);
 
     // Run without -N flag to include profiles from all modules
     let output = super::command::execute_maven_command(
@@ -82,7 +82,7 @@ pub fn get_active_profiles(project_root: &Path) -> Result<Vec<String>, std::io::
         project_root
     );
 
-    let config = crate::config::load_config(project_root);
+    let config = crate::core::config::load_config(project_root);
     let output = super::command::execute_maven_command(
         project_root,
         None,
@@ -126,7 +126,7 @@ pub fn get_profile_xml(project_root: &Path, profile_id: &str) -> Option<(String,
     let mut pom_paths = Vec::new();
 
     // Load config to get the maven_settings path (which may be maven_settings.xml or settings.xml)
-    let config = crate::config::load_config(project_root);
+    let config = crate::core::config::load_config(project_root);
 
     // 1. If config has maven_settings configured, use that
     if let Some(ref settings_path) = config.maven_settings {

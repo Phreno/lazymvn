@@ -9,10 +9,10 @@ use std::path::PathBuf;
 use std::sync::mpsc;
 use std::time::Instant;
 
-use crate::config;
+use crate::core::config;
 use crate::maven;
 use crate::ui::state::{BuildFlag, MavenProfile, ModuleOutput, OutputMetrics};
-use crate::watcher::FileWatcher;
+use crate::utils::watcher::FileWatcher;
 
 /// A project tab representing a complete Maven project
 pub struct ProjectTab {
@@ -58,7 +58,7 @@ pub struct ProjectTab {
     pub output_metrics: Option<OutputMetrics>,
 
     // Spring Boot starters (tab-specific)
-    pub starters_cache: crate::starters::StartersCache,
+    pub starters_cache: crate::features::starters::StartersCache,
 }
 
 impl ProjectTab {
@@ -148,7 +148,7 @@ impl ProjectTab {
             (None, false)
         };
         // Load starters cache for this project
-        let starters_cache = crate::starters::StartersCache::load(&project_root);
+        let starters_cache = crate::features::starters::StartersCache::load(&project_root);
 
         Self {
             id,

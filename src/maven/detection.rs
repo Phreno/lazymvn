@@ -1,6 +1,6 @@
 //! Spring Boot detection and launch strategy
 
-use crate::config::LaunchMode;
+use crate::core::config::LaunchMode;
 use std::path::Path;
 
 /// Information about a module's Spring Boot capabilities
@@ -164,7 +164,7 @@ pub fn detect_spring_boot_capabilities(
         module
     );
 
-    let config = crate::config::load_config(project_root);
+    let config = crate::core::config::load_config(project_root);
 
     // Get effective POM for the module
     let args = vec!["help:effective-pom"];

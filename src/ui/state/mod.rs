@@ -128,17 +128,17 @@ pub struct TuiState {
     clipboard: Option<arboard::Clipboard>,
 
     // Command history (global)
-    pub command_history: crate::history::CommandHistory,
+    pub command_history: crate::features::history::CommandHistory,
     pub show_history_popup: bool,
     pub history_list_state: ListState,
 
     // Favorites (global)
-    pub favorites: crate::favorites::Favorites,
+    pub favorites: crate::features::favorites::Favorites,
     pub show_favorites_popup: bool,
     pub favorites_list_state: ListState,
     pub show_save_favorite_popup: bool,
     pub favorite_name_input: String,
-    pub pending_favorite: Option<crate::history::HistoryEntry>,
+    pub pending_favorite: Option<crate::features::history::HistoryEntry>,
 
     // Editor command to execute (global)
     pub editor_command: Option<(String, String)>,
@@ -232,7 +232,7 @@ pub struct BuildFlag {
 impl TuiState {
     /// Legacy constructor - creates state with tabs system and initial project tab
     /// This is a compatibility wrapper for the old API
-    pub fn new(modules: Vec<String>, project_root: PathBuf, config: crate::config::Config) -> Self {
+    pub fn new(modules: Vec<String>, project_root: PathBuf, config: crate::core::config::Config) -> Self {
         // Create empty state with tabs system
         let mut state = Self::new_with_tabs();
 
@@ -274,7 +274,7 @@ impl TuiState {
             profile_loading_start_time: None,
             profile_spinner_frame: 0,
 
-            recent_projects: crate::config::RecentProjects::load().get_projects(),
+            recent_projects: crate::core::config::RecentProjects::load().get_projects(),
             projects_list_state: ListState::default(),
             show_projects_popup: false,
 
@@ -286,11 +286,11 @@ impl TuiState {
 
             clipboard: arboard::Clipboard::new().ok(),
 
-            command_history: crate::history::CommandHistory::load(),
+            command_history: crate::features::history::CommandHistory::load(),
             show_history_popup: false,
             history_list_state: ListState::default(),
 
-            favorites: crate::favorites::Favorites::load(),
+            favorites: crate::features::favorites::Favorites::load(),
             show_favorites_popup: false,
             favorites_list_state: ListState::default(),
             show_save_favorite_popup: false,
@@ -324,11 +324,11 @@ impl TuiState {
         }
 
         // Load project modules
-        let (modules, resolved_root) = crate::project::get_project_modules_for_path(&project_root)
+        let (modules, resolved_root) = crate::core::project::get_project_modules_for_path(&project_root)
             .map_err(|e| format!("Failed to load project: {}", e))?;
 
         // Load project config
-        let config = crate::config::load_config(&resolved_root);
+        let config = crate::core::config::load_config(&resolved_root);
 
         // Create the tab
         let tab = ProjectTab::new(self.next_tab_id, resolved_root.clone(), modules, config);
@@ -343,7 +343,7 @@ impl TuiState {
         self.active_tab_index = self.tabs.len() - 1;
 
         // Add to recent projects
-        let mut recent = crate::config::RecentProjects::load();
+        let mut recent = crate::core::config::RecentProjects::load();
         recent.add(resolved_root);
         self.recent_projects = recent.get_projects();
 
@@ -1068,7 +1068,7 @@ impl TuiState {
 
                     // Drop tab before calling self.command_history
 
-                    let history_entry = crate::history::HistoryEntry::new(
+                    let history_entry = crate::features::history::HistoryEntry::new(
                         module,
                         args.join(" "),
                         active_profile_names,
@@ -1597,7 +1597,7 @@ impl TuiState {
         
         // Configuration file
         debug_info.push("=== Configuration (config.toml) ===".to_string());
-        let config_path = crate::config::get_project_config_path(&self.get_active_tab().project_root);
+        let config_path = crate::core::config::get_project_config_path(&self.get_active_tab().project_root);
         if config_path.exists() {
             debug_info.push(format!("Location: {}", config_path.display()));
             match std::fs::read_to_string(&config_path) {
@@ -1658,7 +1658,7 @@ impl TuiState {
         
         // LazyMVN logs
         debug_info.push("=== LazyMVN Logs ===".to_string());
-        let logs = crate::logger::get_all_logs();
+        let logs = crate::utils::logger::get_all_logs();
         debug_info.push(logs);
         debug_info.push(String::new());
         
@@ -2256,14 +2256,14 @@ impl TuiState {
     pub fn edit_config(&mut self) {
         let config_path = {
             let tab = self.get_active_tab();
-            crate::config::get_project_config_path(&tab.project_root)
+            crate::core::config::get_project_config_path(&tab.project_root)
         };
 
         // Generate config if it doesn't exist
         if !config_path.exists() {
             log::info!("Configuration file not found, creating: {:?}", config_path);
             let project_root = self.get_active_tab().project_root.clone();
-            match crate::config::create_project_config(&project_root) {
+            match crate::core::config::create_project_config(&project_root) {
                 Ok(path) => {
                     log::info!("Created config file at: {:?}", path);
                 }
@@ -2337,7 +2337,7 @@ impl TuiState {
 
     /// Reload configuration and apply changes
     /// Returns true if configuration actually changed
-    pub fn reload_config(&mut self, new_config: crate::config::Config) -> bool {
+    pub fn reload_config(&mut self, new_config: crate::core::config::Config) -> bool {
         log::info!("Reloading configuration");
 
         let tab = self.get_active_tab_mut();
@@ -2392,7 +2392,7 @@ impl TuiState {
             // Reinitialize file watcher if watch config changed
             if let Some(watch_config) = &new_config.watch {
                 if watch_config.enabled {
-                    match crate::watcher::FileWatcher::new(
+                    match crate::utils::watcher::FileWatcher::new(
                         &tab.project_root,
                         watch_config.debounce_ms,
                     ) {
@@ -2448,7 +2448,7 @@ impl TuiState {
     }
 
     /// Apply a history entry: select module, set profiles, flags, and run command
-    pub fn apply_history_entry(&mut self, entry: crate::history::HistoryEntry) {
+    pub fn apply_history_entry(&mut self, entry: crate::features::history::HistoryEntry) {
         log::info!("Applying history entry for module: {}", entry.module);
 
         let tab = self.get_active_tab_mut();
@@ -2522,7 +2522,7 @@ impl TuiState {
                 .collect();
 
             // Create a pending favorite entry
-            let entry = crate::history::HistoryEntry::new(
+            let entry = crate::features::history::HistoryEntry::new(
                 module.to_string(),
                 "".to_string(), // Will be filled with goal when saving
                 active_profiles,
@@ -2541,7 +2541,7 @@ impl TuiState {
         if let Some(mut entry) = self.pending_favorite.take() {
             entry.goal = goal;
 
-            let favorite = crate::favorites::Favorite::new(
+            let favorite = crate::features::favorites::Favorite::new(
                 self.favorite_name_input.clone(),
                 entry.module,
                 entry.goal,
@@ -2565,7 +2565,7 @@ impl TuiState {
     }
 
     /// Apply a favorite: select module, set profiles, flags, and show in modules view
-    pub fn apply_favorite(&mut self, favorite: &crate::favorites::Favorite) {
+    pub fn apply_favorite(&mut self, favorite: &crate::features::favorites::Favorite) {
         log::info!("Applying favorite: {}", favorite.name);
 
         let tab = self.get_active_tab_mut();
@@ -2635,7 +2635,7 @@ impl TuiState {
         // Scan for potential starters if candidates list is empty
         if self.starter_candidates.is_empty() {
             let tab = self.get_active_tab();
-            self.starter_candidates = crate::starters::find_potential_starters(&tab.project_root);
+            self.starter_candidates = crate::features::starters::find_potential_starters(&tab.project_root);
             log::debug!("Found {} potential starters", self.starter_candidates.len());
         }
 
@@ -2693,7 +2693,7 @@ impl TuiState {
                         .to_string();
                     let is_default = tab.starters_cache.starters.is_empty();
                     let starter =
-                        crate::starters::Starter::new(fqcn_clone.clone(), label, is_default);
+                        crate::features::starters::Starter::new(fqcn_clone.clone(), label, is_default);
                     tab.starters_cache.add_starter(starter);
 
                     // Save the cache
@@ -2731,7 +2731,7 @@ impl TuiState {
                 // Decide launch strategy based on detection and config
                 let launch_mode = config_clone
                     .launch_mode
-                    .unwrap_or(crate::config::LaunchMode::Auto);
+                    .unwrap_or(crate::core::config::LaunchMode::Auto);
                 let strategy = crate::maven::decide_launch_strategy(&detection, launch_mode);
 
                 log::info!(
@@ -3062,7 +3062,7 @@ impl TuiState {
                 })
                 .collect();
 
-            let prefs = crate::config::ModulePreferences {
+            let prefs = crate::core::config::ModulePreferences {
                 active_profiles: explicit_profiles.clone(),
                 enabled_flags,
             };
@@ -3155,7 +3155,7 @@ mod tests {
 
     #[test]
     fn test_profile_loading_status_initial_state() {
-        let config = crate::config::Config::default();
+        let config = crate::core::config::Config::default();
         let mut state = TuiState::new(
             vec!["test-module".to_string()],
             PathBuf::from("/tmp/test"),
@@ -3175,7 +3175,7 @@ mod tests {
 
     #[test]
     fn test_profile_loading_spinner_frames() {
-        let config = crate::config::Config::default();
+        let config = crate::core::config::Config::default();
         let mut state = TuiState::new(
             vec!["test-module".to_string()],
             PathBuf::from("/tmp/test"),

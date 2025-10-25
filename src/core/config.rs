@@ -296,7 +296,7 @@ pub fn create_project_config(project_root: &Path) -> Result<PathBuf, String> {
         .map_err(|e| format!("Failed to create config directory: {}", e))?;
     
     // Read template file
-    let template_content = include_str!("../config_template.toml");
+    let template_content = include_str!("../../config_template.toml");
     
     // Write to config path
     fs::write(&config_path, template_content)

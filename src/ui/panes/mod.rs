@@ -814,7 +814,7 @@ pub fn render_starter_selector_popup(
 /// Render popup for managing cached starters
 pub fn render_starter_manager_popup(
     f: &mut Frame,
-    starters: &[crate::starters::Starter],
+    starters: &[crate::features::starters::Starter],
     list_state: &mut ListState,
 ) {
     // Calculate popup size (centered, 70% width, 60% height)
@@ -986,7 +986,7 @@ pub fn render_projects_popup(
 /// Render command history popup
 pub fn render_history_popup(
     f: &mut Frame,
-    history: &[crate::history::HistoryEntry],
+    history: &[crate::features::history::HistoryEntry],
     list_state: &mut ListState,
 ) {
     // Calculate popup size (centered, 80% width, 80% height)
@@ -1127,7 +1127,7 @@ pub fn render_history_popup(
 /// Render favorites popup
 pub fn render_favorites_popup(
     f: &mut Frame,
-    favorites: &[crate::favorites::Favorite],
+    favorites: &[crate::features::favorites::Favorite],
     list_state: &mut ListState,
 ) {
     // Calculate popup size

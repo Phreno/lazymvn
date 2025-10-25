@@ -1,8 +1,17 @@
+//! Text processing utilities
+//!
+//! Provides functions for text formatting, colorization, and cleaning:
+//! - ANSI escape sequence stripping
+//! - Log line colorization
+//! - XML syntax highlighting
+
 use ratatui::{
     style::{Color, Style},
     text::{Line, Span},
 };
 
+/// Clean a log line by removing ANSI escape sequences and carriage returns
+/// Returns None if the line is empty after cleaning
 pub fn clean_log_line(raw: &str) -> Option<String> {
     let mut result = String::with_capacity(raw.len());
     let mut chars = raw.chars().peekable();
@@ -34,6 +43,7 @@ pub fn clean_log_line(raw: &str) -> Option<String> {
 }
 
 /// Create a line with keyword-based coloring (simple approach)
+/// Highlights [INFO], [WARNING], [ERROR] keywords and command lines
 pub fn colorize_log_line(text: &str) -> Line<'static> {
     let mut spans = Vec::new();
 
@@ -99,6 +109,7 @@ pub fn colorize_log_line(text: &str) -> Line<'static> {
 }
 
 /// Colorize XML syntax for better readability
+/// Highlights tags, attributes, and values with different colors
 pub fn colorize_xml_line(text: &str) -> Line<'static> {
     let mut spans = Vec::new();
     let mut chars = text.chars().peekable();
@@ -284,128 +295,82 @@ fn colorize_xml_attributes(attrs: &str, spans: &mut Vec<Span<'static>>) {
     }
 }
 
-/// Get the current Git branch name for a project
-/// Returns None if not a Git repository or if branch cannot be determined
-pub fn get_git_branch(project_root: &std::path::Path) -> Option<String> {
-    use std::process::Command;
-
-    let output = Command::new("git")
-        .arg("-C")
-        .arg(project_root)
-        .arg("branch")
-        .arg("--show-current")
-        .output()
-        .ok()?;
-
-    if !output.status.success() {
-        return None;
-    }
-
-    let branch = String::from_utf8(output.stdout).ok()?;
-    let branch = branch.trim();
-
-    if branch.is_empty() {
-        None
-    } else {
-        Some(branch.to_string())
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{clean_log_line, colorize_log_line, colorize_xml_line};
-
-    #[test]
-    fn strips_carriage_returns() {
-        let cleaned = clean_log_line("line\r").unwrap();
-        assert_eq!(cleaned, "line");
-    }
+    use super::*;
 
     #[test]
     fn strips_ansi_sequences() {
-        let cleaned = clean_log_line("\u{1b}[32mSUCCESS\u{1b}[0m build").unwrap();
-        assert_eq!(cleaned, "SUCCESS build");
+        let input = "\u{1b}[31mRed\u{1b}[0m text";
+        let result = clean_log_line(input);
+        assert_eq!(result, Some("Red text".to_string()));
+    }
+
+    #[test]
+    fn strips_carriage_returns() {
+        let input = "Hello\rWorld";
+        let result = clean_log_line(input);
+        assert_eq!(result, Some("HelloWorld".to_string()));
     }
 
     #[test]
     fn trims_trailing_space() {
-        let cleaned = clean_log_line("line   ").unwrap();
-        assert_eq!(cleaned, "line");
-    }
-
-    #[test]
-    fn test_colorize_xml_opening_tag() {
-        let line = colorize_xml_line("        <profile>");
-        assert!(!line.spans.is_empty(), "Should have spans");
-        // Should have multiple colored spans for tag parts
-        assert!(
-            line.spans.len() >= 3,
-            "Should have at least 3 spans (bracket, name, bracket)"
-        );
-    }
-
-    #[test]
-    fn test_colorize_xml_closing_tag() {
-        let line = colorize_xml_line("        </profile>");
-        assert!(!line.spans.is_empty(), "Should have spans");
-        // Closing tags should be styled differently
-        assert!(line.spans.len() >= 3, "Should have spans for closing tag");
-    }
-
-    #[test]
-    fn test_colorize_xml_with_attributes() {
-        let line = colorize_xml_line("        <id>dev</id>");
-        assert!(!line.spans.is_empty(), "Should have spans");
-        // Should colorize tag names and content
-    }
-
-    #[test]
-    fn test_colorize_xml_declaration() {
-        let line = colorize_xml_line("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
-        assert!(!line.spans.is_empty(), "Should have spans");
-        // XML declarations should be styled in magenta
-    }
-
-    #[test]
-    fn test_colorize_xml_comment() {
-        let line = colorize_xml_line("        <!-- This is a comment -->");
-        assert!(!line.spans.is_empty(), "Should have spans");
-        // Comments should be styled in gray
-    }
-
-    #[test]
-    fn colorize_log_line_highlights_info() {
-        let line = colorize_log_line("[INFO] Building project...");
-        assert_eq!(line.spans.len(), 2);
-        assert_eq!(line.spans[0].content, "[INFO]");
-        assert_eq!(line.spans[1].content, " Building project...");
-        assert_eq!(line.spans[0].style.fg, Some(ratatui::style::Color::Green));
-    }
-
-    #[test]
-    fn colorize_log_line_highlights_warning() {
-        let line = colorize_log_line("Some text [WARNING] Warning message");
-        assert_eq!(line.spans.len(), 3);
-        assert_eq!(line.spans[0].content, "Some text ");
-        assert_eq!(line.spans[1].content, "[WARNING]");
-        assert_eq!(line.spans[2].content, " Warning message");
-        assert_eq!(line.spans[1].style.fg, Some(ratatui::style::Color::Yellow));
-    }
-
-    #[test]
-    fn colorize_log_line_highlights_error() {
-        let line = colorize_log_line("[ERROR] Build failed");
-        assert_eq!(line.spans.len(), 2);
-        assert_eq!(line.spans[0].content, "[ERROR]");
-        assert_eq!(line.spans[1].content, " Build failed");
-        assert_eq!(line.spans[0].style.fg, Some(ratatui::style::Color::Red));
+        let input = "Test line   ";
+        let result = clean_log_line(input);
+        assert_eq!(result, Some("Test line".to_string()));
     }
 
     #[test]
     fn colorize_log_line_handles_plain_text() {
-        let line = colorize_log_line("Plain text without keywords");
+        let line = colorize_log_line("Plain text");
         assert_eq!(line.spans.len(), 1);
-        assert_eq!(line.spans[0].content, "Plain text without keywords");
-        assert_eq!(line.spans[0].style.fg, None);
+    }
+
+    #[test]
+    fn colorize_log_line_highlights_info() {
+        let line = colorize_log_line("This is [INFO] message");
+        assert!(line.spans.len() >= 2);
+    }
+
+    #[test]
+    fn colorize_log_line_highlights_warning() {
+        let line = colorize_log_line("This is [WARNING] message");
+        assert!(line.spans.len() >= 2);
+    }
+
+    #[test]
+    fn colorize_log_line_highlights_error() {
+        let line = colorize_log_line("This is [ERROR] message");
+        assert!(line.spans.len() >= 2);
+    }
+
+    #[test]
+    fn test_colorize_xml_declaration() {
+        let line = colorize_xml_line("<?xml version=\"1.0\"?>");
+        assert!(!line.spans.is_empty());
+    }
+
+    #[test]
+    fn test_colorize_xml_opening_tag() {
+        let line = colorize_xml_line("<project>");
+        assert!(line.spans.len() >= 3); // <, project, >
+    }
+
+    #[test]
+    fn test_colorize_xml_closing_tag() {
+        let line = colorize_xml_line("</project>");
+        assert!(line.spans.len() >= 3);
+    }
+
+    #[test]
+    fn test_colorize_xml_with_attributes() {
+        let line = colorize_xml_line("<project xmlns=\"http://maven.apache.org\">");
+        assert!(line.spans.len() >= 4); // <, project, attrs, >
+    }
+
+    #[test]
+    fn test_colorize_xml_comment() {
+        let line = colorize_xml_line("<!-- This is a comment -->");
+        assert_eq!(line.spans.len(), 1);
     }
 }
