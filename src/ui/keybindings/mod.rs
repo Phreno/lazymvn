@@ -8,66 +8,13 @@ mod search_keys;
 mod output_keys;
 mod command_keys;
 mod navigation_keys;
+mod helpers;
+mod ui_builders;
 
 pub use types::{CurrentView, Focus, SearchMode};
+pub use ui_builders::{blank_line, build_navigation_line, simplified_footer_body, simplified_footer_title};
 
-use crate::ui::theme::Theme;
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
-use ratatui::text::{Line, Span};
-
-struct ModuleAction {
-    key_display: &'static str,
-    prefix: &'static str,
-    suffix: &'static str,
-}
-
-const MODULE_ACTIONS: [ModuleAction; 9] = [
-    ModuleAction {
-        key_display: "b",
-        prefix: "",
-        suffix: "uild",
-    },
-    ModuleAction {
-        key_display: "C",
-        prefix: "",
-        suffix: "lean",
-    },
-    ModuleAction {
-        key_display: "c",
-        prefix: "",
-        suffix: "ompile",
-    },
-    ModuleAction {
-        key_display: "k",
-        prefix: "pac",
-        suffix: "age",
-    },
-    ModuleAction {
-        key_display: "t",
-        prefix: "",
-        suffix: "est",
-    },
-    ModuleAction {
-        key_display: "i",
-        prefix: "",
-        suffix: "nstall",
-    },
-    ModuleAction {
-        key_display: "s",
-        prefix: "",
-        suffix: "tart",
-    },
-    ModuleAction {
-        key_display: "d",
-        prefix: "",
-        suffix: "eps",
-    },
-    ModuleAction {
-        key_display: "y",
-        prefix: "",
-        suffix: "ank output",
-    },
-];
 
 /// Handle key events and update TUI state accordingly
 pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
@@ -190,115 +137,6 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
         KeyCode::Char('Y') => output_keys::handle_yank_debug_info(state),
         _ => {}
     }
-}
-
-fn key_token(text: &str) -> Span<'static> {
-    Span::styled(text.to_string(), Theme::KEY_HINT_STYLE)
-}
-
-fn append_bracketed_word(spans: &mut Vec<Span<'static>>, prefix: &str, key: &str, suffix: &str) {
-    let key_style = Theme::KEY_HINT_STYLE;
-    let text_style = Theme::DEFAULT_STYLE;
-
-    if !prefix.is_empty() {
-        spans.push(Span::styled(prefix.to_string(), text_style));
-    }
-
-    spans.push(Span::styled("[", text_style));
-    spans.push(Span::styled(key.to_string(), key_style));
-    spans.push(Span::styled("]", text_style));
-
-    if !suffix.is_empty() {
-        spans.push(Span::styled(suffix.to_string(), text_style));
-    }
-}
-
-pub(crate) fn blank_line() -> Line<'static> {
-    Line::raw("")
-}
-
-pub(crate) fn build_navigation_line() -> Vec<Line<'static>> {
-    // Split into multiples logical groups on separate lines for better readability
-    vec![
-        // Line 1: Views
-        Line::from(vec![
-            Span::styled("Views: ", Theme::FOOTER_SECTION_STYLE),
-            key_token("0"),
-            Span::raw(" Output  "),
-            key_token("1"),
-            Span::raw(" Projects  "),
-            key_token("2"),
-            Span::raw(" Modules  "),
-            key_token("3"),
-            Span::raw(" Profiles  "),
-            key_token("4"),
-            Span::raw(" Flags"),
-        ]),
-        // Line 2: Focus & Navigate
-        Line::from(vec![
-            Span::styled("Focus: ", Theme::FOOTER_SECTION_STYLE),
-            key_token("←→"),
-            Span::raw("   "),
-            Span::styled("Navigate: ", Theme::FOOTER_SECTION_STYLE),
-            key_token("↑↓"),
-            Span::raw("   "),
-        ]),
-        // Line 3: Tabulations
-        Line::from(vec![
-            Span::styled("Tabs: ", Theme::FOOTER_SECTION_STYLE),
-            key_token("Ctrl+T"),
-            Span::raw(" New "),
-            key_token("Ctrl+W"),
-            Span::raw(" Close "),
-            key_token("Ctrl+←→"),
-            Span::raw(" Switch "),
-            key_token("Esc"),
-            Span::raw(" Kill"),
-        ]),
-        // Actions
-        Line::from(vec![
-            Span::styled("Actions: ", Theme::FOOTER_SECTION_STYLE),
-            key_token("Ctrl+F"),
-            Span::raw(" Favs  "),
-            key_token("Ctrl+H"),
-            Span::raw(" History  "),
-            key_token("Ctrl+R"),
-            Span::raw(" Recent projects "),
-            key_token("Ctrl+E"),
-            Span::raw(" Edit"),
-        ]),
-    ]
-}
-
-pub(crate) fn simplified_footer_title(
-    view: CurrentView,
-    _module_name: Option<&str>,
-    _active_profiles: &[String],
-    _enabled_flags: &[String],
-) -> Span<'static> {
-    let text = "Commands".to_string();
-
-    let style = match view {
-        CurrentView::Projects | CurrentView::Modules => Theme::FOOTER_SECTION_STYLE,
-        CurrentView::Profiles | CurrentView::Flags => Theme::FOOTER_SECTION_FOCUSED_STYLE,
-    };
-
-    Span::styled(text, style)
-}
-
-pub(crate) fn simplified_footer_body(_view: CurrentView) -> Line<'static> {
-    let mut spans: Vec<Span<'static>> = Vec::new();
-    spans.push(Span::raw(" "));
-
-    // Module commands
-    for (idx, action) in MODULE_ACTIONS.iter().enumerate() {
-        if idx > 0 {
-            spans.push(Span::raw(" "));
-        }
-        append_bracketed_word(&mut spans, action.prefix, action.key_display, action.suffix);
-    }
-
-    Line::from(spans)
 }
 
 #[cfg(test)]
