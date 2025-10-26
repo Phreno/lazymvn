@@ -177,25 +177,19 @@ fn execute_maven_command_with_module() {
     let mvnw_path = project_root.join("mvnw");
     common::write_script(&mvnw_path, "#!/bin/sh\necho $@\n");
 
-    let output: Vec<String> = execute_maven_command(
-        project_root,
-        Some("backend"),
-        &["test"],
-        &[],
-        None,
-        &[],
-    )
-    .unwrap()
-    .iter()
-    .filter_map(|line| utils::clean_log_line(line))
-    .collect();
+    let output: Vec<String> =
+        execute_maven_command(project_root, Some("backend"), &["test"], &[], None, &[])
+            .unwrap()
+            .iter()
+            .filter_map(|line| utils::clean_log_line(line))
+            .collect();
 
     let maven_output: Vec<String> = output
         .iter()
         .skip_while(|line| line.starts_with("$ "))
         .cloned()
         .collect();
-    
+
     assert!(maven_output[0].contains("-pl backend"));
     assert!(maven_output[0].contains("test"));
 }
@@ -228,7 +222,7 @@ fn execute_maven_command_root_module_omits_pl_flag() {
         .skip_while(|line| line.starts_with("$ "))
         .cloned()
         .collect();
-    
+
     // Should not contain -pl flag for root module "."
     assert!(!maven_output[0].contains("-pl"));
     assert!(maven_output[0].contains("clean"));
@@ -245,25 +239,19 @@ fn execute_maven_command_with_flags() {
     common::write_script(&mvnw_path, "#!/bin/sh\necho $@\n");
 
     let flags = vec!["-DskipTests".to_string(), "--also-make".to_string()];
-    let output: Vec<String> = execute_maven_command(
-        project_root,
-        Some("api"),
-        &["package"],
-        &[],
-        None,
-        &flags,
-    )
-    .unwrap()
-    .iter()
-    .filter_map(|line| utils::clean_log_line(line))
-    .collect();
+    let output: Vec<String> =
+        execute_maven_command(project_root, Some("api"), &["package"], &[], None, &flags)
+            .unwrap()
+            .iter()
+            .filter_map(|line| utils::clean_log_line(line))
+            .collect();
 
     let maven_output: Vec<String> = output
         .iter()
         .skip_while(|line| line.starts_with("$ "))
         .cloned()
         .collect();
-    
+
     assert!(maven_output[0].contains("-DskipTests"));
     assert!(maven_output[0].contains("--also-make"));
     assert!(maven_output[0].contains("package"));
@@ -297,7 +285,7 @@ fn execute_maven_command_with_settings() {
         .skip_while(|line| line.starts_with("$ "))
         .cloned()
         .collect();
-    
+
     assert!(maven_output[0].contains("--settings"));
     assert!(maven_output[0].contains("/custom/settings.xml"));
 }
@@ -314,7 +302,7 @@ fn execute_maven_command_handles_exit_code() {
 
     // Execute command - should succeed in execution but capture error
     let result = execute_maven_command(project_root, None, &["test"], &[], None, &[]);
-    
+
     // Command should execute successfully even if Maven exits with error
     assert!(result.is_ok());
     let output = result.unwrap();
@@ -361,7 +349,7 @@ fn execute_maven_command_complex_scenario() {
 
     let profiles = vec!["dev".to_string(), "test".to_string()];
     let flags = vec!["-X".to_string(), "--also-make".to_string()];
-    
+
     let output: Vec<String> = execute_maven_command(
         project_root,
         Some("web"),
@@ -380,7 +368,7 @@ fn execute_maven_command_complex_scenario() {
         .skip_while(|line| line.starts_with("$ "))
         .cloned()
         .collect();
-    
+
     let cmd = &maven_output[0];
     assert!(cmd.contains("--settings custom-settings.xml"));
     assert!(cmd.contains("-P dev,test"));

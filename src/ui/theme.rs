@@ -77,7 +77,11 @@ mod tests {
     #[test]
     fn test_active_profile_style_is_green_bold() {
         assert_eq!(Theme::ACTIVE_PROFILE_STYLE.fg, Some(Color::Green));
-        assert!(Theme::ACTIVE_PROFILE_STYLE.add_modifier.contains(Modifier::BOLD));
+        assert!(
+            Theme::ACTIVE_PROFILE_STYLE
+                .add_modifier
+                .contains(Modifier::BOLD)
+        );
     }
 
     #[test]
@@ -117,4 +121,3 @@ mod tests {
         assert_eq!(Theme::DIM_STYLE.fg, Some(Color::DarkGray));
     }
 }
-

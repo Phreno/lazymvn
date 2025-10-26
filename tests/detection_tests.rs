@@ -1,7 +1,7 @@
 // Spring Boot detection and launch strategy tests
 use lazymvn::core::config::LaunchMode;
 use lazymvn::maven::{
-    decide_launch_strategy, extract_tag_content, LaunchStrategy, SpringBootDetection,
+    LaunchStrategy, SpringBootDetection, decide_launch_strategy, extract_tag_content,
 };
 
 mod common;

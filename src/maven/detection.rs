@@ -550,13 +550,7 @@ mod tests {
     // Build command tests
     #[test]
     fn test_build_launch_command_spring_boot_basic() {
-        let cmd = build_launch_command(
-            LaunchStrategy::SpringBootRun,
-            None,
-            &[],
-            &[],
-            Some("jar"),
-        );
+        let cmd = build_launch_command(LaunchStrategy::SpringBootRun, None, &[], &[], Some("jar"));
         assert_eq!(cmd, vec!["spring-boot:run"]);
     }
 
@@ -570,7 +564,10 @@ mod tests {
             &[],
             Some("jar"),
         );
-        assert!(cmd.iter().any(|arg| arg.contains("spring-boot.run.profiles=dev,test")));
+        assert!(
+            cmd.iter()
+                .any(|arg| arg.contains("spring-boot.run.profiles=dev,test"))
+        );
         assert_eq!(cmd.last().unwrap(), "spring-boot:run");
     }
 
@@ -584,7 +581,10 @@ mod tests {
             &jvm_args,
             Some("jar"),
         );
-        assert!(cmd.iter().any(|arg| arg.contains("spring-boot.run.jvmArguments")));
+        assert!(
+            cmd.iter()
+                .any(|arg| arg.contains("spring-boot.run.jvmArguments"))
+        );
         assert!(cmd.iter().any(|arg| arg.contains("-Xmx512m")));
         assert!(cmd.iter().any(|arg| arg.contains("-Ddebug=true")));
     }
@@ -601,7 +601,10 @@ mod tests {
             Some("jar"),
         );
         // Should have profiles
-        assert!(cmd.iter().any(|arg| arg.contains("spring-boot.run.profiles=dev")));
+        assert!(
+            cmd.iter()
+                .any(|arg| arg.contains("spring-boot.run.profiles=dev"))
+        );
         // Should have JVM args
         assert!(cmd.iter().any(|arg| arg.contains("-Xmx512m")));
         assert!(cmd.iter().any(|arg| arg.contains("-Ddebug=true")));
@@ -619,7 +622,10 @@ mod tests {
             Some("jar"),
         );
         assert_eq!(cmd.len(), 3);
-        assert!(cmd.iter().any(|arg| arg.contains("exec.mainClass=com.example.Main")));
+        assert!(
+            cmd.iter()
+                .any(|arg| arg.contains("exec.mainClass=com.example.Main"))
+        );
         assert_eq!(cmd.last().unwrap(), "exec:java");
     }
 
@@ -635,18 +641,15 @@ mod tests {
         );
         // JVM args are passed directly for exec:java
         assert!(cmd.iter().any(|arg| arg.contains("-Xmx1g")));
-        assert!(cmd.iter().any(|arg| arg.contains("exec.mainClass=com.example.Main")));
+        assert!(
+            cmd.iter()
+                .any(|arg| arg.contains("exec.mainClass=com.example.Main"))
+        );
     }
 
     #[test]
     fn test_build_launch_command_exec_java_no_main_class() {
-        let cmd = build_launch_command(
-            LaunchStrategy::ExecJava,
-            None,
-            &[],
-            &[],
-            Some("jar"),
-        );
+        let cmd = build_launch_command(LaunchStrategy::ExecJava, None, &[], &[], Some("jar"));
         // Should still work, relying on pom.xml configuration
         assert!(cmd.contains(&"exec:java".to_string()));
     }
@@ -655,19 +658,28 @@ mod tests {
     #[test]
     fn test_extract_tag_content_simple() {
         let line = "<packaging>jar</packaging>";
-        assert_eq!(extract_tag_content(line, "packaging"), Some("jar".to_string()));
+        assert_eq!(
+            extract_tag_content(line, "packaging"),
+            Some("jar".to_string())
+        );
     }
 
     #[test]
     fn test_extract_tag_content_with_whitespace() {
         let line = "<mainClass>  com.example.Main  </mainClass>";
-        assert_eq!(extract_tag_content(line, "mainClass"), Some("com.example.Main".to_string()));
+        assert_eq!(
+            extract_tag_content(line, "mainClass"),
+            Some("com.example.Main".to_string())
+        );
     }
 
     #[test]
     fn test_extract_tag_content_nested() {
         let line = "<groupId>com.example</groupId>";
-        assert_eq!(extract_tag_content(line, "groupId"), Some("com.example".to_string()));
+        assert_eq!(
+            extract_tag_content(line, "groupId"),
+            Some("com.example".to_string())
+        );
     }
 
     #[test]
@@ -691,8 +703,14 @@ mod tests {
     #[test]
     fn test_extract_tag_content_multiple_on_line() {
         let line = "<packaging>jar</packaging><version>1.0</version>";
-        assert_eq!(extract_tag_content(line, "packaging"), Some("jar".to_string()));
-        assert_eq!(extract_tag_content(line, "version"), Some("1.0".to_string()));
+        assert_eq!(
+            extract_tag_content(line, "packaging"),
+            Some("jar".to_string())
+        );
+        assert_eq!(
+            extract_tag_content(line, "version"),
+            Some("1.0".to_string())
+        );
     }
 
     // Platform-specific quoting tests

@@ -2,7 +2,7 @@
 //!
 //! This module handles loading, toggling, and displaying Maven profiles.
 
-use super::{TuiState, ProfileLoadingStatus, MavenProfile, Focus};
+use super::{Focus, MavenProfile, ProfileLoadingStatus, TuiState};
 use crate::maven;
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
@@ -141,7 +141,7 @@ impl TuiState {
         let tab = self.get_active_tab();
         let project_root = tab.project_root.clone();
         let project_root_display = project_root.clone(); // Clone for logging
-        
+
         std::thread::spawn(move || {
             let result = maven::get_profiles(&project_root).map_err(|e| e.to_string());
 
@@ -150,7 +150,10 @@ impl TuiState {
             }
         });
 
-        log::info!("Started async profile loading for {:?}", project_root_display);
+        log::info!(
+            "Started async profile loading for {:?}",
+            project_root_display
+        );
     }
 
     /// Sync output to show the selected profile's XML
@@ -219,9 +222,9 @@ mod tests {
     #[test]
     fn test_set_profiles_empty() {
         let mut state = create_test_state();
-        
+
         state.set_profiles(vec![]);
-        
+
         let tab = state.get_active_tab();
         assert!(tab.profiles.is_empty());
     }
@@ -229,9 +232,9 @@ mod tests {
     #[test]
     fn test_set_profiles_with_names() {
         let mut state = create_test_state();
-        
+
         state.set_profiles(vec!["dev".to_string(), "prod".to_string()]);
-        
+
         let tab = state.get_active_tab();
         assert_eq!(tab.profiles.len(), 2);
         assert_eq!(tab.profiles[0].name, "dev");
@@ -241,9 +244,9 @@ mod tests {
     #[test]
     fn test_set_profiles_selects_first() {
         let mut state = create_test_state();
-        
+
         state.set_profiles(vec!["dev".to_string()]);
-        
+
         let tab = state.get_active_tab();
         assert_eq!(tab.profiles_list_state.selected(), Some(0));
     }
@@ -253,10 +256,10 @@ mod tests {
         let mut state = create_test_state();
         state.focus = Focus::Modules;
         state.set_profiles(vec!["dev".to_string()]);
-        
+
         let initial_state = state.get_active_tab().profiles[0].state.clone();
         state.toggle_profile();
-        
+
         // Should not toggle when not in Profiles focus
         assert_eq!(state.get_active_tab().profiles[0].state, initial_state);
     }
@@ -266,25 +269,25 @@ mod tests {
         let mut state = create_test_state();
         state.focus = Focus::Profiles;
         state.set_profiles(vec!["dev".to_string()]);
-        
+
         {
             let tab = state.get_active_tab_mut();
             tab.profiles_list_state.select(None);
         }
-        
+
         state.toggle_profile();
-        
+
         // Should not panic with no selection
     }
 
     #[test]
     fn test_profile_loading_spinner_frames() {
         let mut state = create_test_state();
-        
+
         let frame1 = state.profile_loading_spinner();
         state.profile_spinner_frame = 1;
         let frame2 = state.profile_loading_spinner();
-        
+
         assert_ne!(frame1, frame2);
     }
 
@@ -293,21 +296,24 @@ mod tests {
         let mut state = create_test_state();
         state.profile_spinner_frame = 0;
         let first = state.profile_loading_spinner();
-        
+
         state.profile_spinner_frame = 8; // Should wrap
         let wrapped = state.profile_loading_spinner();
-        
+
         assert_eq!(first, wrapped);
     }
 
     #[test]
     fn test_start_loading_profiles() {
         let mut state = create_test_state();
-        
+
         state.start_loading_profiles();
-        
+
         assert!(state.profiles_receiver.is_some());
-        assert!(matches!(state.profile_loading_status, ProfileLoadingStatus::Loading));
+        assert!(matches!(
+            state.profile_loading_status,
+            ProfileLoadingStatus::Loading
+        ));
         assert!(state.profile_loading_start_time.is_some());
         assert_eq!(state.profile_spinner_frame, 0);
     }
@@ -317,9 +323,9 @@ mod tests {
         let mut state = create_test_state();
         state.profile_loading_status = ProfileLoadingStatus::Loading;
         state.profile_spinner_frame = 0;
-        
+
         state.poll_profiles_updates();
-        
+
         assert_eq!(state.profile_spinner_frame, 1);
     }
 
@@ -328,9 +334,9 @@ mod tests {
         let mut state = create_test_state();
         state.profile_loading_status = ProfileLoadingStatus::Loaded;
         state.profile_spinner_frame = 0;
-        
+
         state.poll_profiles_updates();
-        
+
         assert_eq!(state.profile_spinner_frame, 0);
     }
 
@@ -338,14 +344,14 @@ mod tests {
     fn test_sync_selected_profile_output_no_selection() {
         let mut state = create_test_state();
         state.set_profiles(vec!["dev".to_string()]);
-        
+
         {
             let tab = state.get_active_tab_mut();
             tab.profiles_list_state.select(None);
         }
-        
+
         state.sync_selected_profile_output();
-        
+
         let tab = state.get_active_tab();
         assert_eq!(tab.command_output.len(), 1);
         assert_eq!(tab.command_output[0], "No profile selected.");
@@ -355,14 +361,14 @@ mod tests {
     fn test_sync_selected_profile_output_with_selection() {
         let mut state = create_test_state();
         state.set_profiles(vec!["dev".to_string()]);
-        
+
         {
             let tab = state.get_active_tab_mut();
             tab.profiles_list_state.select(Some(0));
         }
-        
+
         state.sync_selected_profile_output();
-        
+
         // Should generate output (may not find XML but should not panic)
         let tab = state.get_active_tab();
         assert!(!tab.command_output.is_empty());
@@ -372,15 +378,15 @@ mod tests {
     fn test_sync_selected_profile_output_resets_offset() {
         let mut state = create_test_state();
         state.set_profiles(vec!["dev".to_string()]);
-        
+
         {
             let tab = state.get_active_tab_mut();
             tab.profiles_list_state.select(Some(0));
             tab.output_offset = 100;
         }
-        
+
         state.sync_selected_profile_output();
-        
+
         let tab = state.get_active_tab();
         assert_eq!(tab.output_offset, 0);
     }
@@ -389,17 +395,16 @@ mod tests {
     fn test_sync_selected_profile_output_clears_metrics() {
         let mut state = create_test_state();
         state.set_profiles(vec!["dev".to_string()]);
-        
+
         {
             let tab = state.get_active_tab_mut();
             tab.profiles_list_state.select(Some(0));
             tab.output_metrics = Some(crate::ui::state::OutputMetrics::new(80, &[]));
         }
-        
+
         state.sync_selected_profile_output();
-        
+
         let tab = state.get_active_tab();
         assert!(tab.output_metrics.is_none());
     }
 }
-

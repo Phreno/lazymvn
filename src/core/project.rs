@@ -233,11 +233,11 @@ pub mod cache {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::fs_lock;
     use std::env;
     use std::fs::File;
     use std::path::Path;
     use tempfile::tempdir;
-    use crate::test_utils::fs_lock;
 
     fn set_home(path: &Path) {
         unsafe { env::set_var("HOME", path) };

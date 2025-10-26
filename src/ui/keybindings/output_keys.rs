@@ -3,8 +3,8 @@
 //! This module handles keyboard events specifically for the output pane,
 //! including scrolling, clipboard operations, and navigation.
 
-use crate::ui::state::TuiState;
 use crate::ui::keybindings::Focus;
+use crate::ui::state::TuiState;
 
 /// Handle scroll events based on focus
 pub fn handle_scroll_down(state: &mut TuiState, focus: Focus) {

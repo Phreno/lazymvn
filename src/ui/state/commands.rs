@@ -3,10 +3,10 @@
 //! This module handles executing Maven commands, collecting output,
 //! and managing command state.
 
-use super::{TuiState, ModuleOutput};
+use super::{ModuleOutput, TuiState};
 use crate::maven;
-use std::time::Instant;
 use std::sync::mpsc;
+use std::time::Instant;
 
 impl TuiState {
     /// Get list of enabled flag names
@@ -366,7 +366,7 @@ mod tests {
         if tab.flags.len() > 1 {
             tab.flags[1].enabled = true;
         }
-        
+
         let flags = state.enabled_flag_names();
         assert_eq!(flags.len(), 2);
     }
@@ -399,9 +399,9 @@ mod tests {
             let tab = state.get_active_tab_mut();
             tab.command_output.push("Test output line".to_string());
         }
-        
+
         state.store_current_module_output();
-        
+
         let tab = state.get_active_tab();
         let module = state.selected_module().unwrap();
         assert!(tab.module_outputs.contains_key(module));
@@ -413,7 +413,7 @@ mod tests {
     #[test]
     fn test_store_current_module_output_preserves_command() {
         let mut state = create_test_state();
-        
+
         // Set up initial output with command
         let module = state.selected_module().unwrap().to_string();
         let initial_output = ModuleOutput {
@@ -423,17 +423,17 @@ mod tests {
             flags: vec!["-X".to_string()],
             ..Default::default()
         };
-        
+
         {
             let tab = state.get_active_tab_mut();
             tab.module_outputs.insert(module.clone(), initial_output);
-            
+
             // Add new output and store
             tab.command_output = vec!["New output".to_string()];
         }
-        
+
         state.store_current_module_output();
-        
+
         // Verify command context preserved
         let tab = state.get_active_tab();
         let output = tab.module_outputs.get(&module).unwrap();

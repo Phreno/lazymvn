@@ -28,6 +28,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 #[derive(Parser)]
 #[command(name = "lazymvn")]
 #[command(about = "A terminal UI for Maven projects")]
+#[command(version = env!("LAZYMVN_VERSION"))]
 struct Cli {
     /// Enable debug logging to lazymvn-debug.log
     #[arg(short, long)]
@@ -410,7 +411,7 @@ fn setup_config() -> Result<(), Box<dyn std::error::Error>> {
     use std::io::{self, Write};
 
     let current_dir = std::env::current_dir()?;
-    
+
     // Check if current directory is a valid Maven project
     let pom_path = current_dir.join("pom.xml");
     if !pom_path.exists() {
@@ -422,7 +423,7 @@ fn setup_config() -> Result<(), Box<dyn std::error::Error>> {
 
     // Check if config already exists
     let config_exists = crate::core::config::has_project_config(&current_dir);
-    
+
     if config_exists {
         eprintln!("⚠️  Configuration already exists for this project");
         eprintln!("   Location: ~/.config/lazymvn/projects/<hash>/config.toml");
@@ -444,7 +445,7 @@ fn setup_config() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create the configuration file
     let config_path = crate::core::config::create_project_config(&current_dir)?;
-    
+
     println!("✅ Successfully created configuration file");
     println!();
     println!("   Location: {}", config_path.display());
@@ -466,7 +467,5 @@ fn setup_config() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-
 // Maven tests have been moved to tests/ directory
 // See: tests/command_tests.rs, tests/profile_tests.rs, etc.
-

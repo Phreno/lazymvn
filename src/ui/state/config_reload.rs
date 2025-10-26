@@ -70,7 +70,7 @@ impl TuiState {
     /// Check if watch configuration has changed
     fn has_watch_config_changed(&self, new_config: &crate::core::config::Config) -> bool {
         let tab = self.get_active_tab();
-        
+
         match (&tab.config.watch, &new_config.watch) {
             (Some(old), Some(new)) => {
                 old.enabled != new.enabled

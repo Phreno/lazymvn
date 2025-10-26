@@ -477,7 +477,9 @@ pub fn execute_maven_command_async_with_options(
     // Note: For spring-boot:run, logging overrides are already included in
     // -Dspring-boot.run.jvmArguments= (see build_launch_command in detection.rs).
     // We only add them as Maven system properties for other launch strategies.
-    let has_spring_boot_jvm_args = args.iter().any(|arg| arg.starts_with("-Dspring-boot.run.jvmArguments="));
+    let has_spring_boot_jvm_args = args
+        .iter()
+        .any(|arg| arg.starts_with("-Dspring-boot.run.jvmArguments="));
     if !has_spring_boot_jvm_args {
         for (package, level) in &logging_overrides {
             command.arg(format!("-Dlog4j.logger.{}={}", package, level));
@@ -485,7 +487,9 @@ pub fn execute_maven_command_async_with_options(
             log::debug!("Added logging override: {} = {}", package, level);
         }
     } else {
-        log::debug!("Skipping logging overrides as Maven properties (already in spring-boot.run.jvmArguments)");
+        log::debug!(
+            "Skipping logging overrides as Maven properties (already in spring-boot.run.jvmArguments)"
+        );
     }
 
     let project_root = project_root.to_path_buf();
@@ -589,54 +593,26 @@ mod tests {
 
     #[test]
     fn test_build_command_string_basic() {
-        let cmd = build_command_string(
-            "mvn",
-            None,
-            &["clean", "install"],
-            &[],
-            None,
-            &[],
-        );
+        let cmd = build_command_string("mvn", None, &["clean", "install"], &[], None, &[]);
         assert_eq!(cmd, "mvn clean install");
     }
 
     #[test]
     fn test_build_command_string_with_profiles() {
         let profiles = vec!["dev".to_string(), "local".to_string()];
-        let cmd = build_command_string(
-            "mvn",
-            None,
-            &["clean", "install"],
-            &profiles,
-            None,
-            &[],
-        );
+        let cmd = build_command_string("mvn", None, &["clean", "install"], &profiles, None, &[]);
         assert_eq!(cmd, "mvn -P dev,local clean install");
     }
 
     #[test]
     fn test_build_command_string_with_module() {
-        let cmd = build_command_string(
-            "mvn",
-            Some("backend"),
-            &["test"],
-            &[],
-            None,
-            &[],
-        );
+        let cmd = build_command_string("mvn", Some("backend"), &["test"], &[], None, &[]);
         assert_eq!(cmd, "mvn -pl backend test");
     }
 
     #[test]
     fn test_build_command_string_with_root_module() {
-        let cmd = build_command_string(
-            "mvn",
-            Some("."),
-            &["clean"],
-            &[],
-            None,
-            &[],
-        );
+        let cmd = build_command_string("mvn", Some("."), &["clean"], &[], None, &[]);
         // Root module "." should not add -pl flag
         assert_eq!(cmd, "mvn clean");
     }
@@ -644,14 +620,7 @@ mod tests {
     #[test]
     fn test_build_command_string_with_flags() {
         let flags = vec!["-DskipTests".to_string(), "--also-make".to_string()];
-        let cmd = build_command_string(
-            "mvn",
-            Some("api"),
-            &["package"],
-            &[],
-            None,
-            &flags,
-        );
+        let cmd = build_command_string("mvn", Some("api"), &["package"], &[], None, &flags);
         assert_eq!(cmd, "mvn -pl api -DskipTests --also-make package");
     }
 
@@ -680,7 +649,10 @@ mod tests {
             Some("settings.xml"),
             &flags,
         );
-        assert_eq!(cmd, "./mvnw --settings settings.xml -P prod -pl web -X spring-boot:run");
+        assert_eq!(
+            cmd,
+            "./mvnw --settings settings.xml -P prod -pl web -X spring-boot:run"
+        );
     }
 
     #[test]
@@ -692,7 +664,7 @@ mod tests {
             &[],
             None,
             &[],
-            true,  // use_file_flag
+            true, // use_file_flag
             &PathBuf::from("/project"),
             &[],
         );
@@ -711,7 +683,7 @@ mod tests {
             &[],
             None,
             &[],
-            true,  // use_file_flag
+            true, // use_file_flag
             &PathBuf::from("/project"),
             &[],
         );
@@ -729,7 +701,7 @@ mod tests {
             &[],
             None,
             &[],
-            false,  // use_file_flag
+            false, // use_file_flag
             &PathBuf::from("/project"),
             &[],
         );
@@ -743,7 +715,7 @@ mod tests {
             "mvn",
             None,
             &["test"],
-            &[],  // empty profiles
+            &[], // empty profiles
             None,
             &[],
         );
@@ -759,7 +731,7 @@ mod tests {
             &["test"],
             &[],
             None,
-            &[],  // empty flags
+            &[], // empty flags
         );
         assert_eq!(cmd, "mvn test");
     }
@@ -783,14 +755,7 @@ mod tests {
 
     #[test]
     fn test_build_command_string_with_special_characters() {
-        let cmd = build_command_string(
-            "mvn",
-            Some("my-module"),
-            &["test"],
-            &[],
-            None,
-            &[],
-        );
+        let cmd = build_command_string("mvn", Some("my-module"), &["test"], &[], None, &[]);
         assert_eq!(cmd, "mvn -pl my-module test");
     }
 
@@ -829,7 +794,10 @@ mod tests {
             level: "DEBUG".to_string(),
         });
         let result = get_logging_overrides(Some(&config));
-        assert_eq!(result, vec![("com.example".to_string(), "DEBUG".to_string())]);
+        assert_eq!(
+            result,
+            vec![("com.example".to_string(), "DEBUG".to_string())]
+        );
     }
 
     #[test]

@@ -117,4 +117,3 @@ mod tests {
         assert_eq!(after_5, start);
     }
 }
-

@@ -27,7 +27,7 @@ notifications_enabled = true
 
 # Log level for LazyMVN application logs (not Maven output)
 # Options: "off", "error", "warn", "info", "debug", "trace"
-# Default: "debug" in unstable/development builds, "off" in release builds
+# Default: "debug" in nightly/development builds, "off" in release builds
 # Logs are written to: ~/.local/share/lazymvn/logs/debug.log and error.log
 # Use 'Y' (Shift+y) in the app to copy current session logs to clipboard
 log_level = "debug"
@@ -128,4 +128,3 @@ active_profiles = ["dev", "local"]
 # - Easy environment switching
 # - Properties visible in debug logs
 # - Strong override (LazyMVN has the last word)
-

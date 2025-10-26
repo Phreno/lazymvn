@@ -2,17 +2,19 @@
 //!
 //! Processes keyboard events and updates application state accordingly.
 
-mod types;
+mod command_keys;
+mod helpers;
+mod navigation_keys;
+mod output_keys;
 mod popup_keys;
 mod search_keys;
-mod output_keys;
-mod command_keys;
-mod navigation_keys;
-mod helpers;
+mod types;
 mod ui_builders;
 
 pub use types::{CurrentView, Focus, SearchMode};
-pub use ui_builders::{blank_line, build_navigation_line, simplified_footer_body, simplified_footer_title};
+pub use ui_builders::{
+    blank_line, build_navigation_line, simplified_footer_body, simplified_footer_title,
+};
 
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
 
@@ -59,7 +61,7 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
             SearchMode::Input => search_keys::handle_search_input(key, state),
             SearchMode::Cycling => search_keys::handle_search_cycling(key, state),
         };
-        
+
         if handled {
             return;
         }
@@ -77,42 +79,42 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
     }
 
     // Direct command execution - no menu navigation needed
-    
+
     // Try Maven command keys first
     if command_keys::handle_maven_command(key, state) {
         return;
     }
-    
+
     // Try tab operations (Ctrl+T/W/Left/Right)
     if navigation_keys::handle_tab_operations(key, state) {
         return;
     }
-    
+
     // Try popup triggers (Ctrl+F/S/H/R/E)
     if navigation_keys::handle_popup_triggers(key, state) {
         return;
     }
-    
+
     // Try view switching (0-4)
     if navigation_keys::handle_view_switching(key, state) {
         return;
     }
-    
+
     // Try focus cycling (Left/Right arrows)
     if navigation_keys::handle_focus_cycling(key, state) {
         return;
     }
-    
+
     // Try search operations (/, n, N)
     if navigation_keys::handle_search_operations(key, state) {
         return;
     }
-    
+
     // Try special actions (Esc, Enter, Space)
     if navigation_keys::handle_special_actions(key, state) {
         return;
     }
-    
+
     // Handle remaining output operations and scrolling
     match key.code {
         KeyCode::Down => output_keys::handle_scroll_down(state, state.focus),

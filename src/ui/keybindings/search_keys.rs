@@ -3,8 +3,8 @@
 //! This module handles keyboard events for search functionality,
 //! including input mode and results cycling mode.
 
-use crate::ui::state::TuiState;
 use crate::ui::keybindings::SearchMode;
+use crate::ui::state::TuiState;
 use crossterm::event::{KeyCode, KeyEvent};
 
 /// Handle keyboard events in search input mode

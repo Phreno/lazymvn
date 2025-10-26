@@ -1,12 +1,12 @@
 mod basic_panes;
 mod layout;
-mod tab_footer;
 mod popups;
+mod tab_footer;
 
 pub use basic_panes::*;
 pub use layout::create_adaptive_layout;
-pub use tab_footer::{render_footer, render_tab_bar};
 pub use popups::*;
+pub use tab_footer::{render_footer, render_tab_bar};
 #[cfg(test)]
 mod tests {
     use super::*;

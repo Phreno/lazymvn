@@ -1,5 +1,3 @@
-
-
 //! Log4j 1.x configuration file generation
 //!
 //! This module handles automatic generation of Log4j 1.x configuration files
@@ -30,12 +28,12 @@ pub fn generate_log4j_config(
         .unwrap_or_else(|| dirs::home_dir().unwrap_or_else(|| PathBuf::from(".")))
         .join("lazymvn")
         .join("log4j");
-    
+
     if let Err(e) = fs::create_dir_all(&config_dir) {
         log::error!("Failed to create log4j config directory: {}", e);
         return None;
     }
-    
+
     // Create a hash of the project root path for unique filename
     let hash = format!(
         "{:x}",
@@ -52,7 +50,7 @@ pub fn generate_log4j_config(
     content.push_str("# LazyMVN Generated Log4j 1.x Configuration\n");
     content.push_str("# This file is auto-generated and managed by LazyMVN\n");
     content.push('\n');
-    
+
     // Root logger configuration
     content.push_str("# LazyMVN Generated Log4j 1.x Configuration\n");
     content.push_str("# This file is auto-generated from lazymvn.toml [logging] section\n");
@@ -60,14 +58,14 @@ pub fn generate_log4j_config(
     content.push_str("# Root logger\n");
     content.push_str("log4j.rootLogger=INFO, CONSOLE\n");
     content.push('\n');
-    
+
     // Console appender configuration
     content.push_str("# Console appender\n");
     content.push_str("log4j.appender.CONSOLE=org.apache.log4j.ConsoleAppender\n");
     content.push_str("log4j.appender.CONSOLE.layout=org.apache.log4j.PatternLayout\n");
     content.push_str("log4j.appender.CONSOLE.layout.ConversionPattern=[%d{dd/MM/yyyy HH:mm:ss:SSS}] %5p %c{1} - %m%n\n");
     content.push('\n');
-    
+
     // Add logging overrides
     content.push_str("# Logging level overrides from lazymvn.toml\n");
     for (package, level) in logging_overrides {

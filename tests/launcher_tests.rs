@@ -1,5 +1,5 @@
 // Launch command building tests
-use lazymvn::maven::{build_launch_command, quote_arg_for_platform, LaunchStrategy};
+use lazymvn::maven::{LaunchStrategy, build_launch_command, quote_arg_for_platform};
 
 mod common;
 

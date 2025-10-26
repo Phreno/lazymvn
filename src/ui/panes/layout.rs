@@ -4,9 +4,7 @@
 //! and focused pane, supporting both narrow (single column) and wide (two column) modes.
 
 use crate::ui::keybindings::Focus;
-use ratatui::{
-    layout::{Constraint, Direction, Layout, Rect},
-};
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
 
 /// Create adaptive layout based on terminal size and focused pane
 ///
@@ -285,8 +283,7 @@ mod tests {
     #[test]
     fn test_adaptive_layout_normal_height_standard_layout() {
         let area = Rect::new(0, 0, 100, 40); // Normal height
-        let (_tab, proj, mods, profs, flags, _out, _foot) =
-            create_adaptive_layout(area, None);
+        let (_tab, proj, mods, profs, flags, _out, _foot) = create_adaptive_layout(area, None);
 
         // Standard layout - modules should have reasonable space
         assert!(proj.height >= 3);

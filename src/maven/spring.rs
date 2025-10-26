@@ -34,12 +34,12 @@ pub fn generate_spring_properties(
         .unwrap_or_else(|| dirs::home_dir().unwrap_or_else(|| PathBuf::from(".")))
         .join("lazymvn")
         .join("spring");
-    
+
     if let Err(e) = fs::create_dir_all(&config_dir) {
         log::error!("Failed to create spring config directory: {}", e);
         return None;
     }
-    
+
     // Create a hash of the project root path for unique filename
     let hash = format!(
         "{:x}",
@@ -57,14 +57,17 @@ pub fn generate_spring_properties(
     content.push_str("# This file is auto-generated from lazymvn.toml [spring] section\n");
     content.push_str("# These properties OVERRIDE project defaults (LazyMVN has the last word)\n");
     content.push('\n');
-    
+
     // Add active profiles if specified
     if !active_profiles.is_empty() {
         content.push_str("# Active profiles\n");
-        content.push_str(&format!("spring.profiles.active={}\n", active_profiles.join(",")));
+        content.push_str(&format!(
+            "spring.profiles.active={}\n",
+            active_profiles.join(",")
+        ));
         content.push('\n');
     }
-    
+
     // Add property overrides
     if !properties.is_empty() {
         content.push_str("# Property overrides from lazymvn.toml\n");
@@ -80,7 +83,10 @@ pub fn generate_spring_properties(
                 log::error!("Failed to write Spring properties file: {}", e);
                 return None;
             }
-            log::info!("Generated Spring Boot override config at: {:?}", config_path);
+            log::info!(
+                "Generated Spring Boot override config at: {:?}",
+                config_path
+            );
             log::debug!("Spring properties override content:\n{}", content);
             Some(config_path)
         }
@@ -101,7 +107,10 @@ mod tests {
         let test_dir = std::env::temp_dir().join("lazymvn_test_properties");
         let properties = vec![
             ("server.port".to_string(), "8081".to_string()),
-            ("spring.datasource.url".to_string(), "jdbc:h2:mem:testdb".to_string()),
+            (
+                "spring.datasource.url".to_string(),
+                "jdbc:h2:mem:testdb".to_string(),
+            ),
         ];
         let profiles = vec![];
 

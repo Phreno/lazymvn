@@ -2,7 +2,7 @@
 //!
 //! This module handles toggling and managing Maven build flags.
 
-use super::{TuiState, Focus};
+use super::{Focus, TuiState};
 
 impl TuiState {
     /// Toggle the selected build flag

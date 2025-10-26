@@ -2,7 +2,7 @@
 //!
 //! This module handles creation, switching, and cleanup of project tabs.
 
-use super::{TuiState, ProjectTab};
+use super::{ProjectTab, TuiState};
 use std::path::PathBuf;
 
 impl TuiState {
@@ -302,4 +302,3 @@ mod tests {
         assert!(result.is_none());
     }
 }
-

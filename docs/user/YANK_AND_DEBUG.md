@@ -49,7 +49,7 @@ LazyMVN Debug Report
 Generated: 2025-10-24 15:30:45
 
 === Version Information ===
-LazyMVN Version: 0.4.0-unstable
+LazyMVN Version: 0.4.0-nightly
 
 === System Information ===
 OS: linux

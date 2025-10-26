@@ -4,6 +4,8 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
+use super::version;
+
 static LOGGER: Logger = Logger {
     file: Mutex::new(None),
     error_file: Mutex::new(None),
@@ -100,19 +102,22 @@ pub fn get_session_id() -> Option<String> {
 
 /// Extract logs for the current session from a log file
 #[allow(dead_code)]
-fn extract_session_logs(log_path: &PathBuf, session_id: &str) -> Result<Vec<String>, std::io::Error> {
+fn extract_session_logs(
+    log_path: &PathBuf,
+    session_id: &str,
+) -> Result<Vec<String>, std::io::Error> {
     use std::io::{BufRead, BufReader};
-    
+
     let file = File::open(log_path)?;
     let reader = BufReader::new(file);
     let session_marker = format!("[SESSION:{}]", session_id);
-    
+
     let mut session_logs = Vec::new();
     let mut in_session = false;
-    
+
     for line in reader.lines() {
         let line = line?;
-        
+
         // Check if this line belongs to our session
         if line.contains(&session_marker) {
             in_session = true;
@@ -125,7 +130,7 @@ fn extract_session_logs(log_path: &PathBuf, session_id: &str) -> Result<Vec<Stri
             session_logs.push(line);
         }
     }
-    
+
     Ok(session_logs)
 }
 
@@ -133,54 +138,57 @@ fn extract_session_logs(log_path: &PathBuf, session_id: &str) -> Result<Vec<Stri
 #[allow(dead_code)]
 pub fn get_current_session_logs() -> Result<String, String> {
     let session_id = get_session_id().ok_or("No session ID available")?;
-    
+
     let mut all_logs = Vec::new();
-    
+
     // Add header
     all_logs.push("=== LazyMVN Session Logs ===".to_string());
     all_logs.push(format!("Session ID: {}", session_id));
-    all_logs.push(format!("Timestamp: {}", chrono::Local::now().format("%Y-%m-%d %H:%M:%S")));
+    all_logs.push(format!(
+        "Timestamp: {}",
+        chrono::Local::now().format("%Y-%m-%d %H:%M:%S")
+    ));
     all_logs.push(String::new());
-    
+
     // Extract debug logs
     if let Some(debug_path) = get_debug_log_path()
         && debug_path.exists()
     {
-            all_logs.push("=== Debug Logs ===".to_string());
-            match extract_session_logs(&debug_path, &session_id) {
-                Ok(logs) => {
-                    if logs.is_empty() {
-                        all_logs.push("(No debug logs for this session)".to_string());
-                    } else {
-                        all_logs.extend(logs);
-                    }
-                }
-                Err(e) => {
-                    all_logs.push(format!("Error reading debug logs: {}", e));
+        all_logs.push("=== Debug Logs ===".to_string());
+        match extract_session_logs(&debug_path, &session_id) {
+            Ok(logs) => {
+                if logs.is_empty() {
+                    all_logs.push("(No debug logs for this session)".to_string());
+                } else {
+                    all_logs.extend(logs);
                 }
             }
-            all_logs.push(String::new());
+            Err(e) => {
+                all_logs.push(format!("Error reading debug logs: {}", e));
+            }
+        }
+        all_logs.push(String::new());
     }
-    
+
     // Extract error logs
     if let Some(error_path) = get_error_log_path()
         && error_path.exists()
     {
-            all_logs.push("=== Error Logs ===".to_string());
-            match extract_session_logs(&error_path, &session_id) {
-                Ok(logs) => {
-                    if logs.is_empty() {
-                        all_logs.push("(No errors for this session)".to_string());
-                    } else {
-                        all_logs.extend(logs);
-                    }
-                }
-                Err(e) => {
-                    all_logs.push(format!("Error reading error logs: {}", e));
+        all_logs.push("=== Error Logs ===".to_string());
+        match extract_session_logs(&error_path, &session_id) {
+            Ok(logs) => {
+                if logs.is_empty() {
+                    all_logs.push("(No errors for this session)".to_string());
+                } else {
+                    all_logs.extend(logs);
                 }
             }
+            Err(e) => {
+                all_logs.push(format!("Error reading error logs: {}", e));
+            }
+        }
     }
-    
+
     Ok(all_logs.join("\n"))
 }
 
@@ -197,15 +205,18 @@ pub fn init(log_level: Option<&str>) -> Result<(), SetLoggerError> {
         Some("debug") => LevelFilter::Debug,
         Some("trace") => LevelFilter::Trace,
         None => {
-            // Default to Debug in development mode (when version contains "unstable")
-            if env!("CARGO_PKG_VERSION").contains("unstable") {
+            // Default to Debug in development mode (nightly builds)
+            if version::is_nightly() {
                 LevelFilter::Debug
             } else {
                 LevelFilter::Off
             }
         }
         Some(other) => {
-            eprintln!("Warning: Unknown log level '{}', defaulting to 'info'", other);
+            eprintln!(
+                "Warning: Unknown log level '{}', defaulting to 'info'",
+                other
+            );
             LevelFilter::Info
         }
     };
@@ -254,26 +265,26 @@ pub fn init(log_level: Option<&str>) -> Result<(), SetLoggerError> {
 /// Read the last N lines from a file (tail-like functionality)
 fn read_last_lines(path: &PathBuf, max_lines: usize) -> Result<Vec<String>, std::io::Error> {
     use std::io::{BufRead, BufReader};
-    
+
     let file = File::open(path)?;
     let reader = BufReader::new(file);
-    
+
     // Read all lines and keep the last N
     let all_lines: Vec<String> = reader.lines().collect::<Result<Vec<_>, _>>()?;
-    
+
     let start_idx = if all_lines.len() > max_lines {
         all_lines.len() - max_lines
     } else {
         0
     };
-    
+
     Ok(all_lines[start_idx..].to_vec())
 }
 
 /// Get all available logs (last 500 lines from debug and error logs)
 pub fn get_all_logs() -> String {
     let mut output = Vec::new();
-    
+
     // Add debug logs
     if let Some(debug_path) = get_debug_log_path()
         && debug_path.exists()
@@ -293,7 +304,7 @@ pub fn get_all_logs() -> String {
         }
         output.push(String::new());
     }
-    
+
     // Add error logs
     if let Some(error_path) = get_error_log_path()
         && error_path.exists()
@@ -312,6 +323,6 @@ pub fn get_all_logs() -> String {
             }
         }
     }
-    
+
     output.join("\n")
 }

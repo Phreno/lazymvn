@@ -4,16 +4,16 @@
 //! profiles, flags, command execution, and output display.
 
 // Sub-modules
-mod project_tab;
-mod tabs;
-mod navigation;
 mod commands;
-mod profiles;
-mod flags;
-mod search;
-mod output;
-mod launcher_config;
 mod config_reload;
+mod flags;
+mod launcher_config;
+mod navigation;
+mod output;
+mod profiles;
+mod project_tab;
+mod search;
+mod tabs;
 
 pub use project_tab::ProjectTab;
 
@@ -242,7 +242,11 @@ pub struct BuildFlag {
 impl TuiState {
     /// Legacy constructor - creates state with tabs system and initial project tab
     /// This is a compatibility wrapper for the old API
-    pub fn new(modules: Vec<String>, project_root: PathBuf, config: crate::core::config::Config) -> Self {
+    pub fn new(
+        modules: Vec<String>,
+        project_root: PathBuf,
+        config: crate::core::config::Config,
+    ) -> Self {
         // Create empty state with tabs system
         let mut state = Self::new_with_tabs();
 
@@ -311,64 +315,9 @@ impl TuiState {
         }
     }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     // Live search - performs search as user types without storing in history
 
-
     // Module output management
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     /// Kill the currently running Maven process
     pub fn kill_running_process(&mut self) {
@@ -441,9 +390,9 @@ impl TuiState {
     /// Includes: version info, git hash, logs, output from all tabs, and config file
     pub fn yank_debug_info(&mut self) {
         log::info!("Collecting comprehensive debug information");
-        
+
         let mut debug_info = Vec::new();
-        
+
         Self::add_debug_header(&mut debug_info);
         debug_info.extend(Self::collect_version_info());
         debug_info.extend(Self::collect_system_info());
@@ -451,12 +400,12 @@ impl TuiState {
         debug_info.extend(self.collect_all_tabs_output());
         debug_info.extend(Self::collect_logs());
         Self::add_debug_footer(&mut debug_info);
-        
+
         let debug_text = debug_info.join("\n");
         let lines = debug_info.len();
-        
+
         log::info!("Collected {} lines of debug information", lines);
-        
+
         self.copy_to_clipboard(&debug_text, lines, "debug report");
     }
 
@@ -465,7 +414,10 @@ impl TuiState {
         debug_info.push("=".repeat(80));
         debug_info.push("LazyMVN Debug Report".to_string());
         debug_info.push("=".repeat(80));
-        debug_info.push(format!("Generated: {}", chrono::Local::now().format("%Y-%m-%d %H:%M:%S")));
+        debug_info.push(format!(
+            "Generated: {}",
+            chrono::Local::now().format("%Y-%m-%d %H:%M:%S")
+        ));
         debug_info.push(String::new());
     }
 
@@ -473,8 +425,18 @@ impl TuiState {
     fn collect_version_info() -> Vec<String> {
         let mut info = Vec::new();
         info.push("=== Version Information ===".to_string());
-        info.push(format!("LazyMVN Version: {}", env!("CARGO_PKG_VERSION")));
-        
+        info.push(format!(
+            "LazyMVN Version: {}",
+            crate::utils::version::current()
+        ));
+
+        if let Some(tag) = crate::utils::version::build_tag() {
+            info.push(format!("Nightly Tag: {}", tag));
+        }
+        if let Some(commit) = crate::utils::version::commit_sha() {
+            info.push(format!("Commit SHA: {}", commit));
+        }
+
         if let Some(date) = option_env!("VERGEN_BUILD_DATE") {
             info.push(format!("Build Date: {}", date));
         }
@@ -502,8 +464,9 @@ impl TuiState {
     fn collect_config_info(&self) -> Vec<String> {
         let mut info = Vec::new();
         info.push("=== Configuration (config.toml) ===".to_string());
-        
-        let config_path = crate::core::config::get_project_config_path(&self.get_active_tab().project_root);
+
+        let config_path =
+            crate::core::config::get_project_config_path(&self.get_active_tab().project_root);
         if config_path.exists() {
             info.push(format!("Location: {}", config_path.display()));
             match std::fs::read_to_string(&config_path) {
@@ -527,35 +490,42 @@ impl TuiState {
     fn collect_all_tabs_output(&self) -> Vec<String> {
         let mut info = Vec::new();
         info.push("=== Output from All Tabs ===".to_string());
-        
+
         for (idx, tab) in self.tabs.iter().enumerate() {
-            info.extend(Self::collect_tab_output(tab, idx, idx == self.active_tab_index));
+            info.extend(Self::collect_tab_output(
+                tab,
+                idx,
+                idx == self.active_tab_index,
+            ));
         }
-        
+
         info
     }
 
     /// Collect output from a single tab
     fn collect_tab_output(tab: &ProjectTab, idx: usize, is_active: bool) -> Vec<String> {
         let mut info = Vec::new();
-        
+
         let marker = if is_active { " [ACTIVE]" } else { "" };
-        let tab_name = tab.project_root.file_name()
+        let tab_name = tab
+            .project_root
+            .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("Unknown");
-        
+
         info.push(format!("--- Tab {}: {}{} ---", idx + 1, tab_name, marker));
         info.push(format!("Project Root: {}", tab.project_root.display()));
-        
+
         // Get selected module for this tab
-        let selected_module = tab.modules_list_state
+        let selected_module = tab
+            .modules_list_state
             .selected()
             .and_then(|i| tab.modules.get(i))
             .map(|s| s.as_str())
             .unwrap_or("<none>");
         info.push(format!("Module: {}", selected_module));
         info.push(format!("Output Lines: {}", tab.command_output.len()));
-        
+
         if tab.command_output.is_empty() {
             info.push("(No output)".to_string());
         } else {
@@ -566,16 +536,18 @@ impl TuiState {
                 0
             };
             if start_idx > 0 {
-                info.push(format!("(Showing last {} lines of {})", 
-                    tab.command_output.len() - start_idx, 
-                    tab.command_output.len()));
+                info.push(format!(
+                    "(Showing last {} lines of {})",
+                    tab.command_output.len() - start_idx,
+                    tab.command_output.len()
+                ));
             }
             for line in &tab.command_output[start_idx..] {
                 info.push(line.clone());
             }
         }
         info.push(String::new());
-        
+
         info
     }
 
@@ -627,7 +599,9 @@ impl TuiState {
 
         #[cfg(target_os = "windows")]
         {
-            if Self::try_clipboard_tool("powershell", &["-Command", "$input | Set-Clipboard"], text).is_ok() {
+            if Self::try_clipboard_tool("powershell", &["-Command", "$input | Set-Clipboard"], text)
+                .is_ok()
+            {
                 self.show_clipboard_success(lines, content_type, "PowerShell");
                 return true;
             }
@@ -666,7 +640,7 @@ impl TuiState {
                 return Ok(());
             }
         }
-        
+
         Err(std::io::Error::other(format!("{} failed", tool)))
     }
 
@@ -705,7 +679,10 @@ impl TuiState {
         log::info!("Copied {} via {}", content_type, tool);
         let tab = self.get_active_tab_mut();
         tab.command_output.push(String::new());
-        tab.command_output.push(format!("✓ Copied {} ({} lines) to clipboard", content_type, lines));
+        tab.command_output.push(format!(
+            "✓ Copied {} ({} lines) to clipboard",
+            content_type, lines
+        ));
     }
 
     /// Show clipboard error message
@@ -761,21 +738,7 @@ impl TuiState {
 
     // Output display and metrics
 
-
-
-
     // Scrolling methods
-
-
-
-
-
-
-
-
-
-
-
 
     fn total_display_rows(&self) -> usize {
         let tab = self.get_active_tab();
@@ -787,37 +750,6 @@ impl TuiState {
     }
 
     // Search functionality
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     // Recent projects methods
     pub fn show_recent_projects(&mut self) {
@@ -1152,7 +1084,8 @@ impl TuiState {
         // Scan for potential starters if candidates list is empty
         if self.starter_candidates.is_empty() {
             let tab = self.get_active_tab();
-            self.starter_candidates = crate::features::starters::find_potential_starters(&tab.project_root);
+            self.starter_candidates =
+                crate::features::starters::find_potential_starters(&tab.project_root);
             log::debug!("Found {} potential starters", self.starter_candidates.len());
         }
 
@@ -1209,8 +1142,11 @@ impl TuiState {
                         .unwrap_or(&fqcn_clone)
                         .to_string();
                     let is_default = tab.starters_cache.starters.is_empty();
-                    let starter =
-                        crate::features::starters::Starter::new(fqcn_clone.clone(), label, is_default);
+                    let starter = crate::features::starters::Starter::new(
+                        fqcn_clone.clone(),
+                        label,
+                        is_default,
+                    );
                     tab.starters_cache.add_starter(starter);
 
                     // Save the cache
@@ -1245,8 +1181,14 @@ impl TuiState {
                 let strategy = self.decide_launch_strategy(&detection);
                 let active_profiles = self.collect_active_maven_profiles();
                 let jvm_args = self.build_jvm_args_for_launcher();
-                
-                self.execute_launch_command(strategy, fqcn, &active_profiles, &jvm_args, detection.packaging.as_deref());
+
+                self.execute_launch_command(
+                    strategy,
+                    fqcn,
+                    &active_profiles,
+                    &jvm_args,
+                    detection.packaging.as_deref(),
+                );
             }
             Err(e) => {
                 self.handle_detection_error(e.to_string(), fqcn);
@@ -1255,9 +1197,15 @@ impl TuiState {
     }
 
     /// Decide launch strategy based on detection and configuration
-    fn decide_launch_strategy(&self, detection: &SpringBootDetection) -> crate::maven::LaunchStrategy {
+    fn decide_launch_strategy(
+        &self,
+        detection: &SpringBootDetection,
+    ) -> crate::maven::LaunchStrategy {
         let tab = self.get_active_tab();
-        let launch_mode = tab.config.launch_mode.unwrap_or(crate::core::config::LaunchMode::Auto);
+        let launch_mode = tab
+            .config
+            .launch_mode
+            .unwrap_or(crate::core::config::LaunchMode::Auto);
         let strategy = crate::maven::decide_launch_strategy(detection, launch_mode);
 
         log::info!(
@@ -1299,14 +1247,14 @@ impl TuiState {
 
         let args: Vec<&str> = command_parts.iter().map(|s| s.as_str()).collect();
         let use_file_flag = strategy == crate::maven::LaunchStrategy::ExecJava;
-        
+
         self.run_selected_module_command_with_options(&args, use_file_flag);
     }
 
     /// Handle Spring Boot detection error with fallback
     fn handle_detection_error(&mut self, error: String, fqcn: &str) {
         log::error!("Failed to detect Spring Boot capabilities: {}", error);
-        
+
         {
             let tab = self.get_active_tab_mut();
             tab.command_output = vec![
@@ -1449,20 +1397,20 @@ impl TuiState {
                     let fqcn = starter.fully_qualified_class_name.clone();
                     let project_root = tab.project_root.clone();
                     let removed = tab.starters_cache.remove_starter(&fqcn);
-                    
+
                     if removed {
                         log::info!("Removed starter: {}", fqcn);
                         if let Err(e) = tab.starters_cache.save(&project_root) {
                             log::error!("Failed to save starters cache: {}", e);
                         }
                     }
-                    
+
                     (removed, tab.starters_cache.starters.len())
                 } else {
                     (false, 0)
                 }
             };
-            
+
             // Now adjust selection without holding a borrow to tab
             if removed {
                 if new_len == 0 {

@@ -1,7 +1,7 @@
 # LazyMVN Configuration - Log Level Example
 #
 # This example demonstrates how to configure the log verbosity level.
-# By default, LazyMVN enables debug logging in development builds (versions containing "unstable").
+# By default, LazyMVN enables debug logging in development builds (versions containing "nightly").
 #
 # Log levels (from most to least verbose):
 # - "trace"  : Very detailed debugging information (rarely needed)

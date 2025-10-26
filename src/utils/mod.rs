@@ -11,8 +11,9 @@ pub mod git;
 pub mod loading;
 pub mod logger;
 pub mod text;
+pub mod version;
 pub mod watcher;
 
 // Re-export commonly used functions for convenience
-pub use text::{clean_log_line, colorize_log_line, colorize_xml_line};
 pub use git::get_git_branch;
+pub use text::{clean_log_line, colorize_log_line, colorize_xml_line};

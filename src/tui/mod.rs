@@ -22,10 +22,10 @@ pub fn handle_key_event(key: KeyEvent, state: &mut TuiState) {
 
 #[cfg(test)]
 mod tests {
-    use crate::test_utils::fs_lock;
     use super::*;
+    use crate::test_utils::fs_lock;
     use crate::ui::keybindings::{CurrentView, Focus};
-    use ratatui::{backend::TestBackend, Terminal};
+    use ratatui::{Terminal, backend::TestBackend};
     use std::path::PathBuf;
     use tempfile::tempdir;
 

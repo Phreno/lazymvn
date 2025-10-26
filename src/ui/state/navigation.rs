@@ -3,7 +3,7 @@
 //! This module handles navigation between items in lists (modules, profiles, flags)
 //! and focus management between different UI panes.
 
-use super::{TuiState, Focus, CurrentView};
+use super::{CurrentView, Focus, TuiState};
 use std::time::Instant;
 
 impl TuiState {
@@ -267,7 +267,11 @@ mod tests {
 
     fn create_test_state() -> TuiState {
         TuiState::new(
-            vec!["module1".to_string(), "module2".to_string(), "module3".to_string()],
+            vec![
+                "module1".to_string(),
+                "module2".to_string(),
+                "module3".to_string(),
+            ],
             PathBuf::from("/test"),
             Config::default(),
         )
@@ -289,11 +293,11 @@ mod tests {
     fn test_next_item_modules() {
         let mut state = create_test_state();
         state.focus = Focus::Modules;
-        
+
         assert_eq!(state.selected_module(), Some("module1"));
-        
+
         state.next_item();
-        
+
         assert_eq!(state.selected_module(), Some("module2"));
     }
 
@@ -301,15 +305,15 @@ mod tests {
     fn test_next_item_modules_wraps() {
         let mut state = create_test_state();
         state.focus = Focus::Modules;
-        
+
         // Go to last module
         {
             let tab = state.get_active_tab_mut();
             tab.modules_list_state.select(Some(2));
         }
-        
+
         state.next_item();
-        
+
         // Should wrap to first
         assert_eq!(state.selected_module(), Some("module1"));
     }
@@ -318,15 +322,15 @@ mod tests {
     fn test_previous_item_modules() {
         let mut state = create_test_state();
         state.focus = Focus::Modules;
-        
+
         // Start at second module
         {
             let tab = state.get_active_tab_mut();
             tab.modules_list_state.select(Some(1));
         }
-        
+
         state.previous_item();
-        
+
         assert_eq!(state.selected_module(), Some("module1"));
     }
 
@@ -334,11 +338,11 @@ mod tests {
     fn test_previous_item_modules_wraps() {
         let mut state = create_test_state();
         state.focus = Focus::Modules;
-        
+
         assert_eq!(state.selected_module(), Some("module1"));
-        
+
         state.previous_item();
-        
+
         // Should wrap to last
         assert_eq!(state.selected_module(), Some("module3"));
     }
@@ -346,9 +350,9 @@ mod tests {
     #[test]
     fn test_switch_to_projects() {
         let mut state = create_test_state();
-        
+
         state.switch_to_projects();
-        
+
         assert_eq!(state.current_view, CurrentView::Projects);
         assert_eq!(state.focus, Focus::Projects);
     }
@@ -357,9 +361,9 @@ mod tests {
     fn test_switch_to_modules() {
         let mut state = create_test_state();
         state.current_view = CurrentView::Projects;
-        
+
         state.switch_to_modules();
-        
+
         assert_eq!(state.current_view, CurrentView::Modules);
         assert_eq!(state.focus, Focus::Modules);
     }
@@ -367,9 +371,9 @@ mod tests {
     #[test]
     fn test_switch_to_profiles() {
         let mut state = create_test_state();
-        
+
         state.switch_to_profiles();
-        
+
         assert_eq!(state.current_view, CurrentView::Profiles);
         assert_eq!(state.focus, Focus::Profiles);
     }
@@ -377,9 +381,9 @@ mod tests {
     #[test]
     fn test_switch_to_flags() {
         let mut state = create_test_state();
-        
+
         state.switch_to_flags();
-        
+
         assert_eq!(state.current_view, CurrentView::Flags);
         assert_eq!(state.focus, Focus::Flags);
     }
@@ -388,9 +392,9 @@ mod tests {
     fn test_focus_output() {
         let mut state = create_test_state();
         state.focus = Focus::Modules;
-        
+
         state.focus_output();
-        
+
         assert_eq!(state.focus, Focus::Output);
     }
 
@@ -398,9 +402,9 @@ mod tests {
     fn test_cycle_focus_right() {
         let mut state = create_test_state();
         state.focus = Focus::Modules;
-        
+
         state.cycle_focus_right();
-        
+
         assert_eq!(state.focus, Focus::Profiles);
     }
 
@@ -408,9 +412,9 @@ mod tests {
     fn test_cycle_focus_left() {
         let mut state = create_test_state();
         state.focus = Focus::Profiles;
-        
+
         state.cycle_focus_left();
-        
+
         assert_eq!(state.focus, Focus::Modules);
     }
 
@@ -418,9 +422,9 @@ mod tests {
     fn test_cycle_focus_right_from_output() {
         let mut state = create_test_state();
         state.focus = Focus::Output;
-        
+
         state.cycle_focus_right();
-        
+
         // Should cycle back to Projects (not Modules)
         assert_eq!(state.focus, Focus::Projects);
     }
@@ -429,24 +433,20 @@ mod tests {
     fn test_cycle_focus_left_from_modules() {
         let mut state = create_test_state();
         state.focus = Focus::Modules;
-        
+
         state.cycle_focus_left();
-        
+
         // Should wrap to Projects (not Output)
         assert_eq!(state.focus, Focus::Projects);
     }
 
     #[test]
     fn test_next_item_empty_modules() {
-        let mut state = TuiState::new(
-            vec![],
-            PathBuf::from("/test"),
-            Config::default(),
-        );
+        let mut state = TuiState::new(vec![], PathBuf::from("/test"), Config::default());
         state.focus = Focus::Modules;
-        
+
         state.next_item();
-        
+
         // Should handle empty list gracefully
         assert!(state.selected_module().is_none());
     }
@@ -455,35 +455,38 @@ mod tests {
     fn test_next_item_profiles() {
         let mut state = create_test_state();
         state.focus = Focus::Profiles;
-        
+
         // Add some profiles
         {
             let tab = state.get_active_tab_mut();
             tab.profiles = vec![
-                super::super::MavenProfile { 
-                    name: "dev".to_string(), 
+                super::super::MavenProfile {
+                    name: "dev".to_string(),
                     state: super::super::ProfileState::Default,
                     auto_activated: false,
                 },
-                super::super::MavenProfile { 
-                    name: "prod".to_string(), 
+                super::super::MavenProfile {
+                    name: "prod".to_string(),
                     state: super::super::ProfileState::Default,
                     auto_activated: false,
                 },
             ];
             tab.profiles_list_state.select(Some(0));
         }
-        
+
         state.next_item();
-        
-        assert_eq!(state.get_active_tab().profiles_list_state.selected(), Some(1));
+
+        assert_eq!(
+            state.get_active_tab().profiles_list_state.selected(),
+            Some(1)
+        );
     }
 
     #[test]
     fn test_next_item_flags() {
         let mut state = create_test_state();
         state.focus = Focus::Flags;
-        
+
         // Flags should already be populated
         let flags_count = state.get_active_tab().flags.len();
         if flags_count > 1 {
@@ -491,11 +494,10 @@ mod tests {
                 let tab = state.get_active_tab_mut();
                 tab.flags_list_state.select(Some(0));
             }
-            
+
             state.next_item();
-            
+
             assert_eq!(state.get_active_tab().flags_list_state.selected(), Some(1));
         }
     }
 }
-

@@ -72,9 +72,7 @@ pub fn load_config(project_root: &Path) -> Config {
         log::debug!("Checking for config file at: {:?}", config_path);
 
         if let Ok(content) = fs::read_to_string(&config_path) {
-            log::info!(
-                "Found config.toml in centralized location, parsing configuration"
-            );
+            log::info!("Found config.toml in centralized location, parsing configuration");
             match toml::from_str(&content) {
                 Ok(cfg) => {
                     log::debug!("Successfully parsed config.toml");
@@ -89,16 +87,11 @@ pub fn load_config(project_root: &Path) -> Config {
         } else {
             // Fallback: try legacy location (project_root/lazymvn.toml) for backward compatibility
             let legacy_config_path = project_root.join("lazymvn.toml");
-            log::debug!(
-                "Checking legacy config file at: {:?}",
-                legacy_config_path
-            );
+            log::debug!("Checking legacy config file at: {:?}", legacy_config_path);
 
             if let Ok(content) = fs::read_to_string(&legacy_config_path) {
                 log::warn!("Found lazymvn.toml in project root (legacy location)");
-                log::warn!(
-                    "Consider running 'lazymvn --setup' to migrate to centralized config"
-                );
+                log::warn!("Consider running 'lazymvn --setup' to migrate to centralized config");
                 match toml::from_str(&content) {
                     Ok(cfg) => {
                         log::debug!("Successfully parsed legacy lazymvn.toml");

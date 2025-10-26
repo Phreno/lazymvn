@@ -14,7 +14,7 @@ use crate::ui::{
     },
     state::TuiState,
 };
-use ratatui::{backend::Backend, Terminal};
+use ratatui::{Terminal, backend::Backend};
 
 /// Main drawing function that renders the complete TUI
 pub fn draw<B: Backend>(

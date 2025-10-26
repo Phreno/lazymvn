@@ -14,7 +14,7 @@ pub fn test_lock() -> &'static Mutex<()> {
 #[allow(dead_code)]
 pub fn write_script(path: &Path, content: &str) {
     fs::write(path, content).unwrap();
-    
+
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -22,7 +22,7 @@ pub fn write_script(path: &Path, content: &str) {
         perms.set_mode(0o755);
         fs::set_permissions(path, perms).unwrap();
     }
-    
+
     // On Windows, batch files (.bat, .cmd) are executable by default
     // For tests, we create both the script and a .bat version
     #[cfg(windows)]

@@ -37,8 +37,11 @@ impl TuiState {
     pub(super) fn generate_log4j_jvm_arg(&self) -> Option<String> {
         let tab = self.get_active_tab();
         let logging_config = tab.config.logging.as_ref()?;
-        
-        log::debug!("Found logging config with {} packages", logging_config.packages.len());
+
+        log::debug!(
+            "Found logging config with {} packages",
+            logging_config.packages.len()
+        );
 
         let logging_overrides: Vec<(String, String)> = logging_config
             .packages
@@ -50,10 +53,8 @@ impl TuiState {
             return None;
         }
 
-        let log4j_config_path = crate::maven::generate_log4j_config(
-            &tab.project_root,
-            &logging_overrides,
-        )?;
+        let log4j_config_path =
+            crate::maven::generate_log4j_config(&tab.project_root, &logging_overrides)?;
 
         let config_url = Self::path_to_file_url(&log4j_config_path);
         log::info!("Injecting Log4j 1.x configuration: {}", config_url);
@@ -103,10 +104,16 @@ impl TuiState {
             log::debug!("  Spring property override: {}={}", name, value);
         }
         if !spring_config.active_profiles.is_empty() {
-            log::debug!("  Spring active profiles: {}", spring_config.active_profiles.join(","));
+            log::debug!(
+                "  Spring active profiles: {}",
+                spring_config.active_profiles.join(",")
+            );
         }
 
-        Some(format!("-Dspring.config.additional-location={}", config_url))
+        Some(format!(
+            "-Dspring.config.additional-location={}",
+            config_url
+        ))
     }
 
     /// Convert file path to file:// URL (cross-platform)

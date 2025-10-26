@@ -188,7 +188,11 @@ mod tests {
     fn test_build_navigation_line_contains_views() {
         let lines = build_navigation_line();
         let first_line = &lines[0];
-        let text: String = first_line.spans.iter().map(|s| s.content.as_ref()).collect();
+        let text: String = first_line
+            .spans
+            .iter()
+            .map(|s| s.content.as_ref())
+            .collect();
         assert!(text.contains("Views:"));
         assert!(text.contains("Output"));
         assert!(text.contains("Modules"));
@@ -198,7 +202,11 @@ mod tests {
     fn test_build_navigation_line_contains_tabs() {
         let lines = build_navigation_line();
         let third_line = &lines[2];
-        let text: String = third_line.spans.iter().map(|s| s.content.as_ref()).collect();
+        let text: String = third_line
+            .spans
+            .iter()
+            .map(|s| s.content.as_ref())
+            .collect();
         assert!(text.contains("Tabs:"));
         assert!(text.contains("New"));
         assert!(text.contains("Close"));
@@ -242,10 +250,7 @@ mod tests {
 
     #[test]
     fn test_module_actions_keys() {
-        let keys: Vec<&str> = MODULE_ACTIONS
-            .iter()
-            .map(|a| a.key_display)
-            .collect();
+        let keys: Vec<&str> = MODULE_ACTIONS.iter().map(|a| a.key_display).collect();
         assert_eq!(keys, vec!["b", "C", "c", "k", "t", "i", "s", "d", "y"]);
     }
 }
