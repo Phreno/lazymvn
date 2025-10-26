@@ -22,12 +22,11 @@ fn main() {
             if let Ok(output) = Command::new("git")
                 .args(["rev-parse", "--short", "HEAD"])
                 .output()
+                && output.status.success()
             {
-                if output.status.success() {
-                    let sha = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                    if !sha.is_empty() {
-                        version = format!("{version}+{sha}");
-                    }
+                let sha = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if !sha.is_empty() {
+                    version = format!("{version}+{sha}");
                 }
             }
             version
@@ -58,7 +57,7 @@ fn main() {
         println!("cargo:rustc-env=LAZYMVN_BUILD_TAG={tag}");
     }
 
-    if let Some(channel) = env::var("LAZYMVN_BUILD_CHANNEL").ok() {
+    if let Ok(channel) = env::var("LAZYMVN_BUILD_CHANNEL") {
         println!("cargo:rustc-env=LAZYMVN_BUILD_CHANNEL={channel}");
     }
 
