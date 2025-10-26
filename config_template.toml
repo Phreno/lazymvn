@@ -93,6 +93,12 @@
 # Works with Log4j 1.x, Log4j 2.x, Logback, SLF4J, and Spring Boot logging
 #
 # [logging]
+# # Custom log format override (optional)
+# # Overrides the default log format of the underlying logging framework (Log4j/Logback)
+# # See documentation for supported format specifiers (%p, %c, %m, %n, etc.)
+# log_format = "[%p] %c{1} - %m%n"
+#
+# # List of packages with custom log levels
 # packages = [
 #     # Reduce Spring Framework verbosity
 #     { name = "org.springframework.web", level = "WARN" },

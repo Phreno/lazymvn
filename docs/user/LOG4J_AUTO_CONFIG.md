@@ -114,6 +114,7 @@ Provides two main functions:
 pub fn generate_log4j_config(
     project_root: &Path,
     logging_overrides: &[(String, String)],
+    log_format: Option<&str>,
 ) -> Option<PathBuf>
 ```
 
@@ -157,7 +158,7 @@ let jvm_args: Vec<String> = logging_config
 ```rust
 // Generate Log4j config file
 let mut jvm_args: Vec<String> = if let Some(log4j_config_path) = 
-    generate_log4j_config(&project_root, &logging_overrides) 
+    generate_log4j_config(&project_root, &logging_overrides, Some("[%p] %c - %m%n")) 
 {
     let config_url = format!("file:///{}", log4j_config_path.display());
     vec![format!("-Dlog4j.configuration={}", config_url)]

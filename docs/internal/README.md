@@ -6,6 +6,7 @@ This section contains technical documentation for developers and contributors of
 
 *   [Implementation Summary](./IMPLEMENTATION_SUMMARY.md)
 *   [Live Reload Implementation](./LIVE_RELOAD_IMPLEMENTATION.md)
+*   [Log Formatting Implementation](./LOG_FORMATTING_IMPLEMENTATION.md)
 
 ## Refactoring
 

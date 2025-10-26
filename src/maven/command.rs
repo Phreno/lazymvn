@@ -105,7 +105,7 @@ pub fn build_command_string(
         flags,
         false,
         Path::new("."),
-        &[], // No logging overrides for backward compatibility
+        None, // No logging overrides for backward compatibility
     )
 }
 
@@ -120,7 +120,7 @@ pub fn build_command_string_with_options(
     flags: &[String],
     use_file_flag: bool,
     project_root: &Path,
-    _logging_overrides: &[(String, String)],
+    logging_config: Option<&LoggingConfig>,
 ) -> String {
     let mut parts = vec![maven_command.to_string()];
 
@@ -159,9 +159,22 @@ pub fn build_command_string_with_options(
         parts.push(flag.to_string());
     }
 
-    // Note: logging_overrides are handled by the caller and included in args
-    // (either as spring-boot.run.jvmArguments or exec.args)
-    // We don't add them here to avoid duplication
+    let has_spring_boot_jvm_args = args
+        .iter()
+        .any(|arg| arg.starts_with("-Dspring-boot.run.jvmArguments="));
+
+    if let Some(logging_config) = logging_config
+        && !has_spring_boot_jvm_args
+    {
+        if let Some(log_format) = &logging_config.log_format {
+            parts.push(format!("-Dlog4j.conversionPattern={}", log_format));
+            parts.push(format!("-Dlogging.pattern.console={}", log_format));
+        }
+        for (package, level) in &get_logging_overrides(Some(logging_config)) {
+            parts.push(format!("-Dlog4j.logger.{}={}", package, level));
+            parts.push(format!("-Dlogging.level.{}={}", package, level));
+        }
+    }
 
     for arg in args {
         parts.push(arg.to_string());
@@ -286,11 +299,28 @@ pub fn execute_maven_command_with_options(
         log::debug!("Added flag: {}", flag);
     }
 
+    let has_spring_boot_jvm_args = args
+        .iter()
+        .any(|arg| arg.starts_with("-Dspring-boot.run.jvmArguments="));
+
     // Add logging overrides
-    for (package, level) in &logging_overrides {
-        command.arg(format!("-Dlog4j.logger.{}={}", package, level));
-        command.arg(format!("-Dlogging.level.{}={}", package, level));
-        log::debug!("Added logging override: {} = {}", package, level);
+    if !has_spring_boot_jvm_args {
+        if let Some(logging_config) = logging_config
+            && let Some(log_format) = &logging_config.log_format
+        {
+            command.arg(format!("-Dlog4j.conversionPattern={}", log_format));
+            command.arg(format!("-Dlogging.pattern.console={}", log_format));
+            log::debug!("Added log format override: {}", log_format);
+        }
+        for (package, level) in &logging_overrides {
+            command.arg(format!("-Dlog4j.logger.{}={}", package, level));
+            command.arg(format!("-Dlogging.level.{}={}", package, level));
+            log::debug!("Added logging override: {} = {}", package, level);
+        }
+    } else {
+        log::debug!(
+            "Skipping logging overrides as Maven properties (already in spring-boot.run.jvmArguments)"
+        );
     }
 
     // Build the full command string for display
@@ -303,7 +333,7 @@ pub fn execute_maven_command_with_options(
         flags,
         use_file_flag,
         project_root,
-        &logging_overrides,
+        logging_config,
     );
     log::info!("Executing: {}", command_str);
 
@@ -435,7 +465,7 @@ pub fn execute_maven_command_async_with_options(
         flags,
         use_file_flag,
         project_root,
-        &logging_overrides,
+        logging_config,
     );
     log::info!("Executing: {}", command_str);
 
@@ -481,6 +511,13 @@ pub fn execute_maven_command_async_with_options(
         .iter()
         .any(|arg| arg.starts_with("-Dspring-boot.run.jvmArguments="));
     if !has_spring_boot_jvm_args {
+        if let Some(logging_config) = logging_config
+            && let Some(log_format) = &logging_config.log_format
+        {
+            command.arg(format!("-Dlog4j.conversionPattern={}", log_format));
+            command.arg(format!("-Dlogging.pattern.console={}", log_format));
+            log::debug!("Added log format override: {}", log_format);
+        }
         for (package, level) in &logging_overrides {
             command.arg(format!("-Dlog4j.logger.{}={}", package, level));
             command.arg(format!("-Dlogging.level.{}={}", package, level));
@@ -666,7 +703,7 @@ mod tests {
             &[],
             true, // use_file_flag
             &PathBuf::from("/project"),
-            &[],
+            None,
         );
         assert!(cmd.contains("-f"));
         assert!(cmd.contains("backend/pom.xml"));
@@ -685,7 +722,7 @@ mod tests {
             &[],
             true, // use_file_flag
             &PathBuf::from("/project"),
-            &[],
+            None,
         );
         assert!(cmd.contains("-f"));
         // spring-boot:run should NOT auto-add --also-make
@@ -703,7 +740,7 @@ mod tests {
             &[],
             false, // use_file_flag
             &PathBuf::from("/project"),
-            &[],
+            None,
         );
         assert!(cmd.contains("-pl backend"));
         assert!(!cmd.contains("-f"));
@@ -816,5 +853,62 @@ mod tests {
         assert_eq!(result.len(), 2);
         assert!(result.contains(&("com.example".to_string(), "DEBUG".to_string())));
         assert!(result.contains(&("org.springframework".to_string(), "INFO".to_string())));
+    }
+
+    #[test]
+    fn test_build_command_string_with_log_format() {
+        let logging_config = LoggingConfig {
+            log_format: Some("[%p] %m%n".to_string()),
+            packages: vec![],
+        };
+        let cmd = build_command_string_with_options(
+            "mvn",
+            None,
+            &["clean"],
+            &[],
+            None,
+            &[],
+            false,
+            &PathBuf::from("."),
+            Some(&logging_config),
+        );
+        assert!(cmd.contains("-Dlog4j.conversionPattern=[%p] %m%n"));
+        assert!(cmd.contains("-Dlogging.pattern.console=[%p] %m%n"));
+    }
+
+    #[test]
+    fn test_build_command_string_skips_logging_props_when_spring_boot_jvm_args_present() {
+        use crate::core::config::PackageLogLevel;
+        let logging_config = LoggingConfig {
+            log_format: Some("[%p] %c - %m%n".to_string()),
+            packages: vec![PackageLogLevel {
+                name: "com.example".to_string(),
+                level: "DEBUG".to_string(),
+            }],
+        };
+        let cmd = build_command_string_with_options(
+            "mvn",
+            Some("app"),
+            &[
+                "-Dspring-boot.run.profiles=dev",
+                "-Dspring-boot.run.jvmArguments=-Dfoo=bar",
+                "spring-boot:run",
+            ],
+            &["dev".to_string()],
+            Some("settings.xml"),
+            &[],
+            false,
+            &PathBuf::from("/workspace"),
+            Some(&logging_config),
+        );
+
+        assert!(
+            !cmd.contains("-Dlog4j.conversionPattern="),
+            "command should not add log4j conversion pattern when spring-boot.run.jvmArguments present: {cmd}"
+        );
+        assert!(
+            !cmd.contains("-Dlog4j.logger.com.example=DEBUG"),
+            "command should not add log4j logger overrides when spring-boot.run.jvmArguments present: {cmd}"
+        );
     }
 }

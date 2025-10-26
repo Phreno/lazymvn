@@ -22,6 +22,7 @@ use std::path::{Path, PathBuf};
 pub fn generate_log4j_config(
     project_root: &Path,
     logging_overrides: &[(String, String)],
+    log_format: Option<&str>,
 ) -> Option<PathBuf> {
     // Use LazyMVN's config directory (~/.config/lazymvn/)
     let config_dir = dirs::config_dir()
@@ -63,7 +64,11 @@ pub fn generate_log4j_config(
     content.push_str("# Console appender\n");
     content.push_str("log4j.appender.CONSOLE=org.apache.log4j.ConsoleAppender\n");
     content.push_str("log4j.appender.CONSOLE.layout=org.apache.log4j.PatternLayout\n");
-    content.push_str("log4j.appender.CONSOLE.layout.ConversionPattern=[%d{dd/MM/yyyy HH:mm:ss:SSS}] %5p %c{1} - %m%n\n");
+    let conversion_pattern = log_format.unwrap_or("[%d{dd/MM/yyyy HH:mm:ss:SSS}] %5p %c{1} - %m%n");
+    content.push_str(&format!(
+        "log4j.appender.CONSOLE.layout.ConversionPattern={}\n",
+        conversion_pattern
+    ));
     content.push('\n');
 
     // Add logging overrides
@@ -115,6 +120,7 @@ pub fn detect_log4j1_usage(output_lines: &[String]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile::tempdir;
 
     #[test]
     fn test_detect_log4j1_usage() {
@@ -134,13 +140,14 @@ mod tests {
 
     #[test]
     fn test_generate_log4j_config() {
-        let temp_dir = std::env::temp_dir();
+        let project_root = tempdir().unwrap();
         let overrides = vec![
             ("org.springframework".to_string(), "WARN".to_string()),
             ("com.example".to_string(), "DEBUG".to_string()),
         ];
 
-        let config_path = generate_log4j_config(&temp_dir, &overrides);
+        let config_path =
+            generate_log4j_config(project_root.path(), &overrides, Some("[%p] %c - %m%n"));
         assert!(config_path.is_some());
 
         let path = config_path.unwrap();
@@ -151,6 +158,7 @@ mod tests {
         assert!(content.contains("log4j.logger.org.springframework=WARN"));
         assert!(content.contains("log4j.logger.com.example=DEBUG"));
         assert!(content.contains("log4j.rootLogger"));
+        assert!(content.contains("log4j.appender.CONSOLE.layout.ConversionPattern=[%p] %c - %m%n"));
 
         // Cleanup
         let _ = fs::remove_file(path);

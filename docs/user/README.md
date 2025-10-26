@@ -7,6 +7,7 @@ This section contains documentation for users of Lazymvn.
 *   **Configuration**
     *   [Live Configuration Reload](./LIVE_CONFIG_RELOAD.md): Edit your configuration without restarting.
     *   [Logging Configuration](./LOGGING_CONFIG.md): Control log verbosity.
+    *   [Custom Log Formatting](./LOG_FORMATTING.md): Customize the log output format.
     *   [Log4j Auto-Configuration](./LOG4J_AUTO_CONFIG.md): Automatic configuration for Log4j 1.x.
     *   [Spring Boot Properties Override](./SPRING_PROPERTIES_OVERRIDE.md): Override Spring Boot properties.
 

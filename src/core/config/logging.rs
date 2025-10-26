@@ -4,6 +4,9 @@ use serde::Deserialize;
 /// Logging configuration for controlling log verbosity via JVM arguments
 #[derive(Deserialize, Clone, Debug, Default, PartialEq)]
 pub struct LoggingConfig {
+    /// Custom log format override
+    pub log_format: Option<String>,
+
     /// List of packages with custom log levels
     #[serde(default)]
     pub packages: Vec<PackageLogLevel>,
@@ -91,6 +94,7 @@ mod tests {
     #[test]
     fn test_logging_config_validate() {
         let config = LoggingConfig {
+            log_format: None,
             packages: vec![
                 PackageLogLevel {
                     name: "com.example".to_string(),
@@ -108,6 +112,7 @@ mod tests {
     #[test]
     fn test_logging_config_validate_invalid() {
         let config = LoggingConfig {
+            log_format: None,
             packages: vec![PackageLogLevel {
                 name: "com.example".to_string(),
                 level: "INVALID".to_string(),
@@ -119,6 +124,7 @@ mod tests {
     #[test]
     fn test_logging_config_get_level() {
         let config = LoggingConfig {
+            log_format: None,
             packages: vec![
                 PackageLogLevel {
                     name: "com.example".to_string(),
