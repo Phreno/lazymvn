@@ -449,14 +449,14 @@ impl TuiState {
             }
         }
 
-        if restart_running_command {
-            if !self.terminate_running_process("Stopping running command for auto-reload", |pid| {
+        if restart_running_command
+            && !self.terminate_running_process("Stopping running command for auto-reload", |pid| {
                 format!("🔁 Process {pid} stopped for auto-reload")
-            }) {
-                let tab = self.get_active_tab_mut();
-                tab.pending_watch_rerun = true;
-                return;
-            }
+            })
+        {
+            let tab = self.get_active_tab_mut();
+            tab.pending_watch_rerun = true;
+            return;
         }
 
         if let Some(args) = rerun_args {

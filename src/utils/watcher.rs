@@ -118,8 +118,13 @@ fn is_relevant_event(event: &Event) -> bool {
 /// Check if a path matches any of the given patterns
 #[allow(dead_code)]
 pub fn matches_patterns(path: &Path, patterns: &[String]) -> bool {
-    match build_glob_set(patterns) {
-        Some(set) => set.is_match(path),
+    let normalized = normalize_patterns(patterns.to_vec());
+    match build_glob_set(&normalized) {
+        Some(set) => {
+            // Normalize path by converting backslashes to forward slashes
+            let path_str = path.to_string_lossy().replace('\\', "/");
+            set.is_match(Path::new(&path_str))
+        }
         None => true,
     }
 }
