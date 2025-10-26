@@ -44,6 +44,7 @@ enabled = false
 
 # Commands that should trigger auto-reload when files change
 # Default: ["test", "start"]
+# Hint: "start" automatically matches spring-boot:run and exec:java goals
 commands = ["test", "start", "compile"]
 
 # File patterns to watch (glob syntax)

@@ -321,68 +321,175 @@ impl TuiState {
 
     /// Kill the currently running Maven process
     pub fn kill_running_process(&mut self) {
-        let tab = self.get_active_tab_mut();
-        if let Some(pid) = tab.running_process_pid {
-            log::info!("Attempting to kill process with PID: {}", pid);
+        self.terminate_running_process("Stopping process at user request", |pid| {
+            format!("⚠ Process {pid} killed by user")
+        });
+    }
+
+    fn terminate_running_process<F>(&mut self, log_context: &str, message_fn: F) -> bool
+    where
+        F: FnOnce(u32) -> String,
+    {
+        let mut killed = false;
+        let mut pending_reload = false;
+
+        {
+            let tab = self.get_active_tab_mut();
+            let Some(pid) = tab.running_process_pid else {
+                log::warn!("No running process to terminate ({})", log_context);
+                return false;
+            };
+
+            log::info!("{} (PID: {})", log_context, pid);
             match maven::kill_process(pid) {
                 Ok(()) => {
                     tab.command_output.push(String::new());
-                    tab.command_output
-                        .push(format!("⚠ Process {} killed by user", pid));
+                    tab.command_output.push(message_fn(pid));
                     tab.is_command_running = false;
                     tab.command_receiver = None;
                     tab.running_process_pid = None;
                     tab.output_metrics = None;
-                    self.store_current_module_output();
+                    killed = true;
+                    pending_reload = tab.pending_watch_rerun;
                 }
                 Err(e) => {
-                    log::error!("Failed to kill process: {}", e);
+                    log::error!("Failed to kill process {}: {}", pid, e);
                     tab.command_output.push(String::new());
                     tab.command_output
-                        .push(format!("✗ Failed to kill process: {}", e));
+                        .push(format!("✗ Failed to stop process {}: {}", pid, e));
                 }
             }
-        } else {
-            log::warn!("No running process to kill");
         }
+
+        if killed {
+            if pending_reload {
+                let tab = self.get_active_tab_mut();
+                tab.pending_watch_rerun = false;
+            }
+            self.store_current_module_output();
+        }
+
+        killed
     }
 
     /// Check file watcher and re-run command if files changed
     pub fn check_file_watcher(&mut self) {
-        let tab = self.get_active_tab_mut();
-        if !tab.watch_enabled || tab.is_command_running {
-            return;
-        }
+        let watch_config = match self.get_active_tab().config.watch.clone() {
+            Some(cfg) if cfg.enabled => cfg,
+            _ => return,
+        };
 
-        if let Some(watcher) = &mut tab.file_watcher
-            && watcher.check_changes()
+        let mut rerun_args: Option<Vec<String>> = None;
+        let mut restart_running_command = false;
+
         {
-            log::info!("File changes detected, checking if should re-run command");
+            let tab = self.get_active_tab_mut();
 
-            // Clone last command to avoid borrow issues
-            let last_cmd = tab.last_command.clone();
-
-            // Check if last command is watchable
-            if let Some(last_cmd) = last_cmd {
-                let watch_config = tab.config.watch.as_ref().unwrap();
-
-                // Check if this command should trigger auto-reload
-                let should_rerun = last_cmd
-                    .iter()
-                    .any(|arg| watch_config.commands.iter().any(|cmd| arg.contains(cmd)));
-
-                if should_rerun {
+            if tab.pending_watch_rerun && !tab.is_command_running {
+                if let Some(last_cmd) = tab.last_command.clone() {
+                    tab.pending_watch_rerun = false;
                     tab.command_output.push(String::new());
                     tab.command_output
                         .push("🔄 Files changed, reloading...".to_string());
                     tab.command_output.push(String::new());
-
-                    // Re-run the last command
-                    log::info!("Re-running command due to file changes");
-                    let args: Vec<&str> = last_cmd.iter().map(|s| s.as_str()).collect();
-                    self.run_selected_module_command(&args);
+                    rerun_args = Some(last_cmd);
+                } else {
+                    log::warn!("Pending reload flagged but no last command recorded");
+                    tab.pending_watch_rerun = false;
                 }
             }
+        }
+
+        if let Some(args) = rerun_args.take() {
+            let arg_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+            self.run_selected_module_command(&arg_refs);
+            return;
+        }
+
+        {
+            let tab = self.get_active_tab_mut();
+
+            let Some(watcher) = tab.file_watcher.as_mut() else {
+                return;
+            };
+
+            if !watcher.check_changes() {
+                return;
+            }
+
+            log::info!("File changes detected, evaluating auto-reload");
+
+            let Some(last_cmd) = tab.last_command.clone() else {
+                log::warn!("File changes detected but no command to rerun");
+                return;
+            };
+
+            let should_rerun = Self::command_matches_watch_list(&last_cmd, &watch_config);
+
+            if !should_rerun {
+                log::debug!("Last command is not configured for auto-reload, skipping rerun");
+                return;
+            }
+
+            if tab.is_command_running {
+                tab.command_output.push(String::new());
+                tab.command_output
+                    .push("🔁 Files changed, restarting command...".to_string());
+                tab.command_output.push(String::new());
+                tab.pending_watch_rerun = false;
+                restart_running_command = true;
+                rerun_args = Some(last_cmd);
+            } else {
+                tab.command_output.push(String::new());
+                tab.command_output
+                    .push("🔄 Files changed, reloading...".to_string());
+                tab.command_output.push(String::new());
+                tab.pending_watch_rerun = false;
+                rerun_args = Some(last_cmd);
+            }
+        }
+
+        if restart_running_command {
+            if !self.terminate_running_process("Stopping running command for auto-reload", |pid| {
+                format!("🔁 Process {pid} stopped for auto-reload")
+            }) {
+                let tab = self.get_active_tab_mut();
+                tab.pending_watch_rerun = true;
+                return;
+            }
+        }
+
+        if let Some(args) = rerun_args {
+            let arg_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+            self.run_selected_module_command(&arg_refs);
+        }
+    }
+
+    fn command_matches_watch_list(
+        last_cmd: &[String],
+        watch_config: &crate::core::config::WatchConfig,
+    ) -> bool {
+        last_cmd.iter().any(|arg| {
+            let arg_lower = arg.to_ascii_lowercase();
+            watch_config
+                .commands
+                .iter()
+                .any(|cmd| Self::watch_term_matches(&arg_lower, cmd))
+        })
+    }
+
+    fn watch_term_matches(arg_lower: &str, term: &str) -> bool {
+        let term_lower = term.to_ascii_lowercase();
+        if arg_lower.contains(&term_lower) {
+            return true;
+        }
+
+        match term_lower.as_str() {
+            // Treat "start" / "run" aliases as the common Maven launch goals
+            "start" | "run" => {
+                arg_lower.contains("spring-boot:run") || arg_lower.contains("exec:java")
+            }
+            _ => false,
         }
     }
 

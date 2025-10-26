@@ -110,11 +110,16 @@ impl TuiState {
         project_root: &std::path::Path,
         watch_config: &crate::core::config::WatchConfig,
     ) {
-        match crate::utils::watcher::FileWatcher::new(project_root, watch_config.debounce_ms) {
+        match crate::utils::watcher::FileWatcher::new(
+            project_root,
+            watch_config.patterns.clone(),
+            watch_config.debounce_ms,
+        ) {
             Ok(watcher) => {
                 let tab = self.get_active_tab_mut();
                 tab.file_watcher = Some(watcher);
                 tab.watch_enabled = true;
+                tab.pending_watch_rerun = false;
                 log::info!(
                     "File watcher reinitialized with {} patterns",
                     watch_config.patterns.len()
@@ -132,6 +137,7 @@ impl TuiState {
         let tab = self.get_active_tab_mut();
         tab.file_watcher = None;
         tab.watch_enabled = false;
+        tab.pending_watch_rerun = false;
         log::info!("File watcher disabled");
     }
 

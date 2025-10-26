@@ -1,7 +1,8 @@
 //! File watching for auto-reload functionality
 
+use globset::{Glob, GlobSet, GlobSetBuilder};
 use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
@@ -10,11 +11,18 @@ pub struct FileWatcher {
     receiver: mpsc::Receiver<notify::Result<Event>>,
     last_event: Option<Instant>,
     debounce_duration: Duration,
+    watch_root: PathBuf,
+    patterns: Vec<String>,
+    pattern_set: Option<GlobSet>,
 }
 
 impl FileWatcher {
     /// Create a new file watcher for the given directory
-    pub fn new(watch_dir: &Path, debounce_ms: u64) -> Result<Self, notify::Error> {
+    pub fn new(
+        watch_dir: &Path,
+        patterns: Vec<String>,
+        debounce_ms: u64,
+    ) -> Result<Self, notify::Error> {
         let (tx, rx) = mpsc::channel();
 
         let mut watcher = RecommendedWatcher::new(
@@ -27,11 +35,17 @@ impl FileWatcher {
         watcher.watch(watch_dir, RecursiveMode::Recursive)?;
         log::info!("File watcher initialized for: {:?}", watch_dir);
 
+        let normalized_patterns = normalize_patterns(patterns);
+        let pattern_set = build_glob_set(&normalized_patterns);
+
         Ok(Self {
             _watcher: watcher,
             receiver: rx,
             last_event: None,
             debounce_duration: Duration::from_millis(debounce_ms),
+            watch_root: watch_dir.to_path_buf(),
+            patterns: normalized_patterns,
+            pattern_set,
         })
     }
 
@@ -45,8 +59,12 @@ impl FileWatcher {
             if let Ok(event) = event
                 && is_relevant_event(&event)
             {
-                log::debug!("File change detected: {:?}", event.paths);
-                has_changes = true;
+                if self.event_matches_patterns(&event) {
+                    log::debug!("File change detected: {:?}", event.paths);
+                    has_changes = true;
+                } else if log::log_enabled!(log::Level::Trace) {
+                    log::trace!("Ignoring file change (no pattern match): {:?}", event.paths);
+                }
             }
         }
 
@@ -65,6 +83,26 @@ impl FileWatcher {
         self.last_event = Some(now);
         true
     }
+
+    fn event_matches_patterns(&self, event: &Event) -> bool {
+        if self.patterns.is_empty() {
+            return true;
+        }
+
+        for path in &event.paths {
+            let relative = path.strip_prefix(&self.watch_root).unwrap_or(path);
+
+            if let Some(set) = &self.pattern_set {
+                if set.is_match(relative) {
+                    return true;
+                }
+            } else if matches_patterns(relative, &self.patterns) {
+                return true;
+            }
+        }
+
+        false
+    }
 }
 
 /// Check if the event is relevant (modify, create, remove)
@@ -80,51 +118,71 @@ fn is_relevant_event(event: &Event) -> bool {
 /// Check if a path matches any of the given patterns
 #[allow(dead_code)]
 pub fn matches_patterns(path: &Path, patterns: &[String]) -> bool {
-    let path_str = path.to_string_lossy();
+    match build_glob_set(patterns) {
+        Some(set) => set.is_match(path),
+        None => true,
+    }
+}
+
+fn normalize_patterns(patterns: Vec<String>) -> Vec<String> {
+    let mut normalized = Vec::new();
 
     for pattern in patterns {
-        if matches_glob(&path_str, pattern) {
-            return true;
+        let mut pattern = pattern.replace('\\', "/").trim().to_string();
+        if pattern.is_empty() {
+            continue;
+        }
+
+        if pattern.starts_with("./") {
+            pattern = pattern.trim_start_matches("./").to_string();
+        }
+
+        if !normalized.contains(&pattern) {
+            normalized.push(pattern.clone());
+        }
+
+        if !pattern.starts_with("**/") {
+            let prefixed = format!("**/{}", pattern);
+            if !normalized.contains(&prefixed) {
+                normalized.push(prefixed);
+            }
         }
     }
 
-    false
+    normalized
 }
 
-/// Simple glob pattern matching
-/// Supports: *.ext, **/*.ext, path/to/*.ext
-fn matches_glob(path: &str, pattern: &str) -> bool {
-    // Convert glob pattern to regex-like matching
-    if pattern.contains("**") {
-        // Recursive wildcard: src/**/*.java
-        let parts: Vec<&str> = pattern.split("**").collect();
-        if parts.len() == 2 {
-            let prefix = parts[0];
-            let suffix = parts[1].trim_start_matches('/');
+fn build_glob_set(patterns: &[String]) -> Option<GlobSet> {
+    if patterns.is_empty() {
+        return None;
+    }
 
-            if let Some(remaining) = path.strip_prefix(prefix) {
-                return matches_glob(remaining, suffix);
+    let mut builder = GlobSetBuilder::new();
+    let mut added = false;
+
+    for pattern in patterns {
+        match Glob::new(pattern) {
+            Ok(glob) => {
+                builder.add(glob);
+                added = true;
+            }
+            Err(e) => {
+                log::warn!("Invalid watch pattern '{}': {}", pattern, e);
             }
         }
-    } else if pattern.contains('*') {
-        // Single wildcard: *.java or path/*.java
-        if pattern.starts_with('*') {
-            // *.java
-            let ext = pattern.trim_start_matches('*');
-            return path.ends_with(ext);
-        } else {
-            // path/*.java
-            let parts: Vec<&str> = pattern.split('*').collect();
-            if parts.len() == 2 {
-                return path.starts_with(parts[0]) && path.ends_with(parts[1]);
+    }
+
+    if added {
+        match builder.build() {
+            Ok(set) => Some(set),
+            Err(e) => {
+                log::error!("Failed to build watch pattern set: {}", e);
+                None
             }
         }
     } else {
-        // Exact match
-        return path == pattern;
+        None
     }
-
-    false
 }
 
 #[cfg(test)]
@@ -132,16 +190,28 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_glob_matching() {
-        assert!(matches_glob("test.java", "*.java"));
-        assert!(matches_glob("src/main/Test.java", "*.java"));
-        assert!(!matches_glob("test.rs", "*.java"));
-
-        assert!(matches_glob("src/main/java/Test.java", "src/**/*.java"));
-        assert!(matches_glob(
-            "src/test/resources/app.properties",
-            "src/**/*.properties"
+    fn matches_patterns_supports_nested_paths() {
+        let patterns = vec!["src/**/*.java".to_string()];
+        assert!(matches_patterns(
+            Path::new("src/main/java/App.java"),
+            &patterns
         ));
-        assert!(!matches_glob("target/test.java", "src/**/*.java"));
+        assert!(matches_patterns(
+            Path::new("app/src/main/java/App.java"),
+            &patterns
+        ));
+        assert!(!matches_patterns(
+            Path::new("app/target/classes/App.class"),
+            &patterns
+        ));
+    }
+
+    #[test]
+    fn matches_patterns_handles_windows_separators() {
+        let patterns = vec!["src/**/*.yaml".to_string()];
+        assert!(matches_patterns(
+            Path::new("src\\main\\resources\\application.yaml"),
+            &patterns
+        ));
     }
 }

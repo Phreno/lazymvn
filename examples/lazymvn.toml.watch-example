@@ -15,6 +15,7 @@ enabled = true
 
 # Commands that should trigger auto-reload when files change
 # When you run these commands, any file change will re-run the same command
+# Hint: "start" automatically matches spring-boot:run and exec:java goals
 commands = ["test", "start"]
 
 # File patterns to watch (glob syntax)

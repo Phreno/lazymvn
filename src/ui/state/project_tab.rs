@@ -48,6 +48,7 @@ pub struct ProjectTab {
     pub file_watcher: Option<FileWatcher>,
     pub last_command: Option<Vec<String>>,
     pub watch_enabled: bool,
+    pub pending_watch_rerun: bool,
 
     // Git info
     pub git_branch: Option<String>,
@@ -131,7 +132,11 @@ impl ProjectTab {
         // Create file watcher if enabled in config
         let (file_watcher, watch_enabled) = if let Some(watch_config) = &config.watch {
             if watch_config.enabled {
-                match FileWatcher::new(&project_root, watch_config.debounce_ms) {
+                match FileWatcher::new(
+                    &project_root,
+                    watch_config.patterns.clone(),
+                    watch_config.debounce_ms,
+                ) {
                     Ok(watcher) => {
                         log::info!("File watcher initialized for tab {}", id);
                         (Some(watcher), true)
@@ -171,6 +176,7 @@ impl ProjectTab {
             file_watcher,
             last_command: None,
             watch_enabled,
+            pending_watch_rerun: false,
             git_branch,
             output_view_height: 0,
             output_area_width: 0,
