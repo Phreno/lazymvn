@@ -1,0 +1,84 @@
+name: Main Release
+
+on:
+  push:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Maven
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y maven
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build
+        run: cargo build --verbose
+      - name: Run tests
+        run: cargo test --verbose
+
+  release-main:
+    needs: test-linux
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            binary_name: lazymvn
+            platform: linux-x86_64
+          - os: windows-latest
+            binary_name: lazymvn.exe
+            platform: windows-x86_64
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Compute release version metadata
+        shell: bash
+        run: |
+          BASE_VERSION=$(grep -m1 '^version = "' Cargo.toml | sed -E 's/version = "(.*)"/\1/')
+          BASE_VERSION=${BASE_VERSION%%-*}
+          DATE=$(date -u +%Y%m%d)
+          SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
+          VERSION="${BASE_VERSION}.main.${DATE}+${SHORT_SHA}"
+          FILE_VERSION=${VERSION//+/-}
+          TAG="main-${DATE}-${SHORT_SHA}"
+          echo "LAZYMVN_BUILD_VERSION=${VERSION}" >> "$GITHUB_ENV"
+          echo "LAZYMVN_FILE_VERSION=${FILE_VERSION}" >> "$GITHUB_ENV"
+          echo "LAZYMVN_BUILD_TAG=${TAG}" >> "$GITHUB_ENV"
+          echo "LAZYMVN_BUILD_CHANNEL=main" >> "$GITHUB_ENV"
+          echo "LAZYMVN_COMMIT_SHA=${GITHUB_SHA}" >> "$GITHUB_ENV"
+
+      - name: Build release binary
+        run: cargo build --release --verbose
+
+      - name: Rename binary with platform identifier
+        shell: bash
+        run: |
+          FILE_NAME="lazymvn-${LAZYMVN_FILE_VERSION}-${{ matrix.platform }}"
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            mv ./target/release/${{ matrix.binary_name }} "./target/release/${FILE_NAME}.exe"
+          else
+            mv ./target/release/${{ matrix.binary_name }} "./target/release/${FILE_NAME}"
+          fi
+
+      - name: Upload release artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ./target/release/lazymvn-${{ env.LAZYMVN_FILE_VERSION }}-${{ matrix.platform }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}
+          tag_name: ${{ env.LAZYMVN_BUILD_TAG }}
+          name: ${{ env.LAZYMVN_BUILD_VERSION }}
+          prerelease: false
+          generate_release_notes: true
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

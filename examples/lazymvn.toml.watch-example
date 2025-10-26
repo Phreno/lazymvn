@@ -1,0 +1,34 @@
+# Example configuration with file watching enabled
+# Copy this to lazymvn.toml in your project root
+
+# Maven settings file path (optional)
+# maven_settings = "settings.xml"
+
+# Launch mode for Spring Boot applications
+# Options: "auto" (default), "force-run", "force-exec"
+# launch_mode = "auto"
+
+# File watching configuration for auto-reload
+[watch]
+# Enable file watching (set to true to activate)
+enabled = true
+
+# Commands that should trigger auto-reload when files change
+# When you run these commands, any file change will re-run the same command
+commands = ["test", "start"]
+
+# File patterns to watch (glob syntax)
+# Supports: *.ext, path/*.ext, path/**/*.ext
+patterns = [
+    "src/**/*.java",
+    "src/**/*.kt",
+    "src/**/*.properties",
+    "src/**/*.yaml",
+    "src/**/*.yml",
+    "src/**/*.xml"
+]
+
+# Debounce delay in milliseconds
+# Waits this long after last file change before triggering reload
+# Prevents multiple reloads when saving multiple files
+debounce_ms = 500

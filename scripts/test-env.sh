@@ -69,7 +69,13 @@ fi
 echo "🎯 Testing Maven demo projects..."
 if [ -d "demo/multi-module" ]; then
     cd demo/multi-module
-    if ./mvnw -q clean compile; then
+    # Use mvnw if available, otherwise mvn
+    if [ -x "./mvnw" ]; then
+        MVN_CMD="./mvnw"
+    else
+        MVN_CMD="mvn"
+    fi
+    if $MVN_CMD -q clean compile; then
         echo "✅ Multi-module demo builds"
     else
         echo "❌ Multi-module demo failed"

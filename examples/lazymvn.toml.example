@@ -1,0 +1,130 @@
+# LazyMVN Configuration File
+# Place this file as 'lazymvn.toml' in your project root
+
+# Custom Maven settings file path
+# If not specified, lazymvn searches in this order:
+# 1. settings.xml in project directory
+# 2. maven_settings.xml in project directory
+# 3. ~/.m2/settings.xml in user home
+maven_settings = "./settings.xml"
+
+# Launch mode for Spring Boot applications (default: "auto")
+# - "auto": Auto-detect, prefers spring-boot:run if available, falls back to exec:java
+# - "force-run": Always use spring-boot:run
+# - "force-exec": Always use exec:java with mainClass
+# 
+# Auto mode detection criteria (executed before launch, no failures):
+# 1. Checks effective-pom for spring-boot-maven-plugin
+# 2. Validates packaging is jar/war (compatible with spring-boot:run)
+# 3. Looks for mainClass configuration if available
+# 4. Falls back to exec:java if Spring Boot not detected
+launch_mode = "auto"
+
+# Enable desktop notifications when Maven commands complete (default: true)
+# Set to false to disable all notifications
+# Notifications show when builds complete successfully or fail
+notifications_enabled = true
+
+# Log level for LazyMVN application logs (not Maven output)
+# Options: "off", "error", "warn", "info", "debug", "trace"
+# Default: "debug" in nightly/development builds, "off" in release builds
+# Logs are written to: ~/.local/share/lazymvn/logs/debug.log and error.log
+# Use 'Y' (Shift+y) in the app to copy current session logs to clipboard
+log_level = "debug"
+
+# Future configuration options (not yet implemented):
+# default_profiles = ["dev"]
+# default_flags = ["--also-make"]
+# log_level = "info"
+
+# File watching configuration for auto-reload
+[watch]
+# Enable file watching (default: false)
+enabled = false
+
+# Commands that should trigger auto-reload when files change
+# Default: ["test", "start"]
+commands = ["test", "start", "compile"]
+
+# File patterns to watch (glob syntax)
+# Default: ["src/**/*.java", "src/**/*.properties", "src/**/*.xml"]
+patterns = [
+    "src/**/*.java",
+    "src/**/*.kt",
+    "src/**/*.properties",
+    "src/**/*.yaml",
+    "src/**/*.yml",
+    "src/**/*.xml"
+]
+
+# Debounce delay in milliseconds (wait time before triggering reload)
+# Default: 500
+debounce_ms = 500
+
+# Output buffer configuration
+[output]
+# Maximum number of lines to keep in output buffer (default: 10000)
+# When exceeded, oldest lines are removed to prevent memory issues
+# Useful for long-running commands with lots of output
+max_lines = 10000
+
+# Maximum number of updates to process per poll cycle (default: 100)
+# Limits updates processed per event loop iteration to prevent UI freeze
+# Especially important on Windows with high log volume
+max_updates_per_poll = 100
+
+# Logging configuration - control log verbosity via JVM arguments
+# Overrides are injected automatically to all Maven commands
+[logging]
+# List of packages with custom log levels
+# These are added as -Dlog4j.logger.{package}={level} and -Dlogging.level.{package}={level}
+# Works with Log4j, Logback, SLF4J, and Spring Boot logging
+packages = [
+    { name = "com.mycompany.api.service", level = "ERROR" },
+    { name = "org.springframework.web", level = "WARN" },
+    { name = "org.hibernate", level = "ERROR" },
+]
+
+# Supported log levels: TRACE, DEBUG, INFO, WARN, ERROR, FATAL, OFF
+# 
+# To reduce noisy logs:
+# 1. Run your application and identify verbose packages in the output
+# 2. Add them to this list with a higher level (e.g., ERROR or WARN)
+# 3. Changes apply immediately on next Maven command
+#
+# Benefits:
+# - No need to modify source code or properties files
+# - Configuration is portable (per-developer preferences)
+# - Easily reversible (remove from config)
+# - Works across all modules without finding the right log4j.properties
+
+# Spring Boot properties override
+# These properties are automatically injected when launching Spring Boot apps
+# Generated file location: ~/.config/lazymvn/spring/application-override-<hash>.properties
+[spring]
+# List of Spring Boot properties to override
+# These have HIGHEST priority - LazyMVN has the last word
+properties = [
+    { name = "server.port", value = "8081" },
+    { name = "spring.datasource.url", value = "jdbc:postgresql://localhost:5432/mydb" },
+    { name = "spring.datasource.username", value = "dev" },
+    { name = "spring.jpa.show-sql", value = "false" },
+    { name = "management.endpoints.web.exposure.include", value = "health,info,metrics" },
+]
+
+# Active Spring profiles (comma-separated values)
+# Equivalent to -Dspring.profiles.active=dev,local
+active_profiles = ["dev", "local"]
+
+# Use cases:
+# - Switch between local/staging/production databases
+# - Change server ports for local development
+# - Enable/disable features per environment
+# - Override any Spring Boot property without modifying source
+#
+# Benefits:
+# - Zero repository footprint (config stored in ~/.config/lazymvn/)
+# - Per-developer preferences
+# - Easy environment switching
+# - Properties visible in debug logs
+# - Strong override (LazyMVN has the last word)

@@ -7,6 +7,87 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Multi-Tab Project Support** (#TBD):
+  - Open up to 10 Maven projects simultaneously in separate tabs
+  - Visual tab bar at top showing all open projects with active tab highlighting
+  - Tab indicators showing current position (e.g., "1/3")
+  - Independent state per tab: each maintains its own module selection, profiles, flags, and output
+  - Quick tab navigation with `Ctrl+Left`/`Ctrl+Right` keybindings
+  - Create new tabs with `Ctrl+T` (opens recent projects popup)
+  - Close tabs with `Ctrl+W` (prevents closing last tab)
+  - Process isolation: each tab can run its own Maven process independently
+  - Auto-cleanup: automatically saves preferences and kills processes when closing tabs
+  - Tab bar only displays when multiple tabs are open (clean single-tab UI)
+  - Footer redesigned with 3 lines: Views, Tabs/Navigation, Actions
+  - Perfect for microservices development, frontend+backend workflows, or multi-project testing
+- **Logging Configuration** (#TBD):
+  - Control log verbosity via `lazymvn.toml` configuration
+  - Package-level log level overrides using JVM arguments
+  - Automatically injects `-Dlog4j.logger.{package}={level}` and `-Dlogging.level.{package}={level}`
+  - No source code modifications required
+  - Per-developer preferences (doesn't modify project files)
+  - Works with Log4j, Logback, SLF4J, and Spring Boot logging
+  - See `LOGGING_CONFIG.md` for detailed documentation
+  - Example configuration in `lazymvn.toml.example`
+- **Live Configuration Reload** (#TBD):
+  - Press `Ctrl+E` to edit configuration file in system editor
+  - Configuration changes are automatically applied when editor closes
+  - No application restart needed for configuration updates
+  - Detects changes to launch_mode, watch settings, notifications, maven_settings, and more
+  - Automatically recreates file watcher if watch configuration changes
+  - Provides immediate feedback on detected configuration changes
+  - Improves developer workflow by eliminating restart cycle
+- **Asynchronous Profile Loading** (#TBD):
+  - Profile discovery now happens asynchronously in a background thread
+  - UI remains responsive during profile loading (no blocking)
+  - Animated spinner (⠋⠙⠹⠸⠼⠴⠦⠧) displays while profiles are being discovered
+  - 30-second timeout for profile loading with clear error messaging
+  - Loading status displayed in Profiles pane title and content area
+  - Improved startup experience - application starts faster and feels more dynamic
+  - Profile loading state management with `ProfileLoadingStatus` enum (Loading, Loaded, Error)
+
+### Fixed
+- **WAR Module `exec:java` Support** (#TBD):
+  - Fixed `NoClassDefFoundError: javax/servlet/Filter` when running WAR modules with `exec:java`
+  - Automatically adds `-Dexec.classpathScope=compile` for WAR packaging to include provided dependencies
+  - Servlet API and other `provided` scope dependencies now available at runtime
+  - Also adds `-Dexec.cleanupDaemonThreads=false` for better shutdown behavior
+  - Works automatically without POM modifications - detects packaging type and adjusts classpath scope
+- **Process Cleanup on Exit** (#TBD):
+  - Fixed orphaned Maven/Java processes when quitting lazymvn
+  - Application now properly kills running Maven processes on exit (both 'q' key and Ctrl+C)
+  - Prevents zombie Java processes that continue running after lazymvn closes
+  - Graceful shutdown: sends SIGTERM first, then SIGKILL if process doesn't terminate
+  - Works on both Unix (kill command with process groups) and Windows (taskkill /T)
+
+### Changed
+- **Startup Performance**:
+  - Profiles are now loaded in parallel with UI initialization
+  - Loading screen progresses faster through initialization steps
+  - Profile discovery step completes immediately, actual loading happens in background
+
+### Technical
+- Added `ProfileLoadingStatus` enum to track loading state
+- Added `profile_loading_spinner()` method for animated loading indicator
+- Added `poll_profiles_updates()` to process async profile results
+- Added `start_loading_profiles()` to initiate async loading with timeout
+- Added 5 unit tests for profile state management and spinner animation
+- Added 2 integration tests for timeout behavior and spinner frames
+- Profile loading now uses mpsc channels for thread communication
+- Added `reload_config()` method to `TuiState` for live configuration reload
+- Config reload detects changes and logs modifications to key settings
+- File watcher automatically recreated when watch configuration changes
+- Added `PartialEq` trait to config structs for change detection
+- Added `cleanup()` method to `TuiState` for graceful shutdown
+- Integrated `ctrlc` crate for signal handling (Ctrl+C, SIGTERM)
+- Process cleanup now kills entire process group to catch child processes
+- File watcher automatically recreated when watch configuration changes
+- Added `PartialEq` trait to config structs for change detection
+- Timeout mechanism prevents indefinite hangs if Maven is unresponsive
+- Enhanced `build_launch_command()` to accept packaging type and adjust classpath scope accordingly
+- Added 2 new tests for WAR and JAR packaging classpath behavior
+
 ## [0.3.6] - 2025-10-20
 
 ### Fixed

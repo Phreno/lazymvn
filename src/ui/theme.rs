@@ -44,6 +44,9 @@ impl Theme {
 
     /// Style for focused footer box borders
     /// Style for disabled footer text
+    /// Style for dimmed/secondary text
+    pub const DIM_STYLE: Style = Style::new().fg(Color::DarkGray);
+
     /// Style for search match highlights
     pub const SEARCH_MATCH_STYLE: Style = Style::new().bg(Color::Yellow).fg(Color::Black);
 
@@ -55,4 +58,66 @@ impl Theme {
 
     /// Style for success/info messages
     pub const INFO_STYLE: Style = Style::new().fg(Color::Green);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_focus_style_is_yellow() {
+        assert_eq!(Theme::FOCUS_STYLE.fg, Some(Color::Yellow));
+    }
+
+    #[test]
+    fn test_selected_style_has_background() {
+        assert_eq!(Theme::SELECTED_STYLE.bg, Some(Color::LightBlue));
+    }
+
+    #[test]
+    fn test_active_profile_style_is_green_bold() {
+        assert_eq!(Theme::ACTIVE_PROFILE_STYLE.fg, Some(Color::Green));
+        assert!(
+            Theme::ACTIVE_PROFILE_STYLE
+                .add_modifier
+                .contains(Modifier::BOLD)
+        );
+    }
+
+    #[test]
+    fn test_auto_profile_style_is_cyan() {
+        assert_eq!(Theme::AUTO_PROFILE_STYLE.fg, Some(Color::Cyan));
+    }
+
+    #[test]
+    fn test_disabled_profile_style_is_red() {
+        assert_eq!(Theme::DISABLED_PROFILE_STYLE.fg, Some(Color::Red));
+    }
+
+    #[test]
+    fn test_search_match_style() {
+        assert_eq!(Theme::SEARCH_MATCH_STYLE.bg, Some(Color::Yellow));
+        assert_eq!(Theme::SEARCH_MATCH_STYLE.fg, Some(Color::Black));
+    }
+
+    #[test]
+    fn test_current_search_match_style() {
+        assert_eq!(Theme::CURRENT_SEARCH_MATCH_STYLE.bg, Some(Color::Red));
+        assert_eq!(Theme::CURRENT_SEARCH_MATCH_STYLE.fg, Some(Color::White));
+    }
+
+    #[test]
+    fn test_error_style_is_red() {
+        assert_eq!(Theme::ERROR_STYLE.fg, Some(Color::Red));
+    }
+
+    #[test]
+    fn test_info_style_is_green() {
+        assert_eq!(Theme::INFO_STYLE.fg, Some(Color::Green));
+    }
+
+    #[test]
+    fn test_dim_style_is_dark_gray() {
+        assert_eq!(Theme::DIM_STYLE.fg, Some(Color::DarkGray));
+    }
 }

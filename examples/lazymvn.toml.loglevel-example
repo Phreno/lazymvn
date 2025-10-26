@@ -1,0 +1,41 @@
+# LazyMVN Configuration - Log Level Example
+#
+# This example demonstrates how to configure the log verbosity level.
+# By default, LazyMVN enables debug logging in development builds (versions containing "nightly").
+#
+# Log levels (from most to least verbose):
+# - "trace"  : Very detailed debugging information (rarely needed)
+# - "debug"  : Detailed debugging information (default in development)
+# - "info"   : General informational messages
+# - "warn"   : Warning messages
+# - "error"  : Error messages only
+# - "off"    : No logging (default in release builds)
+#
+# Logs are written to:
+# - Linux: ~/.local/share/lazymvn/logs/
+# - macOS: ~/Library/Application Support/com.lazymvn.lazymvn/logs/
+# - Windows: %LOCALAPPDATA%\lazymvn\lazymvn\data\logs\
+
+# Example: Set log level to debug (explicit, but this is the default in dev)
+log_level = "debug"
+
+# Example: Disable logging entirely
+# log_level = "off"
+
+# Example: Only show errors
+# log_level = "error"
+
+# Example: Show informational messages and above (info, warn, error)
+# log_level = "info"
+
+# You can also override this with the command line:
+# lazymvn --log-level debug
+# lazymvn --log-level off
+# lazymvn --log-level error
+
+# Note: Maven output logs are separate and controlled by Maven's own settings.
+# This configuration only affects LazyMVN's internal logging (state changes, 
+# command execution, file watching, etc.)
+
+# Each session gets a unique ID, making it easy to isolate logs.
+# Press 'Y' (Shift+y) in the app to copy the current session's logs to clipboard.

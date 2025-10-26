@@ -11,3 +11,6 @@ lazymvn-*.log
 .DS_Store
 Thumbs.db
 gittype_*.log
+
+# Legacy log files (now in system directories)
+*.log
