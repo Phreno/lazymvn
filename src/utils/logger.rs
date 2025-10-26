@@ -205,7 +205,7 @@ pub fn init(log_level: Option<&str>) -> Result<(), SetLoggerError> {
         Some("debug") => LevelFilter::Debug,
         Some("trace") => LevelFilter::Trace,
         None => {
-            // Default to Debug in development mode (nightly builds)
+            // Default to Debug in development/nightly builds
             if version::is_nightly() {
                 LevelFilter::Debug
             } else {

@@ -34,9 +34,11 @@ jobs:
         VERSION="0.4.0-nightly.${DATE}+${SHORT_SHA}"
         FILE_VERSION=${VERSION//+/-}
         TAG="nightly-${DATE}-${SHORT_SHA}"
-        echo "NIGHTLY_VERSION=${VERSION}" >> "$GITHUB_ENV"
-        echo "NIGHTLY_FILE_VERSION=${FILE_VERSION}" >> "$GITHUB_ENV"
-        echo "NIGHTLY_TAG=${TAG}" >> "$GITHUB_ENV"
+        echo "LAZYMVN_BUILD_VERSION=${VERSION}" >> "$GITHUB_ENV"
+        echo "LAZYMVN_FILE_VERSION=${FILE_VERSION}" >> "$GITHUB_ENV"
+        echo "LAZYMVN_BUILD_TAG=${TAG}" >> "$GITHUB_ENV"
+        echo "LAZYMVN_BUILD_CHANNEL=nightly" >> "$GITHUB_ENV"
+        echo "LAZYMVN_COMMIT_SHA=${GITHUB_SHA}" >> "$GITHUB_ENV"
 
     - name: Build release binary
       run: cargo build --release --verbose
@@ -44,7 +46,7 @@ jobs:
     - name: Rename binary with platform identifier
       shell: bash
       run: |
-        FILE_NAME="lazymvn-${NIGHTLY_FILE_VERSION}-${{ matrix.platform }}"
+        FILE_NAME="lazymvn-${LAZYMVN_FILE_VERSION}-${{ matrix.platform }}"
         if [ "${{ matrix.os }}" = "windows-latest" ]; then
           mv ./target/release/${{ matrix.binary_name }} "./target/release/${FILE_NAME}.exe"
         else
@@ -54,9 +56,9 @@ jobs:
     - name: Upload to nightly release
       uses: softprops/action-gh-release@v2
       with:
-        files: ./target/release/lazymvn-${{ env.NIGHTLY_FILE_VERSION }}-${{ matrix.platform }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}
-        tag_name: ${{ env.NIGHTLY_TAG }}
-        name: ${{ env.NIGHTLY_VERSION }}
+        files: ./target/release/lazymvn-${{ env.LAZYMVN_FILE_VERSION }}-${{ matrix.platform }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}
+        tag_name: ${{ env.LAZYMVN_BUILD_TAG }}
+        name: ${{ env.LAZYMVN_BUILD_VERSION }}
         prerelease: true
         generate_release_notes: false
         make_latest: true

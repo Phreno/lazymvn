@@ -430,8 +430,11 @@ impl TuiState {
             crate::utils::version::current()
         ));
 
+        if let Some(channel) = crate::utils::version::build_channel() {
+            info.push(format!("Channel: {}", channel));
+        }
         if let Some(tag) = crate::utils::version::build_tag() {
-            info.push(format!("Nightly Tag: {}", tag));
+            info.push(format!("Build Tag: {}", tag));
         }
         if let Some(commit) = crate::utils::version::commit_sha() {
             info.push(format!("Commit SHA: {}", commit));
