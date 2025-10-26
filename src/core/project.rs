@@ -236,13 +236,8 @@ mod tests {
     use std::env;
     use std::fs::File;
     use std::path::Path;
-    use std::sync::{Mutex, OnceLock};
     use tempfile::tempdir;
-
-    fn home_lock() -> &'static Mutex<()> {
-        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-        LOCK.get_or_init(|| Mutex::new(()))
-    }
+    use crate::test_utils::fs_lock;
 
     fn set_home(path: &Path) {
         unsafe { env::set_var("HOME", path) };
@@ -260,6 +255,7 @@ mod tests {
 
     #[test]
     fn find_pom_in_current_dir() {
+        let _guard = fs_lock().lock().unwrap();
         let dir = tempdir().unwrap();
         let pom_path = dir.path().join("pom.xml");
         File::create(&pom_path).unwrap();
@@ -274,6 +270,7 @@ mod tests {
 
     #[test]
     fn find_pom_in_parent_dir() {
+        let _guard = fs_lock().lock().unwrap();
         let dir = tempdir().unwrap();
         let pom_path = dir.path().join("pom.xml");
         File::create(&pom_path).unwrap();
@@ -353,7 +350,7 @@ mod tests {
     #[test]
     #[cfg(unix)] // HOME environment variable handling differs on Windows
     fn get_project_modules_integration_test() {
-        let _guard = home_lock().lock().unwrap();
+        let _guard = fs_lock().lock().unwrap();
         // 1. Setup temp project and home directory
         let project_dir = tempdir().unwrap();
         let home_dir = tempdir().unwrap();
@@ -405,7 +402,7 @@ mod tests {
     #[test]
     #[cfg(unix)] // HOME environment variable handling differs on Windows
     fn get_project_modules_refreshes_cache_when_pom_changes() {
-        let _guard = home_lock().lock().unwrap();
+        let _guard = fs_lock().lock().unwrap();
         let project_dir = tempdir().unwrap();
         let home_dir = tempdir().unwrap();
         let original_home = env::var("HOME").ok();
@@ -450,7 +447,7 @@ mod tests {
 
     #[test]
     fn get_project_modules_for_project_without_modules() {
-        let _guard = home_lock().lock().unwrap();
+        let _guard = fs_lock().lock().unwrap();
         let project_dir = tempdir().unwrap();
         let home_dir = tempdir().unwrap();
         let original_home = env::var("HOME").ok();

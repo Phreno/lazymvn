@@ -22,6 +22,7 @@ pub fn handle_key_event(key: KeyEvent, state: &mut TuiState) {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_utils::fs_lock;
     use super::*;
     use crate::ui::keybindings::{CurrentView, Focus};
     use ratatui::{backend::TestBackend, Terminal};
@@ -42,6 +43,7 @@ mod tests {
 
     #[test]
     fn test_draw_ui() {
+        let _guard = fs_lock().lock().unwrap();
         let backend = TestBackend::new(80, 20);
         let mut terminal = Terminal::new(backend).unwrap();
         let modules = vec!["module1".to_string(), "module2".to_string()];
@@ -65,6 +67,7 @@ mod tests {
 
     #[test]
     fn test_view_switching() {
+        let _guard = fs_lock().lock().unwrap();
         let modules = vec!["module1".to_string()];
         let project_root = PathBuf::from("/");
         let mut state = crate::ui::state::TuiState::new(modules, project_root, test_cfg());
@@ -103,6 +106,7 @@ mod tests {
 
     #[test]
     fn test_package_command() {
+        let _guard = fs_lock().lock().unwrap();
         // 1. Setup temp project
         let project_dir = tempdir().unwrap();
         let project_root = project_dir.path();
@@ -153,6 +157,7 @@ mod tests {
     #[test]
     #[cfg(unix)] // Shell script execution not supported on Windows
     fn test_build_command_runs_clean_install() {
+        let _guard = fs_lock().lock().unwrap();
         let project_dir = tempdir().unwrap();
         let project_root = project_dir.path();
 
@@ -193,6 +198,7 @@ mod tests {
 
     #[test]
     fn test_flags_toggle() {
+        let _guard = fs_lock().lock().unwrap();
         let temp_dir = tempfile::tempdir().unwrap();
         let modules = vec!["module1".to_string()];
         let project_root = temp_dir.path().to_path_buf();
@@ -225,6 +231,7 @@ mod tests {
 
     #[test]
     fn test_flags_initialized() {
+        let _guard = fs_lock().lock().unwrap();
         use tempfile::tempdir;
 
         // Use a temporary directory to avoid loading actual cached preferences
@@ -250,6 +257,7 @@ mod tests {
 
     #[test]
     fn test_navigation_debouncing() {
+        let _guard = fs_lock().lock().unwrap();
         use std::{thread, time::Duration};
 
         let modules = vec![
@@ -257,7 +265,8 @@ mod tests {
             "module2".to_string(),
             "module3".to_string(),
         ];
-        let project_root = PathBuf::from("/");
+        let temp_dir = tempdir().unwrap();
+        let project_root = temp_dir.path().to_path_buf();
         let mut state = crate::ui::state::TuiState::new(modules, project_root, test_cfg());
 
         // Initial selection should be module1 (index 0)
@@ -296,8 +305,10 @@ mod tests {
 
     #[test]
     fn test_profile_selection() {
+        let _guard = fs_lock().lock().unwrap();
+        let temp_dir = tempdir().unwrap();
         let modules = vec!["module1".to_string()];
-        let project_root = PathBuf::from("/");
+        let project_root = temp_dir.path().to_path_buf();
         let mut state = crate::ui::state::TuiState::new(modules, project_root, test_cfg());
 
         // Add some profiles (not auto-activated)
@@ -353,8 +364,10 @@ mod tests {
 
     #[test]
     fn test_flag_selection() {
+        let _guard = fs_lock().lock().unwrap();
+        let temp_dir = tempdir().unwrap();
         let modules = vec!["module1".to_string()];
-        let project_root = PathBuf::from("/");
+        let project_root = temp_dir.path().to_path_buf();
         let mut state = crate::ui::state::TuiState::new(modules, project_root, test_cfg());
 
         // Switch to flags view
@@ -408,8 +421,10 @@ mod tests {
     #[test]
     #[ignore] // Mouse tests are fragile due to terminal size dependencies
     fn test_mouse_pane_focus() {
+        let _guard = fs_lock().lock().unwrap();
+        let temp_dir = tempdir().unwrap();
         let modules = vec!["module1".to_string()];
-        let project_root = PathBuf::from("/");
+        let project_root = temp_dir.path().to_path_buf();
         let mut state = crate::ui::state::TuiState::new(modules, project_root, test_cfg());
 
         // Initial focus is on Modules
@@ -499,12 +514,14 @@ mod tests {
     #[test]
     #[ignore] // Mouse tests are fragile due to terminal size dependencies
     fn test_mouse_click_selects_item() {
+        let _guard = fs_lock().lock().unwrap();
         let modules = vec![
             "module1".to_string(),
             "module2".to_string(),
             "module3".to_string(),
         ];
-        let project_root = PathBuf::from("/");
+        let temp_dir = tempdir().unwrap();
+        let project_root = temp_dir.path().to_path_buf();
         let mut state = crate::ui::state::TuiState::new(modules, project_root, test_cfg());
 
         // Initial selection is first module

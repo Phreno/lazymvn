@@ -5,6 +5,16 @@ mod core;
 mod features;
 mod maven;
 mod tui;
+
+#[cfg(test)]
+pub mod test_utils {
+    use std::sync::{Mutex, OnceLock};
+
+    pub fn fs_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+}
 mod ui;
 mod utils;
 

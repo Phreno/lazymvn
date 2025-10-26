@@ -68,3 +68,13 @@ pub mod utils;
 
 // Re-export commonly used types for convenience
 pub use core::{Config, LaunchMode};
+
+#[cfg(test)]
+pub mod test_utils {
+    use std::sync::{Mutex, OnceLock};
+
+    pub fn fs_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+}
