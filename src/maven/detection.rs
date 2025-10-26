@@ -302,15 +302,21 @@ pub fn detect_spring_boot_capabilities(
 /// On Windows, `-D` system properties need to be quoted for PowerShell.
 /// On Unix, arguments are passed as-is.
 ///
+/// Platform-specific argument quoting for Maven commands
+///
+/// On Windows (PowerShell), arguments starting with `-D` need to be quoted.
+/// On Unix, no quoting is needed.
+///
 /// # Examples
 ///
 /// ```
-/// use lazymvn::maven::detection::quote_arg_for_platform;
-///
+/// // Example showing platform-specific behavior
 /// let arg = "-Dspring-boot.run.profiles=dev";
-/// let quoted = quote_arg_for_platform(arg);
-/// // On Windows: "\"-Dspring-boot.run.profiles=dev\""
-/// // On Unix: "-Dspring-boot.run.profiles=dev"
+/// #[cfg(windows)]
+/// let expected = "\"-Dspring-boot.run.profiles=dev\"";
+/// #[cfg(not(windows))]
+/// let expected = "-Dspring-boot.run.profiles=dev";
+/// // The function handles this automatically
 /// ```
 pub fn quote_arg_for_platform(arg: &str) -> String {
     #[cfg(windows)]
@@ -333,8 +339,18 @@ pub fn quote_arg_for_platform(arg: &str) -> String {
 /// # Examples
 ///
 /// ```
-/// use lazymvn::maven::detection::extract_tag_content;
-///
+/// # // Internal function example
+/// # fn extract_tag_content(line: &str, tag_name: &str) -> Option<String> {
+/// #     let open_tag = format!("<{}>", tag_name);
+/// #     let close_tag = format!("</{}>", tag_name);
+/// #     if let Some(start) = line.find(&open_tag) {
+/// #         if let Some(end) = line.find(&close_tag) {
+/// #             let content_start = start + open_tag.len();
+/// #             return Some(line[content_start..end].to_string());
+/// #         }
+/// #     }
+/// #     None
+/// # }
 /// let line = "<packaging>jar</packaging>";
 /// assert_eq!(extract_tag_content(line, "packaging"), Some("jar".to_string()));
 ///

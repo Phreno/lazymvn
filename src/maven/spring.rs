@@ -97,14 +97,15 @@ mod tests {
 
     #[test]
     fn test_generate_spring_properties_with_properties() {
-        let temp_dir = std::env::temp_dir();
+        // Use unique path per test to avoid race conditions
+        let test_dir = std::env::temp_dir().join("lazymvn_test_properties");
         let properties = vec![
             ("server.port".to_string(), "8081".to_string()),
             ("spring.datasource.url".to_string(), "jdbc:h2:mem:testdb".to_string()),
         ];
         let profiles = vec![];
 
-        let config_path = generate_spring_properties(&temp_dir, &properties, &profiles);
+        let config_path = generate_spring_properties(&test_dir, &properties, &profiles);
         assert!(config_path.is_some());
 
         let path = config_path.unwrap();
@@ -122,11 +123,12 @@ mod tests {
 
     #[test]
     fn test_generate_spring_properties_with_profiles() {
-        let temp_dir = std::env::temp_dir();
+        // Use unique path per test to avoid race conditions
+        let test_dir = std::env::temp_dir().join("lazymvn_test_profiles");
         let properties = vec![];
         let profiles = vec!["dev".to_string(), "local".to_string()];
 
-        let config_path = generate_spring_properties(&temp_dir, &properties, &profiles);
+        let config_path = generate_spring_properties(&test_dir, &properties, &profiles);
         assert!(config_path.is_some());
 
         let path = config_path.unwrap();
@@ -142,11 +144,12 @@ mod tests {
 
     #[test]
     fn test_generate_spring_properties_empty() {
-        let temp_dir = std::env::temp_dir();
+        // Use unique path per test to avoid race conditions
+        let test_dir = std::env::temp_dir().join("lazymvn_test_empty");
         let properties = vec![];
         let profiles = vec![];
 
-        let config_path = generate_spring_properties(&temp_dir, &properties, &profiles);
+        let config_path = generate_spring_properties(&test_dir, &properties, &profiles);
         assert!(config_path.is_none());
     }
 }
