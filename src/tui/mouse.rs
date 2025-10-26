@@ -73,18 +73,20 @@ fn handle_pane_item_click(
     state: &mut TuiState,
     focus: Focus,
 ) {
-    // Calculate which item was clicked based on row position within pane
-    // Account for border (1 line top) and title
-    if mouse.row <= area.y + 1 {
-        return; // Clicked on border/title
+    // Panes have a 1-line border. Clicks on the border should be ignored.
+    if mouse.row <= area.y {
+        return;
     }
 
-    let item_index = (mouse.row - area.y - 2) as usize; // -2 for border and title
+    // The visual index is the row relative to the pane's content area.
+    let visual_index = (mouse.row - area.y - 1) as usize;
 
     match focus {
         Focus::Modules => {
             let needs_sync = {
                 let tab = state.get_active_tab_mut();
+                // Add the scroll offset to the visual index to get the actual item index.
+                let item_index = visual_index + tab.modules_list_state.offset();
                 if item_index < tab.modules.len() {
                     tab.modules_list_state.select(Some(item_index));
                     log::debug!("Selected module at index {}", item_index);
@@ -99,6 +101,7 @@ fn handle_pane_item_click(
         }
         Focus::Profiles => {
             let tab = state.get_active_tab_mut();
+            let item_index = visual_index + tab.profiles_list_state.offset();
             if item_index < tab.profiles.len() {
                 tab.profiles_list_state.select(Some(item_index));
                 log::debug!("Selected profile at index {}", item_index);
@@ -106,6 +109,7 @@ fn handle_pane_item_click(
         }
         Focus::Flags => {
             let tab = state.get_active_tab_mut();
+            let item_index = visual_index + tab.flags_list_state.offset();
             if item_index < tab.flags.len() {
                 tab.flags_list_state.select(Some(item_index));
                 log::debug!("Selected flag at index {}", item_index);
