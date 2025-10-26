@@ -456,9 +456,6 @@ lazymvn/
 - **[AGENTS.md](AGENTS.md)** - Coding guidelines and project structure for contributors and AI agents
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** - Contribution process and code of conduct
 
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
 
 ### Development Setup
 
@@ -493,12 +490,6 @@ cargo clippy -- -D warnings
 ```
 
 ## License
-```
-
-
-
-
-## License
 
 MIT License
 
@@ -523,4 +514,3 @@ packages = [
 - ✨ Compatible with Log4j, Logback, SLF4J, and Spring Boot
 
 See [docs/user/LOGGING_CONFIG.md](docs/user/LOGGING_CONFIG.md) for detailed documentation and examples.
-
