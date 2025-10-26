@@ -7,36 +7,6 @@ pub use basic_panes::*;
 pub use layout::create_adaptive_layout;
 pub use tab_footer::{render_footer, render_tab_bar};
 pub use popups::*;
-
-
-
-
-
-
-
-
-
-
-
-/// Render the footer with key hints and search status
-/// Render the tab bar showing all open project tabs
-
-
-
-
-/// Create an adaptive layout that responds to terminal size and focused pane
-
-
-
-
-
-
-
-
-
-
-
-
 #[cfg(test)]
 mod tests {
     use super::*;

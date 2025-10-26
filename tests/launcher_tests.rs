@@ -174,7 +174,6 @@ fn test_build_launch_command_exec_java_jar_packaging() {
 fn test_command_display_in_output() {
     let _guard = common::test_lock().lock().unwrap();
     use lazymvn::maven::execute_maven_command;
-    use std::fs;
     use tempfile::tempdir;
 
     let dir = tempdir().unwrap();

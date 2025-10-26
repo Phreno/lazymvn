@@ -249,7 +249,7 @@ mod tests {
     #[test]
     fn test_adaptive_layout_narrow_terminal() {
         let area = Rect::new(0, 0, 70, 40);
-        let (tab, proj, mods, profs, flags, out, foot) =
+        let (tab, proj, _mods, _profs, _flags, out, foot) =
             create_adaptive_layout(area, Some(Focus::Output));
 
         assert_eq!(tab.height, 2);

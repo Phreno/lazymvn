@@ -175,7 +175,7 @@ mod tests {
         // Line::raw("") may have 0 or 1 spans depending on implementation
         // What matters is the rendered content is empty
         let text: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
-        assert!(text.is_empty() || text == "");
+        assert!(text.is_empty());
     }
 
     #[test]

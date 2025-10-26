@@ -333,3 +333,113 @@ impl TuiState {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::config::Config;
+    use std::path::PathBuf;
+
+    fn create_test_state() -> TuiState {
+        TuiState::new(
+            vec!["module1".to_string(), "module2".to_string()],
+            PathBuf::from("/test"),
+            Config::default(),
+        )
+    }
+
+    #[test]
+    fn test_enabled_flag_names_empty() {
+        let state = create_test_state();
+        let flags = state.enabled_flag_names();
+        assert_eq!(flags, Vec::<String>::new());
+    }
+
+    #[test]
+    fn test_enabled_flag_names_with_enabled_flags() {
+        let mut state = create_test_state();
+        // Enable some flags
+        let tab = state.get_active_tab_mut();
+        if !tab.flags.is_empty() {
+            tab.flags[0].enabled = true;
+        }
+        if tab.flags.len() > 1 {
+            tab.flags[1].enabled = true;
+        }
+        
+        let flags = state.enabled_flag_names();
+        assert_eq!(flags.len(), 2);
+    }
+
+    #[test]
+    fn test_active_profile_names_empty() {
+        let state = create_test_state();
+        let profiles = state.active_profile_names();
+        assert!(profiles.is_empty());
+    }
+
+    #[test]
+    fn test_get_last_executed_command_none() {
+        let state = create_test_state();
+        let result = state.get_last_executed_command();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_current_output_context_none() {
+        let state = create_test_state();
+        let result = state.current_output_context();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_store_current_module_output() {
+        let mut state = create_test_state();
+        {
+            let tab = state.get_active_tab_mut();
+            tab.command_output.push("Test output line".to_string());
+        }
+        
+        state.store_current_module_output();
+        
+        let tab = state.get_active_tab();
+        let module = state.selected_module().unwrap();
+        assert!(tab.module_outputs.contains_key(module));
+        let output = tab.module_outputs.get(module).unwrap();
+        assert!(!output.lines.is_empty());
+        assert!(output.lines.contains(&"Test output line".to_string()));
+    }
+
+    #[test]
+    fn test_store_current_module_output_preserves_command() {
+        let mut state = create_test_state();
+        
+        // Set up initial output with command
+        let module = state.selected_module().unwrap().to_string();
+        let initial_output = ModuleOutput {
+            lines: vec!["Old output".to_string()],
+            command: Some("mvn test".to_string()),
+            profiles: vec!["dev".to_string()],
+            flags: vec!["-X".to_string()],
+            ..Default::default()
+        };
+        
+        {
+            let tab = state.get_active_tab_mut();
+            tab.module_outputs.insert(module.clone(), initial_output);
+            
+            // Add new output and store
+            tab.command_output = vec!["New output".to_string()];
+        }
+        
+        state.store_current_module_output();
+        
+        // Verify command context preserved
+        let tab = state.get_active_tab();
+        let output = tab.module_outputs.get(&module).unwrap();
+        assert_eq!(output.command, Some("mvn test".to_string()));
+        assert_eq!(output.profiles, vec!["dev".to_string()]);
+        assert_eq!(output.flags, vec!["-X".to_string()]);
+        assert_eq!(output.lines, vec!["New output".to_string()]);
+    }
+}

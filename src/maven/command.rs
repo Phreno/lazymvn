@@ -13,6 +13,19 @@ use std::{
 use super::process::CommandUpdate;
 
 /// Extract logging overrides from config
+///
+/// # Examples
+///
+/// ```
+/// use lazymvn::core::config::{LoggingConfig, PackageLogLevel};
+///
+/// let mut config = LoggingConfig::default();
+/// config.packages.push(PackageLogLevel {
+///     name: "com.example".to_string(),
+///     level: "DEBUG".to_string(),
+/// });
+/// // Function is private, tested indirectly through public APIs
+/// ```
 fn get_logging_overrides(logging_config: Option<&LoggingConfig>) -> Vec<(String, String)> {
     logging_config
         .map(|config| {
@@ -25,6 +38,20 @@ fn get_logging_overrides(logging_config: Option<&LoggingConfig>) -> Vec<(String,
         .unwrap_or_default()
 }
 
+/// Determine the Maven command to use (wrapper or system Maven)
+///
+/// Prefers Maven wrapper (mvnw) over system Maven when available.
+///
+/// # Examples
+///
+/// ```no_run
+/// use std::path::Path;
+/// use lazymvn::maven::get_maven_command;
+///
+/// let project_root = Path::new("/path/to/project");
+/// let maven_cmd = get_maven_command(project_root);
+/// // Returns "./mvnw" if mvnw exists, otherwise "mvn" (or "mvn.cmd" on Windows)
+/// ```
 pub fn get_maven_command(project_root: &Path) -> String {
     // On Unix, check for mvnw
     #[cfg(unix)]
@@ -553,4 +580,273 @@ pub fn execute_maven_command_async_with_options(
     });
 
     Ok(rx)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_build_command_string_basic() {
+        let cmd = build_command_string(
+            "mvn",
+            None,
+            &["clean", "install"],
+            &[],
+            None,
+            &[],
+        );
+        assert_eq!(cmd, "mvn clean install");
+    }
+
+    #[test]
+    fn test_build_command_string_with_profiles() {
+        let profiles = vec!["dev".to_string(), "local".to_string()];
+        let cmd = build_command_string(
+            "mvn",
+            None,
+            &["clean", "install"],
+            &profiles,
+            None,
+            &[],
+        );
+        assert_eq!(cmd, "mvn -P dev,local clean install");
+    }
+
+    #[test]
+    fn test_build_command_string_with_module() {
+        let cmd = build_command_string(
+            "mvn",
+            Some("backend"),
+            &["test"],
+            &[],
+            None,
+            &[],
+        );
+        assert_eq!(cmd, "mvn -pl backend test");
+    }
+
+    #[test]
+    fn test_build_command_string_with_root_module() {
+        let cmd = build_command_string(
+            "mvn",
+            Some("."),
+            &["clean"],
+            &[],
+            None,
+            &[],
+        );
+        // Root module "." should not add -pl flag
+        assert_eq!(cmd, "mvn clean");
+    }
+
+    #[test]
+    fn test_build_command_string_with_flags() {
+        let flags = vec!["-DskipTests".to_string(), "--also-make".to_string()];
+        let cmd = build_command_string(
+            "mvn",
+            Some("api"),
+            &["package"],
+            &[],
+            None,
+            &flags,
+        );
+        assert_eq!(cmd, "mvn -pl api -DskipTests --also-make package");
+    }
+
+    #[test]
+    fn test_build_command_string_with_settings() {
+        let cmd = build_command_string(
+            "mvn",
+            None,
+            &["clean"],
+            &[],
+            Some("/path/to/settings.xml"),
+            &[],
+        );
+        assert_eq!(cmd, "mvn --settings /path/to/settings.xml clean");
+    }
+
+    #[test]
+    fn test_build_command_string_complete() {
+        let profiles = vec!["prod".to_string()];
+        let flags = vec!["-X".to_string()];
+        let cmd = build_command_string(
+            "./mvnw",
+            Some("web"),
+            &["spring-boot:run"],
+            &profiles,
+            Some("settings.xml"),
+            &flags,
+        );
+        assert_eq!(cmd, "./mvnw --settings settings.xml -P prod -pl web -X spring-boot:run");
+    }
+
+    #[test]
+    fn test_build_command_string_with_options_file_flag() {
+        let cmd = build_command_string_with_options(
+            "mvn",
+            Some("backend"),
+            &["exec:java"],
+            &[],
+            None,
+            &[],
+            true,  // use_file_flag
+            &PathBuf::from("/project"),
+            &[],
+        );
+        assert!(cmd.contains("-f"));
+        assert!(cmd.contains("backend/pom.xml"));
+        // exec:java should auto-add --also-make
+        assert!(cmd.contains("--also-make"));
+    }
+
+    #[test]
+    fn test_build_command_string_with_options_file_flag_no_auto_make() {
+        let cmd = build_command_string_with_options(
+            "mvn",
+            Some("backend"),
+            &["spring-boot:run"],
+            &[],
+            None,
+            &[],
+            true,  // use_file_flag
+            &PathBuf::from("/project"),
+            &[],
+        );
+        assert!(cmd.contains("-f"));
+        // spring-boot:run should NOT auto-add --also-make
+        assert!(!cmd.contains("--also-make"));
+    }
+
+    #[test]
+    fn test_build_command_string_with_options_pl_flag() {
+        let cmd = build_command_string_with_options(
+            "mvn",
+            Some("backend"),
+            &["test"],
+            &[],
+            None,
+            &[],
+            false,  // use_file_flag
+            &PathBuf::from("/project"),
+            &[],
+        );
+        assert!(cmd.contains("-pl backend"));
+        assert!(!cmd.contains("-f"));
+    }
+
+    #[test]
+    fn test_build_command_string_handles_empty_profiles() {
+        let cmd = build_command_string(
+            "mvn",
+            None,
+            &["test"],
+            &[],  // empty profiles
+            None,
+            &[],
+        );
+        assert!(!cmd.contains("-P"));
+        assert_eq!(cmd, "mvn test");
+    }
+
+    #[test]
+    fn test_build_command_string_handles_empty_flags() {
+        let cmd = build_command_string(
+            "mvn",
+            None,
+            &["test"],
+            &[],
+            None,
+            &[],  // empty flags
+        );
+        assert_eq!(cmd, "mvn test");
+    }
+
+    #[test]
+    fn test_build_command_string_order() {
+        let profiles = vec!["dev".to_string()];
+        let flags = vec!["--also-make".to_string()];
+        let cmd = build_command_string(
+            "mvn",
+            Some("module"),
+            &["clean", "install"],
+            &profiles,
+            Some("settings.xml"),
+            &flags,
+        );
+        // Order should be: maven_cmd -> settings -> profiles -> module -> flags -> args
+        let expected = "mvn --settings settings.xml -P dev -pl module --also-make clean install";
+        assert_eq!(cmd, expected);
+    }
+
+    #[test]
+    fn test_build_command_string_with_special_characters() {
+        let cmd = build_command_string(
+            "mvn",
+            Some("my-module"),
+            &["test"],
+            &[],
+            None,
+            &[],
+        );
+        assert_eq!(cmd, "mvn -pl my-module test");
+    }
+
+    #[test]
+    fn test_build_command_string_multiple_args() {
+        let cmd = build_command_string(
+            "mvn",
+            None,
+            &["clean", "compile", "test", "package"],
+            &[],
+            None,
+            &[],
+        );
+        assert_eq!(cmd, "mvn clean compile test package");
+    }
+
+    #[test]
+    fn test_get_logging_overrides_none() {
+        let result = get_logging_overrides(None);
+        assert_eq!(result, vec![]);
+    }
+
+    #[test]
+    fn test_get_logging_overrides_empty() {
+        let config = LoggingConfig::default();
+        let result = get_logging_overrides(Some(&config));
+        assert_eq!(result, vec![]);
+    }
+
+    #[test]
+    fn test_get_logging_overrides_single_package() {
+        use crate::core::config::PackageLogLevel;
+        let mut config = LoggingConfig::default();
+        config.packages.push(PackageLogLevel {
+            name: "com.example".to_string(),
+            level: "DEBUG".to_string(),
+        });
+        let result = get_logging_overrides(Some(&config));
+        assert_eq!(result, vec![("com.example".to_string(), "DEBUG".to_string())]);
+    }
+
+    #[test]
+    fn test_get_logging_overrides_multiple_packages() {
+        use crate::core::config::PackageLogLevel;
+        let mut config = LoggingConfig::default();
+        config.packages.push(PackageLogLevel {
+            name: "com.example".to_string(),
+            level: "DEBUG".to_string(),
+        });
+        config.packages.push(PackageLogLevel {
+            name: "org.springframework".to_string(),
+            level: "INFO".to_string(),
+        });
+        let result = get_logging_overrides(Some(&config));
+        assert_eq!(result.len(), 2);
+        assert!(result.contains(&("com.example".to_string(), "DEBUG".to_string())));
+        assert!(result.contains(&("org.springframework".to_string(), "INFO".to_string())));
+    }
 }

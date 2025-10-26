@@ -298,6 +298,20 @@ pub fn detect_spring_boot_capabilities(
 }
 
 /// Quote arguments appropriately for the platform (especially PowerShell on Windows)
+///
+/// On Windows, `-D` system properties need to be quoted for PowerShell.
+/// On Unix, arguments are passed as-is.
+///
+/// # Examples
+///
+/// ```
+/// use lazymvn::maven::detection::quote_arg_for_platform;
+///
+/// let arg = "-Dspring-boot.run.profiles=dev";
+/// let quoted = quote_arg_for_platform(arg);
+/// // On Windows: "\"-Dspring-boot.run.profiles=dev\""
+/// // On Unix: "-Dspring-boot.run.profiles=dev"
+/// ```
 pub fn quote_arg_for_platform(arg: &str) -> String {
     #[cfg(windows)]
     {
@@ -315,6 +329,18 @@ pub fn quote_arg_for_platform(arg: &str) -> String {
 }
 
 /// Extract content from an XML tag
+///
+/// # Examples
+///
+/// ```
+/// use lazymvn::maven::detection::extract_tag_content;
+///
+/// let line = "<packaging>jar</packaging>";
+/// assert_eq!(extract_tag_content(line, "packaging"), Some("jar".to_string()));
+///
+/// let line = "<mainClass>com.example.Main</mainClass>";
+/// assert_eq!(extract_tag_content(line, "mainClass"), Some("com.example.Main".to_string()));
+/// ```
 pub fn extract_tag_content(line: &str, tag_name: &str) -> Option<String> {
     let open_tag = format!("<{}>", tag_name);
     let close_tag = format!("</{}>", tag_name);
@@ -326,4 +352,355 @@ pub fn extract_tag_content(line: &str, tag_name: &str) -> Option<String> {
         return Some(content.trim().to_string());
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // SpringBootDetection tests
+    #[test]
+    fn test_can_use_spring_boot_run_with_plugin_and_jar() {
+        let detection = SpringBootDetection {
+            has_spring_boot_plugin: true,
+            has_exec_plugin: false,
+            main_class: None,
+            packaging: Some("jar".to_string()),
+        };
+        assert!(detection.can_use_spring_boot_run());
+    }
+
+    #[test]
+    fn test_can_use_spring_boot_run_with_plugin_and_war() {
+        let detection = SpringBootDetection {
+            has_spring_boot_plugin: true,
+            has_exec_plugin: false,
+            main_class: None,
+            packaging: Some("war".to_string()),
+        };
+        assert!(detection.can_use_spring_boot_run());
+    }
+
+    #[test]
+    fn test_can_use_spring_boot_run_without_plugin() {
+        let detection = SpringBootDetection {
+            has_spring_boot_plugin: false,
+            has_exec_plugin: true,
+            main_class: Some("com.example.Main".to_string()),
+            packaging: Some("jar".to_string()),
+        };
+        assert!(!detection.can_use_spring_boot_run());
+    }
+
+    #[test]
+    fn test_can_use_spring_boot_run_with_pom_packaging() {
+        let detection = SpringBootDetection {
+            has_spring_boot_plugin: true,
+            has_exec_plugin: false,
+            main_class: None,
+            packaging: Some("pom".to_string()),
+        };
+        assert!(!detection.can_use_spring_boot_run());
+    }
+
+    #[test]
+    fn test_should_prefer_spring_boot_run_war() {
+        let detection = SpringBootDetection {
+            has_spring_boot_plugin: true,
+            has_exec_plugin: false,
+            main_class: None,
+            packaging: Some("war".to_string()),
+        };
+        assert!(detection.should_prefer_spring_boot_run());
+    }
+
+    #[test]
+    fn test_should_prefer_spring_boot_run_jar() {
+        let detection = SpringBootDetection {
+            has_spring_boot_plugin: true,
+            has_exec_plugin: false,
+            main_class: None,
+            packaging: Some("jar".to_string()),
+        };
+        assert!(!detection.should_prefer_spring_boot_run());
+    }
+
+    #[test]
+    fn test_can_use_exec_java_with_plugin() {
+        let detection = SpringBootDetection {
+            has_spring_boot_plugin: false,
+            has_exec_plugin: true,
+            main_class: None,
+            packaging: Some("jar".to_string()),
+        };
+        assert!(detection.can_use_exec_java());
+    }
+
+    #[test]
+    fn test_can_use_exec_java_with_main_class() {
+        let detection = SpringBootDetection {
+            has_spring_boot_plugin: false,
+            has_exec_plugin: false,
+            main_class: Some("com.example.App".to_string()),
+            packaging: Some("jar".to_string()),
+        };
+        assert!(detection.can_use_exec_java());
+    }
+
+    #[test]
+    fn test_can_use_exec_java_neither() {
+        let detection = SpringBootDetection {
+            has_spring_boot_plugin: false,
+            has_exec_plugin: false,
+            main_class: None,
+            packaging: Some("jar".to_string()),
+        };
+        assert!(!detection.can_use_exec_java());
+    }
+
+    // Launch strategy tests
+    #[test]
+    fn test_decide_launch_strategy_force_run() {
+        let detection = SpringBootDetection {
+            has_spring_boot_plugin: false,
+            has_exec_plugin: true,
+            main_class: Some("com.example.Main".to_string()),
+            packaging: Some("jar".to_string()),
+        };
+        let strategy = decide_launch_strategy(&detection, LaunchMode::ForceRun);
+        assert_eq!(strategy, LaunchStrategy::SpringBootRun);
+    }
+
+    #[test]
+    fn test_decide_launch_strategy_force_exec() {
+        let detection = SpringBootDetection {
+            has_spring_boot_plugin: true,
+            has_exec_plugin: false,
+            main_class: None,
+            packaging: Some("jar".to_string()),
+        };
+        let strategy = decide_launch_strategy(&detection, LaunchMode::ForceExec);
+        assert_eq!(strategy, LaunchStrategy::ExecJava);
+    }
+
+    #[test]
+    fn test_decide_launch_strategy_auto_spring_boot_war() {
+        let detection = SpringBootDetection {
+            has_spring_boot_plugin: true,
+            has_exec_plugin: false,
+            main_class: None,
+            packaging: Some("war".to_string()),
+        };
+        let strategy = decide_launch_strategy(&detection, LaunchMode::Auto);
+        assert_eq!(strategy, LaunchStrategy::SpringBootRun);
+    }
+
+    #[test]
+    fn test_decide_launch_strategy_auto_spring_boot_jar() {
+        let detection = SpringBootDetection {
+            has_spring_boot_plugin: true,
+            has_exec_plugin: false,
+            main_class: None,
+            packaging: Some("jar".to_string()),
+        };
+        let strategy = decide_launch_strategy(&detection, LaunchMode::Auto);
+        assert_eq!(strategy, LaunchStrategy::SpringBootRun);
+    }
+
+    #[test]
+    fn test_decide_launch_strategy_auto_exec_java() {
+        let detection = SpringBootDetection {
+            has_spring_boot_plugin: false,
+            has_exec_plugin: true,
+            main_class: Some("com.example.Main".to_string()),
+            packaging: Some("jar".to_string()),
+        };
+        let strategy = decide_launch_strategy(&detection, LaunchMode::Auto);
+        assert_eq!(strategy, LaunchStrategy::ExecJava);
+    }
+
+    #[test]
+    fn test_decide_launch_strategy_auto_fallback() {
+        let detection = SpringBootDetection {
+            has_spring_boot_plugin: false,
+            has_exec_plugin: false,
+            main_class: None,
+            packaging: Some("jar".to_string()),
+        };
+        let strategy = decide_launch_strategy(&detection, LaunchMode::Auto);
+        assert_eq!(strategy, LaunchStrategy::SpringBootRun);
+    }
+
+    // Build command tests
+    #[test]
+    fn test_build_launch_command_spring_boot_basic() {
+        let cmd = build_launch_command(
+            LaunchStrategy::SpringBootRun,
+            None,
+            &[],
+            &[],
+            Some("jar"),
+        );
+        assert_eq!(cmd, vec!["spring-boot:run"]);
+    }
+
+    #[test]
+    fn test_build_launch_command_spring_boot_with_profiles() {
+        let profiles = vec!["dev".to_string(), "test".to_string()];
+        let cmd = build_launch_command(
+            LaunchStrategy::SpringBootRun,
+            None,
+            &profiles,
+            &[],
+            Some("jar"),
+        );
+        assert!(cmd.iter().any(|arg| arg.contains("spring-boot.run.profiles=dev,test")));
+        assert_eq!(cmd.last().unwrap(), "spring-boot:run");
+    }
+
+    #[test]
+    fn test_build_launch_command_spring_boot_with_jvm_args() {
+        let jvm_args = vec!["-Xmx512m".to_string(), "-Ddebug=true".to_string()];
+        let cmd = build_launch_command(
+            LaunchStrategy::SpringBootRun,
+            None,
+            &[],
+            &jvm_args,
+            Some("jar"),
+        );
+        assert!(cmd.iter().any(|arg| arg.contains("spring-boot.run.jvmArguments")));
+        assert!(cmd.iter().any(|arg| arg.contains("-Xmx512m")));
+        assert!(cmd.iter().any(|arg| arg.contains("-Ddebug=true")));
+    }
+
+    #[test]
+    fn test_build_launch_command_spring_boot_complete() {
+        let profiles = vec!["dev".to_string()];
+        let jvm_args = vec!["-Xmx512m".to_string(), "-Ddebug=true".to_string()];
+        let cmd = build_launch_command(
+            LaunchStrategy::SpringBootRun,
+            None,
+            &profiles,
+            &jvm_args,
+            Some("jar"),
+        );
+        // Should have profiles
+        assert!(cmd.iter().any(|arg| arg.contains("spring-boot.run.profiles=dev")));
+        // Should have JVM args
+        assert!(cmd.iter().any(|arg| arg.contains("-Xmx512m")));
+        assert!(cmd.iter().any(|arg| arg.contains("-Ddebug=true")));
+        // Should end with goal
+        assert_eq!(cmd.last().unwrap(), "spring-boot:run");
+    }
+
+    #[test]
+    fn test_build_launch_command_exec_java_basic() {
+        let cmd = build_launch_command(
+            LaunchStrategy::ExecJava,
+            Some("com.example.Main"),
+            &[],
+            &[],
+            Some("jar"),
+        );
+        assert_eq!(cmd.len(), 3);
+        assert!(cmd.iter().any(|arg| arg.contains("exec.mainClass=com.example.Main")));
+        assert_eq!(cmd.last().unwrap(), "exec:java");
+    }
+
+    #[test]
+    fn test_build_launch_command_exec_java_with_jvm_args() {
+        let jvm_args = vec!["-Xmx1g".to_string()];
+        let cmd = build_launch_command(
+            LaunchStrategy::ExecJava,
+            Some("com.example.Main"),
+            &[],
+            &jvm_args,
+            Some("jar"),
+        );
+        // JVM args are passed directly for exec:java
+        assert!(cmd.iter().any(|arg| arg.contains("-Xmx1g")));
+        assert!(cmd.iter().any(|arg| arg.contains("exec.mainClass=com.example.Main")));
+    }
+
+    #[test]
+    fn test_build_launch_command_exec_java_no_main_class() {
+        let cmd = build_launch_command(
+            LaunchStrategy::ExecJava,
+            None,
+            &[],
+            &[],
+            Some("jar"),
+        );
+        // Should still work, relying on pom.xml configuration
+        assert!(cmd.contains(&"exec:java".to_string()));
+    }
+
+    // XML extraction tests
+    #[test]
+    fn test_extract_tag_content_simple() {
+        let line = "<packaging>jar</packaging>";
+        assert_eq!(extract_tag_content(line, "packaging"), Some("jar".to_string()));
+    }
+
+    #[test]
+    fn test_extract_tag_content_with_whitespace() {
+        let line = "<mainClass>  com.example.Main  </mainClass>";
+        assert_eq!(extract_tag_content(line, "mainClass"), Some("com.example.Main".to_string()));
+    }
+
+    #[test]
+    fn test_extract_tag_content_nested() {
+        let line = "<groupId>com.example</groupId>";
+        assert_eq!(extract_tag_content(line, "groupId"), Some("com.example".to_string()));
+    }
+
+    #[test]
+    fn test_extract_tag_content_not_found() {
+        let line = "<packaging>jar</packaging>";
+        assert_eq!(extract_tag_content(line, "version"), None);
+    }
+
+    #[test]
+    fn test_extract_tag_content_incomplete_tag() {
+        let line = "<packaging>jar";
+        assert_eq!(extract_tag_content(line, "packaging"), None);
+    }
+
+    #[test]
+    fn test_extract_tag_content_empty() {
+        let line = "<packaging></packaging>";
+        assert_eq!(extract_tag_content(line, "packaging"), Some("".to_string()));
+    }
+
+    #[test]
+    fn test_extract_tag_content_multiple_on_line() {
+        let line = "<packaging>jar</packaging><version>1.0</version>";
+        assert_eq!(extract_tag_content(line, "packaging"), Some("jar".to_string()));
+        assert_eq!(extract_tag_content(line, "version"), Some("1.0".to_string()));
+    }
+
+    // Platform-specific quoting tests
+    #[test]
+    #[cfg(windows)]
+    fn test_quote_arg_for_platform_windows_with_spaces() {
+        let arg = "-Dmy.property=value with spaces";
+        let quoted = quote_arg_for_platform(arg);
+        assert_eq!(quoted, "\"-Dmy.property=value with spaces\"");
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn test_quote_arg_for_platform_windows_no_spaces() {
+        let arg = "-Xmx512m";
+        let quoted = quote_arg_for_platform(arg);
+        assert_eq!(quoted, "-Xmx512m");
+    }
+
+    #[test]
+    #[cfg(not(windows))]
+    fn test_quote_arg_for_platform_unix() {
+        let arg = "-Dmy.property=value with spaces";
+        let quoted = quote_arg_for_platform(arg);
+        assert_eq!(quoted, arg);
+    }
 }

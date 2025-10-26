@@ -13,7 +13,7 @@ pub use types::{
     Config, LaunchMode, ModulePreferences, ProjectPreferences, RecentProjects, WatchConfig,
 };
 
-pub use logging::LoggingConfig;
+pub use logging::{LoggingConfig, PackageLogLevel};
 
 // Re-export main functions
 pub use io::{
