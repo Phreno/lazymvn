@@ -126,29 +126,11 @@ cargo test -- --nocapture
 
 ### Documentation
 
-1. **Update README.md** when adding user-facing features
-2. **Update CHANGELOG.md** following Keep a Changelog format
-3. **Update AGENTS.md** when changing architecture or adding modules
-4. **Add doc comments** for public APIs:
-```rust
-/// Parses Maven modules from POM content
-///
-/// # Arguments
-/// * `content` - The POM file content as a string
-///
-/// # Returns
-/// A vector of module names found in the `<modules>` section
-pub fn parse_modules_from_str(content: &str) -> Vec<String> {
-    // ...
-}
-```
-5. **Document new modules** in module-level doc comments:
-```rust
-//! # Core Configuration
-//!
-//! This module handles loading and saving lazymvn configuration files.
-//! Configuration is stored in `~/.config/lazymvn/projects/<hash>/config.toml`.
-```
+1.  **Update user documentation** in `docs/user/` when adding or changing user-facing features.
+2.  **Update internal documentation** in `docs/internal/` when changing architecture or implementation details.
+3.  **Update the main `README.md`** if the changes are significant for new users.
+4.  **Update `CHANGELOG.md`** following the Keep a Changelog format.
+5.  **Add doc comments** for public APIs.
 
 ## Pull Request Process
 

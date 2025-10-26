@@ -64,7 +64,7 @@ I want to credit both the project and its author for the idea and for shaping ho
   - Analyzes effective POM for Spring Boot plugin and packaging
   - Falls back to `exec:java` if needed
   - Configurable modes: `auto` (default), `force-run`, `force-exec`
-  - See [SPRING_BOOT_LAUNCHER.md](SPRING_BOOT_LAUNCHER.md) for details
+  - See [docs/user/SPRING_BOOT_LAUNCHER.md](docs/user/SPRING_BOOT_LAUNCHER.md) for details
 
 ### Profiles & Flags
 - Toggle Maven profiles interactively
@@ -438,9 +438,9 @@ lazymvn/
 ## Project Resources
 
 ### Documentation
-- **[docs/](docs/)** - Detailed feature documentation and implementation notes
-  - Feature guides, design decisions, and technical specifications
-  - See [docs/README.md](docs/README.md) for the complete documentation index
+- **[docs/](docs/)** - Detailed feature documentation and implementation notes.
+  - **[User Documentation](docs/user/README.md)**: For end-users.
+  - **[Internal Documentation](docs/internal/README.md)**: For developers and contributors.
 
 ### Configuration Examples
 - **[examples/](examples/)** - Configuration file examples
@@ -495,12 +495,7 @@ cargo clippy -- -D warnings
 ## License
 ```
 
-## Dépannage
 
-- Problèmes courants et solutions de contournement sont documentés dans le dossier `docs/`.
-- Spécifiquement, si vous rencontrez une erreur avec `exec:java` lorsque vous lancez un module (classe principale introuvable), voir :
-
-- `docs/exec-plugin-troubleshooting.md` — explications et solution (utiliser `-f` au lieu de `-pl`).
 
 
 ## License
@@ -527,5 +522,5 @@ packages = [
 - 📦 Works across all modules
 - ✨ Compatible with Log4j, Logback, SLF4J, and Spring Boot
 
-See [LOGGING_CONFIG.md](LOGGING_CONFIG.md) for detailed documentation and examples.
+See [docs/user/LOGGING_CONFIG.md](docs/user/LOGGING_CONFIG.md) for detailed documentation and examples.
 

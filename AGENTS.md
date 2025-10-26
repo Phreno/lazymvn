@@ -78,12 +78,9 @@ lazymvn/
 │   ├── renderer.rs       # TUI rendering (194 lines)
 │   └── mouse.rs          # Mouse event handling (122 lines)
 │
-├── docs/                 # Documentation (features, implementations, design)
-│   ├── README.md         # Documentation index
-│   ├── DEBUG_YANK.md     # Debug yank feature
-│   ├── TABS_*.md         # Tab system documentation
-│   ├── LOGGING_CONFIG.md # Logging configuration
-│   └── ...               # Other feature docs
+├── docs/                 # Documentation
+│   ├── user/             # User-facing guides and feature documentation
+│   └── internal/         # Implementation notes, design docs, and refactoring plans
 ├── examples/             # Configuration examples
 │   ├── README.md         # Examples index
 │   ├── lazymvn.toml.example          # Complete example
@@ -273,13 +270,9 @@ let config = lazymvn::core::config::load_config(&root);
 ## Project Organization
 
 ### Documentation (`docs/`)
-All feature documentation, implementation notes, and design decisions are in the `docs/` directory.
-See [docs/README.md](docs/README.md) for a complete index.
-
-**Key documentation files:**
-- Feature implementations (TABS_*, SPRING_BOOT_LAUNCHER, etc.)
-- Bug fixes (FIX_SHARED_STARTER, etc.)
-- Configuration guides (LOGGING_CONFIG, PROFILE_ACTIVATION, etc.)
+All documentation is organized into user-facing and internal sections.
+- **`docs/user/`**: Contains guides for end-users on how to use features.
+- **`docs/internal/`**: Contains technical deep-dives, implementation plans, and refactoring notes for developers.
 
 ### Configuration Examples (`examples/`)
 Example configuration files for different use cases.
