@@ -21,6 +21,7 @@ impl TuiState {
         // 1. ignoreTCL=true: Bypass Thread Context ClassLoader
         // 2. defaultInitOverride=true: Disable automatic initialization
         // 3. configurationClass=...: Force manual configurator (prevents PropertyConfigurator auto-run)
+        // 4. debug=true: Enable Log4j debug output to trace configuration loading
         if let Some(log4j_arg) = self.generate_log4j_jvm_arg() {
             // Prevent Thread Context ClassLoader from finding embedded log4j.properties
             jvm_args.push("-Dlog4j.ignoreTCL=true".to_string());
@@ -31,6 +32,9 @@ impl TuiState {
             // Disable PropertyConfigurator (the component that auto-loads log4j.properties)
             // By specifying a manual configurator, we prevent auto-detection
             jvm_args.push("-Dlog4j.configuratorClass=org.apache.log4j.PropertyConfigurator".to_string());
+            
+            // Enable Log4j debug to trace configuration loading (TEMPORARY - for diagnosis)
+            jvm_args.push("-Dlog4j.debug=true".to_string());
             
             // Point to our configuration file (this will be used by manual configurator)
             jvm_args.push(log4j_arg);
