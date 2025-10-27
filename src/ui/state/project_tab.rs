@@ -83,17 +83,17 @@ impl ProjectTab {
         let flags = vec![
             BuildFlag {
                 name: "Work offline".to_string(),
-                flag: "-o, --offline".to_string(),
+                flag: "-o".to_string(),
                 enabled: false,
             },
             BuildFlag {
                 name: "Force update snapshots".to_string(),
-                flag: "-U, --update-snapshots".to_string(),
+                flag: "-U".to_string(),
                 enabled: false,
             },
             BuildFlag {
                 name: "Debug output".to_string(),
-                flag: "-X, --debug".to_string(),
+                flag: "-X".to_string(),
                 enabled: false,
             },
             BuildFlag {

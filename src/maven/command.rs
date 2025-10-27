@@ -156,7 +156,20 @@ pub fn build_command_string_with_options(
     }
 
     for flag in flags {
-        parts.push(flag.to_string());
+        // Split flags like "-U, --update-snapshots" into individual flags
+        // Take only the first part before comma to skip aliases
+        let flag_parts: Vec<&str> = flag
+            .split(',')
+            .next()
+            .unwrap_or(flag)
+            .split_whitespace()
+            .collect();
+        
+        for part in flag_parts {
+            if !part.is_empty() {
+                parts.push(part.to_string());
+            }
+        }
     }
 
     let has_spring_boot_jvm_args = args
@@ -177,7 +190,19 @@ pub fn build_command_string_with_options(
     }
 
     for arg in args {
-        parts.push(arg.to_string());
+        // Quote arguments that contain spaces or special chars on Windows
+        #[cfg(windows)]
+        {
+            if arg.contains(' ') || arg.contains('=') && arg.starts_with("-D") {
+                parts.push(format!("\"{}\"", arg));
+            } else {
+                parts.push(arg.to_string());
+            }
+        }
+        #[cfg(not(windows))]
+        {
+            parts.push(arg.to_string());
+        }
     }
 
     parts.join(" ")
@@ -293,10 +318,23 @@ pub fn execute_maven_command_with_options(
             log::debug!("Running on project root, no -pl/-f flag needed");
         }
     }
-    // Add build flags
+    // Add build flags (split on spaces if needed, skip commas and aliases)
     for flag in flags {
-        command.arg(flag);
-        log::debug!("Added flag: {}", flag);
+        // Split flags like "-U, --update-snapshots" into individual flags
+        // and skip aliases (anything after comma)
+        let flag_parts: Vec<&str> = flag
+            .split(',')
+            .next() // Take only the first part before comma
+            .unwrap_or(flag)
+            .split_whitespace()
+            .collect();
+        
+        for part in flag_parts {
+            if !part.is_empty() {
+                command.arg(part);
+                log::debug!("Added flag: {}", part);
+            }
+        }
     }
 
     let has_spring_boot_jvm_args = args
