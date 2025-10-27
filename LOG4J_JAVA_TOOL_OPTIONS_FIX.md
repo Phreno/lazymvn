@@ -141,7 +141,7 @@ fn extract_log4j_config_url(args: &[&str]) -> Option<String> {
 }
 ```
 
-**Modified command execution** (in `execute_maven_command_with_options`):
+**Modified command execution** (in BOTH `execute_maven_command_with_options` AND `execute_maven_command_async_with_options`):
 ```rust
 let mut command = Command::new(&maven_command);
 
@@ -162,6 +162,15 @@ if logging_config.is_some() {
     }
 }
 ```
+
+**IMPORTANT**: This code must be present in **TWO** functions:
+1. `execute_maven_command_with_options()` - For synchronous commands
+2. `execute_maven_command_async_with_options()` - For asynchronous commands (Spring Boot launcher)
+
+**Why Both Functions?**
+- Synchronous commands: Used for `mvn compile`, `mvn test`, etc.
+- **Asynchronous commands**: Used for `spring-boot:run` and `exec:java` (background processes)
+- Spring Boot launcher uses async execution → **MUST have JAVA_TOOL_OPTIONS there too!**
 
 ## Testing Instructions
 
