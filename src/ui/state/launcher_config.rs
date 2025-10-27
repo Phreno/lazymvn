@@ -13,11 +13,17 @@ impl TuiState {
         let mut jvm_args = Vec::new();
 
         // Add Log4j configuration arguments
+        // For applications with custom Log4j initialization (like Log4jJbossLoggerFactory),
+        // we need BOTH the configuration file AND explicit logger overrides
         if let Some(log4j_arg) = self.generate_log4j_jvm_arg() {
             // Prevent Log4j from auto-loading log4j.properties from classpath
             // This ensures our configuration file takes precedence
             jvm_args.push("-Dlog4j.defaultInitOverride=true".to_string());
             jvm_args.push(log4j_arg);
+            
+            // CRITICAL: Also set log4j.debug to see what configuration Log4j is actually using
+            // Remove this after debugging if needed
+            jvm_args.push("-Dlog4j.debug=true".to_string());
         }
 
         // Add Logback/Spring Boot logging level arguments
