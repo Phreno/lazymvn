@@ -14,16 +14,20 @@ impl TuiState {
 
         // Add Log4j configuration arguments
         // For applications with custom Log4j initialization (like Log4jJbossLoggerFactory),
-        // we need BOTH the configuration file AND explicit logger overrides
+        // the custom factory loads log4j.properties BEFORE system properties are read.
+        // We need to force Log4j to:
+        // 1. Ignore the Thread Context ClassLoader (use system classloader instead)
+        // 2. Disable default initialization
+        // 3. Point to our configuration file
         if let Some(log4j_arg) = self.generate_log4j_jvm_arg() {
-            // Prevent Log4j from auto-loading log4j.properties from classpath
-            // This ensures our configuration file takes precedence
-            jvm_args.push("-Dlog4j.defaultInitOverride=true".to_string());
-            jvm_args.push(log4j_arg);
+            // Force Log4j to use the system classloader (prevents custom factories from loading embedded config)
+            jvm_args.push("-Dlog4j.ignoreTCL=true".to_string());
             
-            // CRITICAL: Also set log4j.debug to see what configuration Log4j is actually using
-            // Remove this after debugging if needed
-            jvm_args.push("-Dlog4j.debug=true".to_string());
+            // Prevent Log4j from auto-loading log4j.properties from classpath
+            jvm_args.push("-Dlog4j.defaultInitOverride=true".to_string());
+            
+            // Point to our configuration file
+            jvm_args.push(log4j_arg);
         }
 
         // Add Logback/Spring Boot logging level arguments
