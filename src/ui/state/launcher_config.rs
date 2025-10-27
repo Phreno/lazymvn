@@ -14,6 +14,9 @@ impl TuiState {
 
         // Add Log4j configuration arguments
         if let Some(log4j_arg) = self.generate_log4j_jvm_arg() {
+            // Prevent Log4j from auto-loading log4j.properties from classpath
+            // This ensures our configuration file takes precedence
+            jvm_args.push("-Dlog4j.defaultInitOverride=true".to_string());
             jvm_args.push(log4j_arg);
         }
 
@@ -62,6 +65,8 @@ impl TuiState {
         let config_url = Self::path_to_file_url(&log4j_config_path);
         log::info!("Injecting Log4j 1.x configuration: {}", config_url);
 
+        // Return both the configuration file URL and the defaultInitOverride flag
+        // The defaultInitOverride prevents Log4j from auto-loading log4j.properties from classpath
         Some(format!("-Dlog4j.configuration={}", config_url))
     }
 
