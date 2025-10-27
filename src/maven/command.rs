@@ -22,8 +22,10 @@ fn extract_log4j_config_url(args: &[&str]) -> Option<String> {
     for arg in args {
         // Check if this is a JVM arguments string
         if arg.starts_with("-Drun.jvmArguments=") || arg.starts_with("-Dspring-boot.run.jvmArguments=") {
-            // Extract the value part after the '='
-            if let Some(jvm_args_str) = arg.split('=').nth(1) {
+            // Extract the value part after the FIRST '=' using splitn(2, '=')
+            // This is critical because the value contains multiple '=' signs
+            // Example: "-Drun.jvmArguments=-Dlog4j.configuration=file:///..."
+            if let Some(jvm_args_str) = arg.splitn(2, '=').nth(1) {
                 // Look for -Dlog4j.configuration=file:///...
                 for part in jvm_args_str.split_whitespace() {
                     if part.starts_with("-Dlog4j.configuration=") {
@@ -760,6 +762,37 @@ pub fn execute_maven_command_async_with_options(
 mod tests {
     use super::*;
     use std::path::PathBuf;
+
+    #[test]
+    fn test_extract_log4j_config_url_spring_boot_1x() {
+        let args = vec![
+            "-Drun.jvmArguments=-Dlog4j.ignoreTCL=true -Dlog4j.configuration=file:///C:/Users/test/log4j.properties"
+        ];
+        let result = extract_log4j_config_url(&args);
+        assert_eq!(
+            result,
+            Some("file:///C:/Users/test/log4j.properties".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_log4j_config_url_spring_boot_2x() {
+        let args = vec![
+            "-Dspring-boot.run.jvmArguments=-Dlog4j.configuration=file:///tmp/log4j.properties"
+        ];
+        let result = extract_log4j_config_url(&args);
+        assert_eq!(
+            result,
+            Some("file:///tmp/log4j.properties".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_log4j_config_url_not_found() {
+        let args = vec!["-Dsome.other.property=value"];
+        let result = extract_log4j_config_url(&args);
+        assert_eq!(result, None);
+    }
 
     #[test]
     fn test_build_command_string_basic() {
