@@ -317,22 +317,17 @@ pub fn execute_maven_command_with_options(
     // CRITICAL: Set JAVA_TOOL_OPTIONS environment variable to inject Log4j configuration
     // This ensures Log4j properties are set BEFORE any application code runs
     // (including custom factories like Log4jJbossLoggerFactory that initialize in constructors)
-    if logging_config.is_some() {
-        let mut java_tool_opts = Vec::new();
-        
-        // Add Log4j configuration URL if present
-        if let Some(log4j_config_url) = extract_log4j_config_url(args) {
-            java_tool_opts.push("-Dlog4j.ignoreTCL=true".to_string());
-            java_tool_opts.push("-Dlog4j.defaultInitOverride=true".to_string());
-            java_tool_opts.push(format!("-Dlog4j.configuration={}", log4j_config_url));
-            log::info!("Setting JAVA_TOOL_OPTIONS with Log4j configuration: {}", log4j_config_url);
-        }
-        
-        if !java_tool_opts.is_empty() {
-            let opts_str = java_tool_opts.join(" ");
-            command.env("JAVA_TOOL_OPTIONS", &opts_str);
-            log::info!("JAVA_TOOL_OPTIONS={}", opts_str);
-        }
+    // Check for Log4j config URL in args (always present for Spring Boot, regardless of logging_config)
+    if let Some(log4j_config_url) = extract_log4j_config_url(args) {
+        let opts_str = format!(
+            "-Dlog4j.ignoreTCL=true -Dlog4j.defaultInitOverride=true -Dlog4j.configuration={}",
+            log4j_config_url
+        );
+        log::info!("Setting JAVA_TOOL_OPTIONS with Log4j configuration: {}", log4j_config_url);
+        log::info!("JAVA_TOOL_OPTIONS={}", opts_str);
+        command.env("JAVA_TOOL_OPTIONS", &opts_str);
+    } else {
+        log::debug!("No Log4j configuration URL found in args");
     }
     
     if let Some(settings_path) = settings_path {
@@ -594,22 +589,17 @@ pub fn execute_maven_command_async_with_options(
     // CRITICAL: Set JAVA_TOOL_OPTIONS environment variable to inject Log4j configuration
     // This ensures Log4j properties are set BEFORE any application code runs
     // (including custom factories like Log4jJbossLoggerFactory that initialize in constructors)
-    if logging_config.is_some() {
-        let mut java_tool_opts = Vec::new();
-        
-        // Add Log4j configuration URL if present
-        if let Some(log4j_config_url) = extract_log4j_config_url(args) {
-            java_tool_opts.push("-Dlog4j.ignoreTCL=true".to_string());
-            java_tool_opts.push("-Dlog4j.defaultInitOverride=true".to_string());
-            java_tool_opts.push(format!("-Dlog4j.configuration={}", log4j_config_url));
-            log::info!("Setting JAVA_TOOL_OPTIONS with Log4j configuration: {}", log4j_config_url);
-        }
-        
-        if !java_tool_opts.is_empty() {
-            let opts_str = java_tool_opts.join(" ");
-            command.env("JAVA_TOOL_OPTIONS", &opts_str);
-            log::info!("JAVA_TOOL_OPTIONS={}", opts_str);
-        }
+    // Check for Log4j config URL in args (always present for Spring Boot, regardless of logging_config)
+    if let Some(log4j_config_url) = extract_log4j_config_url(args) {
+        let opts_str = format!(
+            "-Dlog4j.ignoreTCL=true -Dlog4j.defaultInitOverride=true -Dlog4j.configuration={}",
+            log4j_config_url
+        );
+        log::info!("Setting JAVA_TOOL_OPTIONS with Log4j configuration: {}", log4j_config_url);
+        log::info!("JAVA_TOOL_OPTIONS={}", opts_str);
+        command.env("JAVA_TOOL_OPTIONS", &opts_str);
+    } else {
+        log::debug!("No Log4j configuration URL found in args");
     }
     
     if let Some(settings_path) = settings_path {
