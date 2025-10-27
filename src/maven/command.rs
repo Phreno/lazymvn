@@ -190,19 +190,7 @@ pub fn build_command_string_with_options(
     }
 
     for arg in args {
-        // Quote arguments that contain spaces or special chars on Windows
-        #[cfg(windows)]
-        {
-            if arg.contains(' ') || arg.contains('=') && arg.starts_with("-D") {
-                parts.push(format!("\"{}\"", arg));
-            } else {
-                parts.push(arg.to_string());
-            }
-        }
-        #[cfg(not(windows))]
-        {
-            parts.push(arg.to_string());
-        }
+        parts.push(arg.to_string());
     }
 
     parts.join(" ")

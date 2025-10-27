@@ -108,14 +108,14 @@ pub fn build_launch_command(
             if !profiles.is_empty() {
                 // Pass profiles using version-appropriate property
                 let profiles_arg = format!("-D{}={}", profiles_property, profiles.join(","));
-                command_parts.push(quote_arg_for_platform(&profiles_arg));
+                command_parts.push(profiles_arg);
             }
 
             if !jvm_args.is_empty() {
                 // Pass JVM args using version-appropriate property
                 let jvm_args_str = jvm_args.join(" ");
                 let jvm_arg = format!("-D{}={}", jvm_args_property, jvm_args_str);
-                command_parts.push(quote_arg_for_platform(&jvm_arg));
+                command_parts.push(jvm_arg);
             }
 
             // For Spring Boot 1.x, use full plugin coordinates because Maven may not
@@ -143,24 +143,24 @@ pub fn build_launch_command(
             // Build exec:java command with mainClass
             if let Some(mc) = main_class {
                 let main_class_arg = format!("-Dexec.mainClass={}", mc);
-                command_parts.push(quote_arg_for_platform(&main_class_arg));
+                command_parts.push(main_class_arg);
             }
 
             // For WAR packaging, use compile scope to include provided dependencies (servlet-api, etc.)
             // This fixes javax.servlet.Filter NoClassDefFoundError issues
             if packaging == Some("war") {
-                command_parts.push(quote_arg_for_platform("-Dexec.classpathScope=compile"));
+                command_parts.push("-Dexec.classpathScope=compile".to_string());
                 log::info!(
                     "WAR packaging detected: adding -Dexec.classpathScope=compile to include provided dependencies"
                 );
             }
 
             // Add cleanup daemon threads flag for better shutdown behavior
-            command_parts.push(quote_arg_for_platform("-Dexec.cleanupDaemonThreads=false"));
+            command_parts.push("-Dexec.cleanupDaemonThreads=false".to_string());
 
             // Add JVM args as system properties
             for arg in jvm_args {
-                command_parts.push(quote_arg_for_platform(arg));
+                command_parts.push(arg.clone());
             }
 
             command_parts.push("exec:java".to_string());
@@ -357,6 +357,12 @@ pub fn detect_spring_boot_capabilities(
 /// let expected = "-Dspring-boot.run.profiles=dev";
 /// // The function handles this automatically
 /// ```
+/// # Deprecated
+///
+/// This function is no longer needed because Rust's `Command::arg()` automatically
+/// handles argument quoting on all platforms. Arguments should be passed directly
+/// without manual quoting.
+#[allow(dead_code)]
 pub fn quote_arg_for_platform(arg: &str) -> String {
     #[cfg(windows)]
     {

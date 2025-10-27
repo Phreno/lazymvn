@@ -87,34 +87,23 @@ for flag in flags {
 - Le flag est ensuite split sur les espaces
 - Chaque partie est ajoutée comme un argument séparé
 
-### Fix 3 : Quoting des arguments sur Windows
+### Fix 3 : Suppression du double quoting
 
-**Ajouté dans `build_command_string_with_options`** :
+**Problème** : La fonction `quote_arg_for_platform()` ajoutait manuellement des guillemets aux arguments `-D...` sur Windows, mais **Rust's `Command::arg()` gère déjà automatiquement le quoting** sur toutes les plateformes.
+
+**Résultat** : Double quoting → `""-Drun.jvmArguments=..."` au lieu de `-Drun.jvmArguments=...`
+
+**Solution** : Supprimer l'utilisation de `quote_arg_for_platform()` et passer les arguments directement.
+
 ```rust
-for arg in args {
-    // Quote arguments that contain spaces or special chars on Windows
-    #[cfg(windows)]
-    {
-        if arg.contains(' ') || arg.contains('=') && arg.starts_with("-D") {
-            parts.push(format!("\"{}\"", arg));
-        } else {
-            parts.push(arg.to_string());
-        }
-    }
-    #[cfg(not(windows))]
-    {
-        parts.push(arg.to_string());
-    }
-}
+// AVANT ❌
+command_parts.push(quote_arg_for_platform(&jvm_arg));
+
+// APRÈS ✅
+command_parts.push(jvm_arg);
 ```
 
-**Comportement** :
-- Sur Windows uniquement
-- Arguments contenant des espaces → quotés
-- Arguments `-D...=...` → quotés
-- Autres arguments → non quotés
-
-**Note importante** : `Rust's Command::arg()` gère **automatiquement le quoting** lors de l'exécution. Ce fix concerne principalement l'**affichage de la commande** dans les logs pour faciliter le debug.
+**Principe fondamental** : **Ne jamais quoter manuellement les arguments passés à `Command::arg()`**. Rust gère automatiquement le quoting pour tous les shells (cmd.exe, PowerShell, bash, etc.).
 
 ## Impact
 
