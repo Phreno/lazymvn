@@ -374,6 +374,7 @@ fn execute_maven_command_complex_scenario() {
     assert!(cmd.contains("-P dev,test"));
     assert!(cmd.contains("-pl web"));
     assert!(cmd.contains("-X"));
-    assert!(cmd.contains("--also-make"));
+    // --also-make should be FILTERED for spring-boot:run (reactor compatibility)
+    assert!(!cmd.contains("--also-make"), "Expected --also-make to be filtered for spring-boot:run");
     assert!(cmd.contains("spring-boot:run"));
 }
