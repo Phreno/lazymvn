@@ -12,6 +12,32 @@ use std::{
 
 use super::process::CommandUpdate;
 
+/// Extract Log4j configuration URL from Maven JVM arguments
+///
+/// Searches for `-Dlog4j.configuration=file:///...` in the JVM arguments string
+/// (either in -Drun.jvmArguments or -Dspring-boot.run.jvmArguments).
+///
+/// Returns the full file:/// URL if found.
+fn extract_log4j_config_url(args: &[&str]) -> Option<String> {
+    for arg in args {
+        // Check if this is a JVM arguments string
+        if arg.starts_with("-Drun.jvmArguments=") || arg.starts_with("-Dspring-boot.run.jvmArguments=") {
+            // Extract the value part after the '='
+            if let Some(jvm_args_str) = arg.split('=').nth(1) {
+                // Look for -Dlog4j.configuration=file:///...
+                for part in jvm_args_str.split_whitespace() {
+                    if part.starts_with("-Dlog4j.configuration=") {
+                        if let Some(config_url) = part.strip_prefix("-Dlog4j.configuration=") {
+                            return Some(config_url.to_string());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
 /// Extract logging overrides from config
 ///
 /// # Examples
@@ -287,6 +313,28 @@ pub fn execute_maven_command_with_options(
     }
 
     let mut command = Command::new(&maven_command);
+    
+    // CRITICAL: Set JAVA_TOOL_OPTIONS environment variable to inject Log4j configuration
+    // This ensures Log4j properties are set BEFORE any application code runs
+    // (including custom factories like Log4jJbossLoggerFactory that initialize in constructors)
+    if logging_config.is_some() {
+        let mut java_tool_opts = Vec::new();
+        
+        // Add Log4j configuration URL if present
+        if let Some(log4j_config_url) = extract_log4j_config_url(args) {
+            java_tool_opts.push("-Dlog4j.ignoreTCL=true".to_string());
+            java_tool_opts.push("-Dlog4j.defaultInitOverride=true".to_string());
+            java_tool_opts.push(format!("-Dlog4j.configuration={}", log4j_config_url));
+            log::info!("Setting JAVA_TOOL_OPTIONS with Log4j configuration: {}", log4j_config_url);
+        }
+        
+        if !java_tool_opts.is_empty() {
+            let opts_str = java_tool_opts.join(" ");
+            command.env("JAVA_TOOL_OPTIONS", &opts_str);
+            log::info!("JAVA_TOOL_OPTIONS={}", opts_str);
+        }
+    }
+    
     if let Some(settings_path) = settings_path {
         command.arg("--settings").arg(settings_path);
         log::debug!("Added settings argument: {}", settings_path);

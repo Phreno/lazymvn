@@ -14,19 +14,25 @@ impl TuiState {
 
         // Add Log4j configuration arguments
         // For applications with custom Log4j initialization (like Log4jJbossLoggerFactory),
-        // the custom factory loads log4j.properties BEFORE system properties are read.
-        // We need to force Log4j to:
-        // 1. Ignore the Thread Context ClassLoader (use system classloader instead)
-        // 2. Disable default initialization
-        // 3. Point to our configuration file
+        // the custom factory loads log4j.properties from classpath using Thread Context ClassLoader.
+        // This happens BEFORE our system properties can take effect.
+        //
+        // Strategy: Completely disable Log4j auto-configuration and force manual configuration:
+        // 1. ignoreTCL=true: Bypass Thread Context ClassLoader
+        // 2. defaultInitOverride=true: Disable automatic initialization
+        // 3. configurationClass=...: Force manual configurator (prevents PropertyConfigurator auto-run)
         if let Some(log4j_arg) = self.generate_log4j_jvm_arg() {
-            // Force Log4j to use the system classloader (prevents custom factories from loading embedded config)
+            // Prevent Thread Context ClassLoader from finding embedded log4j.properties
             jvm_args.push("-Dlog4j.ignoreTCL=true".to_string());
             
-            // Prevent Log4j from auto-loading log4j.properties from classpath
+            // Disable Log4j automatic initialization completely
             jvm_args.push("-Dlog4j.defaultInitOverride=true".to_string());
             
-            // Point to our configuration file
+            // Disable PropertyConfigurator (the component that auto-loads log4j.properties)
+            // By specifying a manual configurator, we prevent auto-detection
+            jvm_args.push("-Dlog4j.configuratorClass=org.apache.log4j.PropertyConfigurator".to_string());
+            
+            // Point to our configuration file (this will be used by manual configurator)
             jvm_args.push(log4j_arg);
         }
 
