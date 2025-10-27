@@ -191,7 +191,7 @@ pub fn build_command_string_with_options(
 
     let has_spring_boot_jvm_args = args
         .iter()
-        .any(|arg| arg.starts_with("-Dspring-boot.run.jvmArguments="));
+        .any(|arg| arg.starts_with("-Dspring-boot.run.jvmArguments=") || arg.starts_with("-Drun.jvmArguments="));
 
     if let Some(logging_config) = logging_config
         && !has_spring_boot_jvm_args
@@ -373,7 +373,7 @@ pub fn execute_maven_command_with_options(
 
     let has_spring_boot_jvm_args = args
         .iter()
-        .any(|arg| arg.starts_with("-Dspring-boot.run.jvmArguments="));
+        .any(|arg| arg.starts_with("-Dspring-boot.run.jvmArguments=") || arg.starts_with("-Drun.jvmArguments="));
 
     // Add logging overrides
     if !has_spring_boot_jvm_args {
@@ -391,7 +391,7 @@ pub fn execute_maven_command_with_options(
         }
     } else {
         log::debug!(
-            "Skipping logging overrides as Maven properties (already in spring-boot.run.jvmArguments)"
+            "Skipping logging overrides as Maven properties (already in JVM arguments for Spring Boot)"
         );
     }
 
@@ -577,11 +577,12 @@ pub fn execute_maven_command_async_with_options(
 
     // Add logging overrides
     // Note: For spring-boot:run, logging overrides are already included in
-    // -Dspring-boot.run.jvmArguments= (see build_launch_command in detection.rs).
+    // -Dspring-boot.run.jvmArguments= (Spring Boot 2.x+) or
+    // -Drun.jvmArguments= (Spring Boot 1.x) (see build_launch_command in detection.rs).
     // We only add them as Maven system properties for other launch strategies.
     let has_spring_boot_jvm_args = args
         .iter()
-        .any(|arg| arg.starts_with("-Dspring-boot.run.jvmArguments="));
+        .any(|arg| arg.starts_with("-Dspring-boot.run.jvmArguments=") || arg.starts_with("-Drun.jvmArguments="));
     if !has_spring_boot_jvm_args {
         if let Some(logging_config) = logging_config
             && let Some(log_format) = &logging_config.log_format
@@ -597,7 +598,7 @@ pub fn execute_maven_command_async_with_options(
         }
     } else {
         log::debug!(
-            "Skipping logging overrides as Maven properties (already in spring-boot.run.jvmArguments)"
+            "Skipping logging overrides as Maven properties (already in JVM arguments for Spring Boot)"
         );
     }
 
@@ -981,6 +982,42 @@ mod tests {
         assert!(
             !cmd.contains("-Dlog4j.logger.com.example=DEBUG"),
             "command should not add log4j logger overrides when spring-boot.run.jvmArguments present: {cmd}"
+        );
+    }
+
+    #[test]
+    fn test_build_command_string_skips_logging_props_for_spring_boot_1x() {
+        use crate::core::config::PackageLogLevel;
+        let logging_config = LoggingConfig {
+            log_format: Some("[%p] %c - %m%n".to_string()),
+            packages: vec![PackageLogLevel {
+                name: "com.example".to_string(),
+                level: "DEBUG".to_string(),
+            }],
+        };
+        let cmd = build_command_string_with_options(
+            "mvn",
+            Some("app"),
+            &[
+                "-Drun.profiles=dev",
+                "-Drun.jvmArguments=-Dlog4j.configuration=file:///path/to/log4j.properties",
+                "org.springframework.boot:spring-boot-maven-plugin:1.2.2.RELEASE:run",
+            ],
+            &["dev".to_string()],
+            Some("settings.xml"),
+            &[],
+            false,
+            &PathBuf::from("/workspace"),
+            Some(&logging_config),
+        );
+
+        assert!(
+            !cmd.contains("-Dlog4j.conversionPattern="),
+            "command should not add log4j conversion pattern when run.jvmArguments present (Spring Boot 1.x): {cmd}"
+        );
+        assert!(
+            !cmd.contains("-Dlog4j.logger.com.example=DEBUG"),
+            "command should not add log4j logger overrides when run.jvmArguments present (Spring Boot 1.x): {cmd}"
         );
     }
 }
