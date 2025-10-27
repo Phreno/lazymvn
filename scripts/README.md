@@ -28,6 +28,11 @@ This directory contains test scripts for validating LazyMVN features.
   - Validates per-tab profile independence
   - Usage: `./scripts/test-profile-loading.sh`
 
+- **[test-log4j-filtering.sh](test-log4j-filtering.sh)** - Test Log4j 1.x logging level filtering
+  - Validates Log4j logger arguments generation
+  - Tests both Log4j 1.x and Logback argument injection
+  - Usage: `./scripts/test-log4j-filtering.sh`
+
 ### System Tests
 
 - **[test-env.sh](test-env.sh)** - Test environment setup

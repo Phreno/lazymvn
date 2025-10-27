@@ -66,11 +66,15 @@ impl TuiState {
     }
 
     /// Add Logback/Spring Boot logging level arguments
+    /// Also adds Log4j 1.x logger arguments for compatibility
     pub(super) fn add_logback_logging_args(&self, jvm_args: &mut Vec<String>) {
         let tab = self.get_active_tab();
         if let Some(ref logging_config) = tab.config.logging {
             for pkg in &logging_config.packages {
+                // Add both Logback (Spring Boot) and Log4j 1.x arguments
+                // This ensures logging levels work regardless of the framework
                 jvm_args.push(format!("-Dlogging.level.{}={}", pkg.name, pkg.level));
+                jvm_args.push(format!("-Dlog4j.logger.{}={}", pkg.name, pkg.level));
             }
         }
     }
