@@ -118,10 +118,22 @@ pub fn build_launch_command(
                 command_parts.push(quote_arg_for_platform(&jvm_arg));
             }
 
-            command_parts.push("spring-boot:run".to_string());
+            // For Spring Boot 1.x, use full plugin coordinates because Maven may not
+            // resolve the 'spring-boot' prefix correctly with old plugin group IDs
+            let goal = if is_spring_boot_1x && spring_boot_version.is_some() {
+                format!(
+                    "org.springframework.boot:spring-boot-maven-plugin:{}:run",
+                    spring_boot_version.unwrap()
+                )
+            } else {
+                "spring-boot:run".to_string()
+            };
+
+            command_parts.push(goal.clone());
 
             log::info!(
-                "Built spring-boot:run command (v{}) with {} profile(s) and {} JVM arg(s)",
+                "Built {} command (v{}) with {} profile(s) and {} JVM arg(s)",
+                goal,
                 spring_boot_version.unwrap_or("unknown"),
                 profiles.len(),
                 jvm_args.len()
@@ -695,8 +707,11 @@ mod tests {
         // Should have JVM args
         assert!(cmd.iter().any(|arg| arg.contains("-Xmx512m")));
         assert!(cmd.iter().any(|arg| arg.contains("-Ddebug=true")));
-        // Should end with goal
-        assert_eq!(cmd.last().unwrap(), "spring-boot:run");
+        // Should end with full plugin coordinates for Spring Boot 1.x
+        assert_eq!(
+            cmd.last().unwrap(),
+            "org.springframework.boot:spring-boot-maven-plugin:1.2.2.RELEASE:run"
+        );
     }
 
     #[test]

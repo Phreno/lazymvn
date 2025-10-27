@@ -88,6 +88,29 @@ self.execute_launch_command(
 );
 ```
 
+### 4. Use Full Plugin Coordinates for Spring Boot 1.x
+
+For Spring Boot 1.x, use full `groupId:artifactId:version:goal` format instead of the short `spring-boot:run` prefix:
+
+```rust
+// For Spring Boot 1.x, use full plugin coordinates because Maven may not
+// resolve the 'spring-boot' prefix correctly with old plugin group IDs
+let goal = if is_spring_boot_1x && spring_boot_version.is_some() {
+    format!(
+        "org.springframework.boot:spring-boot-maven-plugin:{}:run",
+        spring_boot_version.unwrap()
+    )
+} else {
+    "spring-boot:run".to_string()
+};
+```
+
+**Why?** Maven 3.8.2+ may not resolve the `spring-boot` prefix for very old versions (1.x) because the plugin groupId changed. Using full coordinates bypasses plugin resolution.
+
+**Example commands**:
+- Spring Boot 1.2.2: `org.springframework.boot:spring-boot-maven-plugin:1.2.2.RELEASE:run`
+- Spring Boot 2.5.0: `spring-boot:run`
+
 ## Testing
 
 ### Unit Tests

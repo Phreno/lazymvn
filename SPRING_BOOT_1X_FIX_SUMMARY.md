@@ -21,7 +21,20 @@ LazyMVN now:
 
 1. **Detects the Spring Boot plugin version** from your effective POM
 2. **Automatically uses the correct property syntax** based on the detected version
-3. **Maintains full compatibility** with both Spring Boot 1.x and 2.x+ applications
+3. **Uses full plugin coordinates for Spring Boot 1.x** to avoid Maven plugin resolution issues
+4. **Maintains full compatibility** with both Spring Boot 1.x and 2.x+ applications
+
+### What Changed?
+
+**For Spring Boot 1.x (e.g., 1.2.2.RELEASE)**:
+- Property: `-Drun.jvmArguments` (not `-Dspring-boot.run.jvmArguments`)
+- Goal: `org.springframework.boot:spring-boot-maven-plugin:1.2.2.RELEASE:run` (full coordinates)
+
+**For Spring Boot 2.x+ (e.g., 2.5.0)**:
+- Property: `-Dspring-boot.run.jvmArguments`
+- Goal: `spring-boot:run` (short prefix)
+
+**Why full coordinates for 1.x?** Maven 3.8.2+ doesn't always resolve the `spring-boot` prefix correctly for very old plugin versions because the groupId structure changed. Using full coordinates bypasses plugin resolution.
 
 ## What You Need to Do
 
@@ -51,7 +64,7 @@ Found Spring Boot plugin version: 1.2.2.RELEASE
 
 ✅ **Correct property used** (for Spring Boot 1.x):
 ```
-Maven command: ... -Drun.jvmArguments="..." ...
+Maven command: ... -Drun.jvmArguments="..." org.springframework.boot:spring-boot-maven-plugin:1.2.2.RELEASE:run
 ```
 
 ✅ **Application logs formatted correctly**:
