@@ -1298,6 +1298,7 @@ impl TuiState {
                     &active_profiles,
                     &jvm_args,
                     detection.packaging.as_deref(),
+                    detection.spring_boot_version.as_deref(),
                 );
             }
             Err(e) => {
@@ -1346,6 +1347,7 @@ impl TuiState {
         active_profiles: &[String],
         jvm_args: &[String],
         packaging: Option<&str>,
+        spring_boot_version: Option<&str>,
     ) {
         let command_parts = crate::maven::build_launch_command(
             strategy,
@@ -1353,6 +1355,7 @@ impl TuiState {
             active_profiles,
             jvm_args,
             packaging,
+            spring_boot_version,
         );
 
         let args: Vec<&str> = command_parts.iter().map(|s| s.as_str()).collect();

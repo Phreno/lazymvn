@@ -10,6 +10,7 @@ pub struct SpringBootDetection {
     pub has_exec_plugin: bool,
     pub main_class: Option<String>,
     pub packaging: Option<String>,
+    pub spring_boot_version: Option<String>, // e.g. "1.2.2.RELEASE" or "2.5.4"
 }
 
 impl SpringBootDetection {
@@ -84,29 +85,44 @@ pub fn build_launch_command(
     profiles: &[String],
     jvm_args: &[String],
     packaging: Option<&str>,
+    spring_boot_version: Option<&str>,
 ) -> Vec<String> {
     let mut command_parts = Vec::new();
 
     match strategy {
         LaunchStrategy::SpringBootRun => {
+            // Determine the correct property prefix based on Spring Boot version
+            // Spring Boot 1.x uses -Drun.* properties
+            // Spring Boot 2.x+ uses -Dspring-boot.run.* properties
+            let is_spring_boot_1x = spring_boot_version
+                .map(|v| v.starts_with("1."))
+                .unwrap_or(false);
+
+            let (profiles_property, jvm_args_property) = if is_spring_boot_1x {
+                ("run.profiles", "run.jvmArguments")
+            } else {
+                ("spring-boot.run.profiles", "spring-boot.run.jvmArguments")
+            };
+
             // Build spring-boot:run command with parameters
             if !profiles.is_empty() {
-                // Pass profiles as spring-boot.run.profiles
-                let profiles_arg = format!("-Dspring-boot.run.profiles={}", profiles.join(","));
+                // Pass profiles using version-appropriate property
+                let profiles_arg = format!("-D{}={}", profiles_property, profiles.join(","));
                 command_parts.push(quote_arg_for_platform(&profiles_arg));
             }
 
             if !jvm_args.is_empty() {
-                // Pass JVM args as spring-boot.run.jvmArguments
+                // Pass JVM args using version-appropriate property
                 let jvm_args_str = jvm_args.join(" ");
-                let jvm_arg = format!("-Dspring-boot.run.jvmArguments={}", jvm_args_str);
+                let jvm_arg = format!("-D{}={}", jvm_args_property, jvm_args_str);
                 command_parts.push(quote_arg_for_platform(&jvm_arg));
             }
 
             command_parts.push("spring-boot:run".to_string());
 
             log::info!(
-                "Built spring-boot:run command with {} profile(s) and {} JVM arg(s)",
+                "Built spring-boot:run command (v{}) with {} profile(s) and {} JVM arg(s)",
+                spring_boot_version.unwrap_or("unknown"),
                 profiles.len(),
                 jvm_args.len()
             );
@@ -185,6 +201,7 @@ pub fn detect_spring_boot_capabilities(
         has_exec_plugin: false,
         main_class: None,
         packaging: None,
+        spring_boot_version: None,
     };
 
     // Parse the effective POM
@@ -229,6 +246,16 @@ pub fn detect_spring_boot_capabilities(
                     detection.has_spring_boot_plugin = true;
                     current_plugin_artifact_id = "spring-boot-maven-plugin".to_string();
                     log::debug!("Found spring-boot-maven-plugin");
+                }
+
+                // Extract version for Spring Boot plugin
+                if current_plugin_artifact_id == "spring-boot-maven-plugin"
+                    && trimmed.starts_with("<version>")
+                    && trimmed.contains("</version>")
+                    && let Some(version) = extract_tag_content(trimmed, "version")
+                {
+                    detection.spring_boot_version = Some(version.clone());
+                    log::debug!("Found Spring Boot plugin version: {}", version);
                 }
 
                 // Check for exec plugin
@@ -382,6 +409,7 @@ mod tests {
             has_exec_plugin: false,
             main_class: None,
             packaging: Some("jar".to_string()),
+            spring_boot_version: Some("2.5.0".to_string()),
         };
         assert!(detection.can_use_spring_boot_run());
     }
@@ -393,6 +421,7 @@ mod tests {
             has_exec_plugin: false,
             main_class: None,
             packaging: Some("war".to_string()),
+            spring_boot_version: Some("2.5.0".to_string()),
         };
         assert!(detection.can_use_spring_boot_run());
     }
@@ -404,6 +433,7 @@ mod tests {
             has_exec_plugin: true,
             main_class: Some("com.example.Main".to_string()),
             packaging: Some("jar".to_string()),
+            spring_boot_version: None,
         };
         assert!(!detection.can_use_spring_boot_run());
     }
@@ -415,6 +445,7 @@ mod tests {
             has_exec_plugin: false,
             main_class: None,
             packaging: Some("pom".to_string()),
+            spring_boot_version: Some("2.5.0".to_string()),
         };
         assert!(!detection.can_use_spring_boot_run());
     }
@@ -426,6 +457,7 @@ mod tests {
             has_exec_plugin: false,
             main_class: None,
             packaging: Some("war".to_string()),
+            spring_boot_version: Some("2.5.0".to_string()),
         };
         assert!(detection.should_prefer_spring_boot_run());
     }
@@ -437,6 +469,7 @@ mod tests {
             has_exec_plugin: false,
             main_class: None,
             packaging: Some("jar".to_string()),
+            spring_boot_version: Some("2.5.0".to_string()),
         };
         assert!(!detection.should_prefer_spring_boot_run());
     }
@@ -448,6 +481,7 @@ mod tests {
             has_exec_plugin: true,
             main_class: None,
             packaging: Some("jar".to_string()),
+            spring_boot_version: None,
         };
         assert!(detection.can_use_exec_java());
     }
@@ -459,6 +493,7 @@ mod tests {
             has_exec_plugin: false,
             main_class: Some("com.example.App".to_string()),
             packaging: Some("jar".to_string()),
+            spring_boot_version: None,
         };
         assert!(detection.can_use_exec_java());
     }
@@ -470,6 +505,7 @@ mod tests {
             has_exec_plugin: false,
             main_class: None,
             packaging: Some("jar".to_string()),
+            spring_boot_version: None,
         };
         assert!(!detection.can_use_exec_java());
     }
@@ -482,6 +518,7 @@ mod tests {
             has_exec_plugin: true,
             main_class: Some("com.example.Main".to_string()),
             packaging: Some("jar".to_string()),
+            spring_boot_version: None,
         };
         let strategy = decide_launch_strategy(&detection, LaunchMode::ForceRun);
         assert_eq!(strategy, LaunchStrategy::SpringBootRun);
@@ -494,6 +531,7 @@ mod tests {
             has_exec_plugin: false,
             main_class: None,
             packaging: Some("jar".to_string()),
+            spring_boot_version: Some("2.5.0".to_string()),
         };
         let strategy = decide_launch_strategy(&detection, LaunchMode::ForceExec);
         assert_eq!(strategy, LaunchStrategy::ExecJava);
@@ -506,6 +544,7 @@ mod tests {
             has_exec_plugin: false,
             main_class: None,
             packaging: Some("war".to_string()),
+            spring_boot_version: Some("2.5.0".to_string()),
         };
         let strategy = decide_launch_strategy(&detection, LaunchMode::Auto);
         assert_eq!(strategy, LaunchStrategy::SpringBootRun);
@@ -518,6 +557,7 @@ mod tests {
             has_exec_plugin: false,
             main_class: None,
             packaging: Some("jar".to_string()),
+            spring_boot_version: Some("2.5.0".to_string()),
         };
         let strategy = decide_launch_strategy(&detection, LaunchMode::Auto);
         assert_eq!(strategy, LaunchStrategy::SpringBootRun);
@@ -530,6 +570,7 @@ mod tests {
             has_exec_plugin: true,
             main_class: Some("com.example.Main".to_string()),
             packaging: Some("jar".to_string()),
+            spring_boot_version: None,
         };
         let strategy = decide_launch_strategy(&detection, LaunchMode::Auto);
         assert_eq!(strategy, LaunchStrategy::ExecJava);
@@ -542,6 +583,7 @@ mod tests {
             has_exec_plugin: false,
             main_class: None,
             packaging: Some("jar".to_string()),
+            spring_boot_version: None,
         };
         let strategy = decide_launch_strategy(&detection, LaunchMode::Auto);
         assert_eq!(strategy, LaunchStrategy::SpringBootRun);
@@ -550,7 +592,14 @@ mod tests {
     // Build command tests
     #[test]
     fn test_build_launch_command_spring_boot_basic() {
-        let cmd = build_launch_command(LaunchStrategy::SpringBootRun, None, &[], &[], Some("jar"));
+        let cmd = build_launch_command(
+            LaunchStrategy::SpringBootRun,
+            None,
+            &[],
+            &[],
+            Some("jar"),
+            Some("2.5.0"),
+        );
         assert_eq!(cmd, vec!["spring-boot:run"]);
     }
 
@@ -563,6 +612,7 @@ mod tests {
             &profiles,
             &[],
             Some("jar"),
+            Some("2.5.0"),
         );
         assert!(
             cmd.iter()
@@ -580,6 +630,7 @@ mod tests {
             &[],
             &jvm_args,
             Some("jar"),
+            Some("2.5.0"),
         );
         assert!(
             cmd.iter()
@@ -599,11 +650,47 @@ mod tests {
             &profiles,
             &jvm_args,
             Some("jar"),
+            Some("2.5.0"),
         );
         // Should have profiles
         assert!(
             cmd.iter()
                 .any(|arg| arg.contains("spring-boot.run.profiles=dev"))
+        );
+        // Should have JVM args
+        assert!(cmd.iter().any(|arg| arg.contains("-Xmx512m")));
+        assert!(cmd.iter().any(|arg| arg.contains("-Ddebug=true")));
+        // Should end with goal
+        assert_eq!(cmd.last().unwrap(), "spring-boot:run");
+    }
+
+    #[test]
+    fn test_build_launch_command_spring_boot_1x_uses_run_properties() {
+        // Test that Spring Boot 1.x uses -Drun.* properties instead of -Dspring-boot.run.*
+        let profiles = vec!["dev".to_string()];
+        let jvm_args = vec!["-Xmx512m".to_string(), "-Ddebug=true".to_string()];
+        let cmd = build_launch_command(
+            LaunchStrategy::SpringBootRun,
+            None,
+            &profiles,
+            &jvm_args,
+            Some("jar"),
+            Some("1.2.2.RELEASE"),
+        );
+        // Should use run.profiles for Spring Boot 1.x
+        assert!(
+            cmd.iter().any(|arg| arg.contains("run.profiles=dev")),
+            "Expected -Drun.profiles for Spring Boot 1.x"
+        );
+        // Should use run.jvmArguments for Spring Boot 1.x
+        assert!(
+            cmd.iter().any(|arg| arg.contains("run.jvmArguments")),
+            "Expected -Drun.jvmArguments for Spring Boot 1.x"
+        );
+        // Should NOT use spring-boot.run.* properties
+        assert!(
+            !cmd.iter().any(|arg| arg.contains("spring-boot.run.")),
+            "Should not use spring-boot.run.* properties for Spring Boot 1.x"
         );
         // Should have JVM args
         assert!(cmd.iter().any(|arg| arg.contains("-Xmx512m")));
@@ -620,6 +707,7 @@ mod tests {
             &[],
             &[],
             Some("jar"),
+            None,
         );
         assert_eq!(cmd.len(), 3);
         assert!(
@@ -638,6 +726,7 @@ mod tests {
             &[],
             &jvm_args,
             Some("jar"),
+            None,
         );
         // JVM args are passed directly for exec:java
         assert!(cmd.iter().any(|arg| arg.contains("-Xmx1g")));
@@ -649,7 +738,7 @@ mod tests {
 
     #[test]
     fn test_build_launch_command_exec_java_no_main_class() {
-        let cmd = build_launch_command(LaunchStrategy::ExecJava, None, &[], &[], Some("jar"));
+        let cmd = build_launch_command(LaunchStrategy::ExecJava, None, &[], &[], Some("jar"), None);
         // Should still work, relying on pom.xml configuration
         assert!(cmd.contains(&"exec:java".to_string()));
     }

@@ -13,6 +13,7 @@ fn test_spring_boot_detection_with_plugin() {
         has_exec_plugin: false,
         main_class: None,
         packaging: Some("jar".to_string()),
+        spring_boot_version: Some("2.5.0".to_string()),
     };
 
     assert!(
@@ -28,6 +29,7 @@ fn test_spring_boot_detection_with_war_packaging() {
         has_exec_plugin: false,
         main_class: None,
         packaging: Some("war".to_string()),
+        spring_boot_version: Some("2.5.0".to_string()),
     };
 
     assert!(
@@ -43,6 +45,7 @@ fn test_spring_boot_detection_with_pom_packaging() {
         has_exec_plugin: false,
         main_class: None,
         packaging: Some("pom".to_string()),
+        spring_boot_version: Some("2.5.0".to_string()),
     };
 
     assert!(
@@ -58,6 +61,7 @@ fn test_spring_boot_detection_fallback_to_exec() {
         has_exec_plugin: true,
         main_class: Some("com.example.App".to_string()),
         packaging: Some("jar".to_string()),
+        spring_boot_version: None,
     };
 
     assert!(
@@ -77,6 +81,7 @@ fn test_launch_strategy_auto_prefers_spring_boot() {
         has_exec_plugin: true,
         main_class: Some("com.example.App".to_string()),
         packaging: Some("jar".to_string()),
+        spring_boot_version: Some("2.5.0".to_string()),
     };
 
     let strategy = decide_launch_strategy(&detection, LaunchMode::Auto);
@@ -94,6 +99,7 @@ fn test_launch_strategy_auto_falls_back_to_exec() {
         has_exec_plugin: true,
         main_class: Some("com.example.App".to_string()),
         packaging: Some("jar".to_string()),
+        spring_boot_version: None,
     };
 
     let strategy = decide_launch_strategy(&detection, LaunchMode::Auto);
@@ -111,6 +117,7 @@ fn test_launch_strategy_force_run() {
         has_exec_plugin: true,
         main_class: Some("com.example.App".to_string()),
         packaging: Some("jar".to_string()),
+        spring_boot_version: None,
     };
 
     let strategy = decide_launch_strategy(&detection, LaunchMode::ForceRun);
@@ -128,6 +135,7 @@ fn test_launch_strategy_force_exec() {
         has_exec_plugin: false,
         main_class: None,
         packaging: Some("jar".to_string()),
+        spring_boot_version: Some("2.5.0".to_string()),
     };
 
     let strategy = decide_launch_strategy(&detection, LaunchMode::ForceExec);

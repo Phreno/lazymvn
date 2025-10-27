@@ -33,6 +33,12 @@ This directory contains test scripts for validating LazyMVN features.
   - Tests both Log4j 1.x and Logback argument injection
   - Usage: `./scripts/test-log4j-filtering.sh`
 
+- **[test-spring-boot-1x-fix.sh](test-spring-boot-1x-fix.sh)** - Test Spring Boot 1.x JVM arguments fix
+  - Validates version detection and property selection
+  - Tests Spring Boot 1.x uses `-Drun.*` properties
+  - Tests Spring Boot 2.x uses `-Dspring-boot.run.*` properties
+  - Usage: `./scripts/test-spring-boot-1x-fix.sh`
+
 ### System Tests
 
 - **[test-env.sh](test-env.sh)** - Test environment setup

@@ -14,6 +14,7 @@ fn test_build_launch_command_spring_boot_run() {
         &profiles,
         &jvm_args,
         None,
+        Some("2.5.0"),
     );
 
     // Should contain profiles argument
@@ -48,6 +49,7 @@ fn test_build_launch_command_exec_java() {
         &[],
         &jvm_args,
         None,
+        None,
     );
 
     // Should contain mainClass argument
@@ -81,7 +83,7 @@ fn test_build_launch_command_exec_java() {
 
 #[test]
 fn test_build_launch_command_exec_java_without_main_class() {
-    let command = build_launch_command(LaunchStrategy::ExecJava, None, &[], &[], None);
+    let command = build_launch_command(LaunchStrategy::ExecJava, None, &[], &[], None, None);
 
     // Should not contain mainClass if not provided
     assert!(
@@ -103,6 +105,7 @@ fn test_build_launch_command_exec_java_war_packaging() {
         &[],
         &[],
         Some("war"),
+        None,
     );
 
     // Should contain mainClass argument
@@ -145,6 +148,7 @@ fn test_build_launch_command_exec_java_jar_packaging() {
         &[],
         &[],
         Some("jar"),
+        None,
     );
 
     // Should contain mainClass argument
