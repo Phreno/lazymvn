@@ -1,6 +1,7 @@
 package io.github.phreno.lazymvn.agent;
 
 import java.lang.instrument.Instrumentation;
+import java.lang.reflect.Method;
 import java.net.URL;
 
 /**
@@ -58,23 +59,94 @@ public class Log4jReconfigAgent {
         @Override
         public void run() {
             try {
-                // Force reconfiguration multiple times to override any late Log4j reconfigurations
-                // This ensures LazyMVN config persists even if Log4jJbossLoggerFactory reconfigures late
+                // Monitor Log4j configuration and reconfigure only when needed
+                // This prevents appender closing issues from multiple reconfigurations
                 for (int attempt = 1; attempt <= 5; attempt++) {
-                    Thread.sleep(2000); // Wait 2 seconds between each attempt
+                    Thread.sleep(2000); // Wait 2 seconds between each check
                     
-                    System.err.println("[LazyMVN Agent] Reconfiguration attempt " + attempt + "/5...");
-                    reconfigureLog4j(configUrl);
+                    // Check if reconfiguration is needed by comparing current config
+                    if (isReconfigurationNeeded(configUrl)) {
+                        System.err.println("[LazyMVN Agent] Reconfiguration needed (attempt " + attempt + "/5)...");
+                        reconfigureLog4j(configUrl);
+                    } else {
+                        System.err.println("[LazyMVN Agent] Configuration check " + attempt + "/5 - LazyMVN config already active, skipping reconfiguration");
+                    }
                     
                     if (attempt == 5) {
-                        System.err.println("[LazyMVN Agent] Final reconfiguration completed");
-                        System.err.println("[LazyMVN Agent] LazyMVN log configuration should now persist");
+                        System.err.println("[LazyMVN Agent] Final check completed");
+                        System.err.println("[LazyMVN Agent] LazyMVN log configuration is active");
                     }
                 }
             } catch (InterruptedException e) {
                 System.err.println("[LazyMVN Agent] Thread interrupted: " + e.getMessage());
             }
-        }        /**
+        }
+
+        /**
+         * Check if Log4j reconfiguration is needed by comparing current configuration
+         * with the expected LazyMVN configuration.
+         * 
+         * @param configUrl URL to the LazyMVN Log4j configuration file
+         * @return true if reconfiguration is needed, false if LazyMVN config is already active
+         */
+        private boolean isReconfigurationNeeded(String configUrl) {
+            try {
+                // Get current Log4j configuration via reflection
+                Class<?> logManagerClass = Class.forName("org.apache.log4j.LogManager");
+                
+                // Get root logger to inspect current configuration
+                Method getRootLoggerMethod = logManagerClass.getMethod("getRootLogger");
+                Object rootLogger = getRootLoggerMethod.invoke(null);
+                
+                // Get current appenders
+                Method getAllAppendersMethod = rootLogger.getClass().getMethod("getAllAppenders");
+                Object appenders = getAllAppendersMethod.invoke(rootLogger);
+                
+                // Check if appenders exist (if not, reconfiguration needed)
+                Method hasMoreElementsMethod = appenders.getClass().getMethod("hasMoreElements");
+                boolean hasAppenders = (Boolean) hasMoreElementsMethod.invoke(appenders);
+                
+                if (!hasAppenders) {
+                    System.err.println("[LazyMVN Agent] No appenders found - reconfiguration needed");
+                    return true;
+                }
+                
+                // Get the first appender to check its layout
+                Method nextElementMethod = appenders.getClass().getMethod("nextElement");
+                Object appender = nextElementMethod.invoke(appenders);
+                
+                // Get the layout from the appender
+                Method getLayoutMethod = appender.getClass().getMethod("getLayout");
+                Object layout = getLayoutMethod.invoke(appender);
+                
+                if (layout == null) {
+                    System.err.println("[LazyMVN Agent] No layout found - reconfiguration needed");
+                    return true;
+                }
+                
+                // Get the conversion pattern from the layout
+                Method getConversionPatternMethod = layout.getClass().getMethod("getConversionPattern");
+                String currentPattern = (String) getConversionPatternMethod.invoke(layout);
+                
+                // Expected pattern from lazymvn.toml: "[%p][%c] %m%n"
+                String expectedPattern = "[%p][%c] %m%n";
+                
+                if (currentPattern != null && currentPattern.equals(expectedPattern)) {
+                    System.err.println("[LazyMVN Agent] LazyMVN pattern detected: " + currentPattern);
+                    return false; // Configuration already correct
+                } else {
+                    System.err.println("[LazyMVN Agent] Different pattern detected: " + currentPattern + " (expected: " + expectedPattern + ")");
+                    return true; // Reconfiguration needed
+                }
+                
+            } catch (Exception e) {
+                System.err.println("[LazyMVN Agent] Could not inspect current Log4j configuration: " + e.getMessage());
+                // If we can't inspect, better to reconfigure
+                return true;
+            }
+        }
+
+        /**
          * Reconfigures Log4j with the specified configuration URL.
          * Uses reflection to avoid compile-time dependency on Log4j.
          */
