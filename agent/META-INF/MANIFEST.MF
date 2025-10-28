@@ -1,0 +1,10 @@
+Manifest-Version: 1.0
+Created-By: Maven JAR Plugin 3.3.0
+Build-Jdk-Spec: 21
+Agent-Class: io.github.phreno.lazymvn.agent.Log4jReconfigAgent
+Can-Redefine-Classes: true
+Can-Retransform-Classes: true
+Implementation-Title: LazyMVN Log4j Reconfiguration Agent
+Implementation-Version: 0.1.0
+Premain-Class: io.github.phreno.lazymvn.agent.Log4jReconfigAgent
+

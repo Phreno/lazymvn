@@ -3,7 +3,8 @@
 //! Helper functions for building JVM arguments and Spring Boot configuration
 //! for launching applications with custom logging and properties.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::fs;
 
 use super::TuiState;
 
@@ -11,6 +12,18 @@ impl TuiState {
     /// Build JVM arguments from logging and Spring configurations
     pub(super) fn build_jvm_args_for_launcher(&self) -> Vec<String> {
         let mut jvm_args = Vec::new();
+
+        // Add Log4j Reconfiguration Java Agent FIRST (if Log4j config present)
+        // The agent will force reconfiguration 2 seconds after application start
+        // to override any custom Log4j initialization (like Log4jJbossLoggerFactory)
+        if let Some(_log4j_arg) = self.generate_log4j_jvm_arg() {
+            if let Some(agent_path) = Self::get_or_copy_log4j_agent() {
+                jvm_args.push(format!("-javaagent:{}", agent_path.display()));
+                log::info!("Injecting Log4j Reconfiguration Agent: {}", agent_path.display());
+            } else {
+                log::warn!("Failed to locate Log4j Reconfiguration Agent, proceeding without it");
+            }
+        }
 
         // Add Log4j configuration arguments
         // For applications with custom Log4j initialization (like Log4jJbossLoggerFactory),
@@ -21,7 +34,6 @@ impl TuiState {
         // 1. ignoreTCL=true: Bypass Thread Context ClassLoader
         // 2. defaultInitOverride=true: Disable automatic initialization
         // 3. configurationClass=...: Force manual configurator (prevents PropertyConfigurator auto-run)
-        // 4. debug=true: Enable Log4j debug output to trace configuration loading
         if let Some(log4j_arg) = self.generate_log4j_jvm_arg() {
             // Prevent Thread Context ClassLoader from finding embedded log4j.properties
             jvm_args.push("-Dlog4j.ignoreTCL=true".to_string());
@@ -33,10 +45,7 @@ impl TuiState {
             // By specifying a manual configurator, we prevent auto-detection
             jvm_args.push("-Dlog4j.configuratorClass=org.apache.log4j.PropertyConfigurator".to_string());
             
-            // Enable Log4j debug to trace configuration loading (TEMPORARY - for diagnosis)
-            jvm_args.push("-Dlog4j.debug=true".to_string());
-            
-            // Point to our configuration file (this will be used by manual configurator)
+            // Point to our configuration file (this will be used by manual configurator AND agent)
             jvm_args.push(log4j_arg);
         }
 
@@ -179,6 +188,48 @@ impl TuiState {
         } else {
             format!("file://{}", path.display())
         }
+    }
+
+    /// Get or copy the Log4j Reconfiguration Java Agent to config directory
+    /// Returns path to agent JAR if successful
+    fn get_or_copy_log4j_agent() -> Option<PathBuf> {
+        // Agent JAR is embedded in the binary at build time
+        const AGENT_JAR_BYTES: &[u8] = include_bytes!("../../../agent/target/log4j-reconfig-agent-0.1.0.jar");
+        
+        // Target path: ~/.config/lazymvn/agents/log4j-reconfig-agent.jar
+        let config_dir = dirs::config_dir()?;
+        let agent_dir = config_dir.join("lazymvn").join("agents");
+        let agent_path = agent_dir.join("log4j-reconfig-agent.jar");
+
+        // Create directory if it doesn't exist
+        if !agent_dir.exists() {
+            if let Err(e) = fs::create_dir_all(&agent_dir) {
+                log::error!("Failed to create agent directory {}: {}", agent_dir.display(), e);
+                return None;
+            }
+        }
+
+        // Copy agent JAR if not present or if size differs (version update)
+        let needs_copy = if agent_path.exists() {
+            match fs::metadata(&agent_path) {
+                Ok(meta) => meta.len() != AGENT_JAR_BYTES.len() as u64,
+                Err(_) => true,
+            }
+        } else {
+            true
+        };
+
+        if needs_copy {
+            if let Err(e) = fs::write(&agent_path, AGENT_JAR_BYTES) {
+                log::error!("Failed to copy agent JAR to {}: {}", agent_path.display(), e);
+                return None;
+            }
+            log::debug!("Copied Log4j agent JAR to {}", agent_path.display());
+        } else {
+            log::debug!("Log4j agent JAR already present at {}", agent_path.display());
+        }
+
+        Some(agent_path)
     }
 }
 
