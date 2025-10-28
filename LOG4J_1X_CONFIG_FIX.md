@@ -95,7 +95,7 @@ pub(super) fn build_jvm_args_for_launcher(&self) -> Vec<String> {
    [logging]
    log_format = "[%p][%c] %m%n"
    packages = [
-     { name = "fr.laposte.disf.fwmc", level = "WARN" },
+     { name = "fr.company.branch.fwmc", level = "WARN" },
      { name = "org.springframework", level = "WARN" },
      { name = "com.couchbase", level = "WARN" },
    ]
@@ -105,7 +105,7 @@ pub(super) fn build_jvm_args_for_launcher(&self) -> Vec<String> {
 
 3. **Vérifier le format de log** :
    ```
-   [INFO][fr.laposte.disf.assemblage.ApplicationStarter] Starting ApplicationStarter...
+   [INFO][fr.company.branch.assemblage.ApplicationStarter] Starting ApplicationStarter...
    ```
    ✅ Format `[%p][%c] %m%n` appliqué
 

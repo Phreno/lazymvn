@@ -6,8 +6,8 @@
 
 **Maven Error when running Spring Boot application:**
 ```
-[INFO] --- spring-boot-maven-plugin:1.2.2.RELEASE:run (default-cli) @ h6g-parent ---
-[ERROR] Failed to execute goal ... on project h6g-parent: 
+[INFO] --- spring-boot-maven-plugin:1.2.2.RELEASE:run (default-cli) @ application-parent ---
+[ERROR] Failed to execute goal ... on project application-parent: 
         Unable to find a suitable main class, please add a 'mainClass' property
 ```
 

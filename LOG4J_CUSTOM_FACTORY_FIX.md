@@ -16,7 +16,7 @@ When running with `-Dlog4j.debug=true`, we observed:
 Log4jJbossLoggerFactory : utilise le fichier log4j.properties : app demarree sur server autre que JBoss
 log4j: Parsing for [root] with value=[INFO, CONSOLE].
 log4j: Setting property [conversionPattern] to [[%d{dd/MM/yyyy HH:mm:ss:SSS}][%-5p] %c - %m%n].
-log4j: Category fr.laposte.disf.fwmc set to INFO
+log4j: Category fr.company.branch.fwmc set to INFO
 log4j: Category org.springframework set to INFO
 ```
 

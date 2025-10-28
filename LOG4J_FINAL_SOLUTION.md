@@ -29,10 +29,10 @@ log4j: Finished configuring.
 
 ... (code de l'application démarre)
 
-log4j: Parsing for [fr.laposte.disf.fwmc] with value=[INFO, CONSOLE].  ← RE-CONFIGURATION ❌
+log4j: Parsing for [fr.company.branch.fwmc] with value=[INFO, CONSOLE].  ← RE-CONFIGURATION ❌
 log4j: Parsing for [org.springframework] with value=[INFO, CONSOLE].   ← RE-CONFIGURATION ❌
 ...
-[28/10/2025 09:38:52:180][INFO ] fr.laposte.disf.fwmc...  ← ANCIEN FORMAT ❌
+[28/10/2025 09:38:52:180][INFO ] fr.company.branch.fwmc...  ← ANCIEN FORMAT ❌
 ```
 
 **Entre "Finished configuring" et la première ligne de log applicatif, l'application a RE-CONFIGURÉ Log4j avec son propre fichier !**
@@ -186,12 +186,12 @@ log4j: Finished configuring.
 
 ... (application démarre, re-configure Log4j)
 
-log4j: Parsing for [fr.laposte.disf.fwmc] with value=[INFO, CONSOLE].
-[28/10/2025 09:38:52:180][INFO ] fr.laposte.disf.fwmc...  ← ANCIEN FORMAT
+log4j: Parsing for [fr.company.branch.fwmc] with value=[INFO, CONSOLE].
+[28/10/2025 09:38:52:180][INFO ] fr.company.branch.fwmc...  ← ANCIEN FORMAT
 
 [LazyMVN Agent] Log4j reconfigured with: C:/Users/.../log4j-override-ec936686.properties
-[INFO][fr.laposte.disf.fwmc] Constructeur : initialisation du logger : OK  ← NOUVEAU FORMAT ✅
-[DEBUG][fr.laposte.disf.assemblage] Starting ApplicationStarter...  ← DEBUG LEVEL ✅
+[INFO][fr.company.branch.fwmc] Constructeur : initialisation du logger : OK  ← NOUVEAU FORMAT ✅
+[DEBUG][fr.company.branch.assemblage] Starting ApplicationStarter...  ← DEBUG LEVEL ✅
 ```
 
 ---

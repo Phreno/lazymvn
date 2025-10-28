@@ -92,7 +92,7 @@ cargo build --release
 lazymvn --debug
 
 # Appuyer sur Ctrl+R pour ouvrir recent projects
-# Sélectionner h6g-api
+# Sélectionner application-api
 # Appuyer sur 's' pour Spring Boot
 ```
 
@@ -138,16 +138,16 @@ lazymvn --debug
 
 **✅ FORMAT ATTENDU (LazyMVN) :**
 ```
-[INFO][fr.laposte.disf.assemblage] Starting ApplicationStarter...
-[DEBUG][fr.laposte.disf.assemblage] Loaded configuration from...
-[WARN][fr.laposte.disf.fwmc] Configuration warning...
+[INFO][fr.company.branch.assemblage] Starting ApplicationStarter...
+[DEBUG][fr.company.branch.assemblage] Loaded configuration from...
+[WARN][fr.company.branch.fwmc] Configuration warning...
 [INFO][org.springframework.data.repository.config.RepositoryConfigurationDelegate] Bootstrapping Spring Data...
 ```
 
 **❌ ANCIEN FORMAT (si agent échoue) :**
 ```
-[28/10/2025 10:06:28:716][INFO ] fr.laposte.disf.fwmc...
-[28/10/2025 10:06:28:817][INFO ] fr.laposte.disf.fwmc...
+[28/10/2025 10:06:28:716][INFO ] fr.company.branch.fwmc...
+[28/10/2025 10:06:28:817][INFO ] fr.company.branch.fwmc...
 ```
 
 ### 5️⃣ Vérifier les niveaux de log
@@ -156,16 +156,16 @@ lazymvn --debug
 
 ```toml
 packages = [
- { name = "fr.laposte.disf.fwmc"      , level = "WARN" } ,  ← Seulement WARN et ERROR
+ { name = "fr.company.branch.fwmc"      , level = "WARN" } ,  ← Seulement WARN et ERROR
  { name = "org.springframework"       , level = "WARN" } ,  ← Seulement WARN et ERROR
  { name = "com.couchbase"             , level = "WARN" } ,  ← Seulement WARN et ERROR
- { name = "fr.laposte.disf.assemblage", level = "DEBUG" },  ← Tous les logs (DEBUG+)
+ { name = "fr.company.branch.assemblage", level = "DEBUG" },  ← Tous les logs (DEBUG+)
 ]
 ```
 
 **Vérifications :**
-- ✅ `fr.laposte.disf.assemblage` : Logs **DEBUG** et **INFO** visibles
-- ✅ `fr.laposte.disf.fwmc` : Seulement logs **WARN** et **ERROR** (pas de DEBUG/INFO)
+- ✅ `fr.company.branch.assemblage` : Logs **DEBUG** et **INFO** visibles
+- ✅ `fr.company.branch.fwmc` : Seulement logs **WARN** et **ERROR** (pas de DEBUG/INFO)
 - ✅ `org.springframework` : Seulement logs **WARN** et **ERROR**
 - ✅ `com.couchbase` : Seulement logs **WARN** et **ERROR**
 
@@ -196,9 +196,9 @@ Cela me permettra de :
 [LazyMVN Agent] Final reconfiguration completed
 
 (puis TOUS les logs au format LazyMVN)
-[INFO][fr.laposte.disf.assemblage] ...
-[DEBUG][fr.laposte.disf.assemblage] ...
-[WARN][fr.laposte.disf.fwmc] ...
+[INFO][fr.company.branch.assemblage] ...
+[DEBUG][fr.company.branch.assemblage] ...
+[WARN][fr.company.branch.fwmc] ...
 ```
 
 **Conclusion** : ✅ **FIX RÉUSSI !** L'agent force la reconfiguration suffisamment de fois pour persister.
@@ -211,7 +211,7 @@ Cela me permettra de :
 [28/10/2025 10:06:28:716][INFO ] ...
 
 (nouveau format après 10 secondes)
-[INFO][fr.laposte.disf.assemblage] ...
+[INFO][fr.company.branch.assemblage] ...
 ```
 
 **Conclusion** : ⚠️ **PARTIELLEMENT RÉUSSI** - Besoin d'augmenter durée ou fréquence.
@@ -293,7 +293,7 @@ public Log4jJbossLoggerFactory() {
 
 - [ ] Compiler `cargo build --release`
 - [ ] Lancer `lazymvn --debug`
-- [ ] Ouvrir projet `h6g-api`
+- [ ] Ouvrir projet `application-api`
 - [ ] Lancer Spring Boot (`s`)
 - [ ] Observer logs de l'agent (5 tentatives)
 - [ ] Vérifier format logs après 10 secondes

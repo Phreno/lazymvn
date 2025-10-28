@@ -14,7 +14,7 @@ Le code vérifiait uniquement la présence de `-Dspring-boot.run.jvmArguments=` 
   ```toml
   [logging]
   packages = [
-    { name = "fr.laposte.disf.fwmc", level = "WARN" },
+    { name = "fr.company.branch.fwmc", level = "WARN" },
     { name = "org.springframework", level = "WARN" },
   ]
   ```
@@ -25,8 +25,8 @@ Le code vérifiait uniquement la présence de `-Dspring-boot.run.jvmArguments=` 
 mvn.cmd --settings settings.xml -pl module -DskipTests \
   -Dlog4j.conversionPattern=[%p][%c] %m%n \
   -Dlogging.pattern.console=[%p][%c] %m%n \
-  -Dlog4j.logger.fr.laposte.disf.fwmc=WARN \
-  -Dlogging.level.fr.laposte.disf.fwmc=WARN \
+  -Dlog4j.logger.fr.company.branch.fwmc=WARN \
+  -Dlogging.level.fr.company.branch.fwmc=WARN \
   -Dlog4j.logger.org.springframework=WARN \
   -Dlogging.level.org.springframework=WARN \
   -Drun.jvmArguments=-Dlog4j.configuration=file:///... \  # ← Spring Boot 1.x
@@ -121,7 +121,7 @@ cargo test --lib maven::command::tests
    ```toml
    [logging]
    packages = [
-     { name = "fr.laposte.disf.fwmc", level = "WARN" },
+     { name = "fr.company.branch.fwmc", level = "WARN" },
      { name = "org.springframework", level = "WARN" },
    ]
    ```

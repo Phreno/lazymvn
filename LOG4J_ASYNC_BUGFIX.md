@@ -124,7 +124,7 @@ Picked up JAVA_TOOL_OPTIONS: -Dlog4j.ignoreTCL=true -Dlog4j.defaultInitOverride=
    ```
 
 4. **Verify log format** changed to LazyMVN format:
-   - ✅ Expected: `[INFO][fr.laposte.disf.assemblage.ApplicationStarter]`
+   - ✅ Expected: `[INFO][fr.company.branch.assemblage.ApplicationStarter]`
    - ❌ Old: `[27/10/2025 21:00:44:340] [INFO ]`
 
 5. **If still not working**: Shift+Y for debug report

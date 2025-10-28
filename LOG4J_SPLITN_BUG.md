@@ -177,7 +177,7 @@ fn test_extract_log4j_config_url_not_found() {
 4. **ENFIN** voir dans les logs :
    - `INFO - Setting JAVA_TOOL_OPTIONS with Log4j configuration: file:///...`
    - `INFO - JAVA_TOOL_OPTIONS=-Dlog4j.ignoreTCL=true ...`
-   - Logs au format LazyMVN : `[INFO][fr.laposte.disf.assemblage] ...`
+   - Logs au format LazyMVN : `[INFO][fr.company.branch.assemblage] ...`
 
 ## Leçon Apprise
 
@@ -231,9 +231,9 @@ INFO - JAVA_TOOL_OPTIONS=-Dlog4j.ignoreTCL=true -Dlog4j.defaultInitOverride=true
 Et dans la sortie de l'application :
 
 ```
-[INFO][fr.laposte.disf.assemblage] ...  ← Format LazyMVN appliqué ✅
-[WARN][fr.laposte.disf.fwmc] ...         ← Niveau WARN respecté ✅
-[DEBUG][fr.laposte.disf.assemblage] ...  ← Niveau DEBUG respecté ✅
+[INFO][fr.company.branch.assemblage] ...  ← Format LazyMVN appliqué ✅
+[WARN][fr.company.branch.fwmc] ...         ← Niveau WARN respecté ✅
+[DEBUG][fr.company.branch.assemblage] ...  ← Niveau DEBUG respecté ✅
 ```
 
 **Pas** :

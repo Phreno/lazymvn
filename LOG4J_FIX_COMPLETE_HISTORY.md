@@ -199,7 +199,7 @@ if logging_config.is_some() {
 When application starts:
 ```
 Picked up JAVA_TOOL_OPTIONS: -Dlog4j.ignoreTCL=true -Dlog4j.defaultInitOverride=true -Dlog4j.configuration=file:///C:/Users/XVHR845/AppData/Roaming/lazymvn/log4j/log4j-override-ec936686.properties
-[INFO][fr.laposte.disf.assemblage.ApplicationStarter] Starting ApplicationStarter on T10J11103-0136
+[INFO][fr.company.branch.assemblage.ApplicationStarter] Starting ApplicationStarter on T10J11103-0136
 ```
 
 ### Outcome
@@ -244,14 +244,14 @@ User must test with real Spring Boot 1.x application and verify:
 -Dlog4j.defaultInitOverride=true
 -Dlog4j.configuratorClass=org.apache.log4j.PropertyConfigurator
 -Dlog4j.configuration=file:///C:/Users/.../lazymvn/log4j/log4j-override-ec936686.properties
--Dlogging.level.fr.laposte.disf.fwmc=WARN
--Dlog4j.logger.fr.laposte.disf.fwmc=WARN
+-Dlogging.level.fr.company.branch.fwmc=WARN
+-Dlog4j.logger.fr.company.branch.fwmc=WARN
 -Dlogging.level.org.springframework=WARN
 -Dlog4j.logger.org.springframework=WARN
 -Dlogging.level.com.couchbase=WARN
 -Dlog4j.logger.com.couchbase=WARN
--Dlogging.level.fr.laposte.disf.assemblage=DEBUG
--Dlog4j.logger.fr.laposte.disf.assemblage=DEBUG
+-Dlogging.level.fr.company.branch.assemblage=DEBUG
+-Dlog4j.logger.fr.company.branch.assemblage=DEBUG
 -Dspring.config.additional-location=file:///C:/Users/.../lazymvn/spring/application-override-ec936686.properties
 ```
 

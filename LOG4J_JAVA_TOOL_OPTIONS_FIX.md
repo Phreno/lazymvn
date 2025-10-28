@@ -11,7 +11,7 @@ Despite three previous fixes, **log filtering STILL doesn't work** for Spring Bo
 
 ```
 Log4jJbossLoggerFactory : utilise le fichier log4j.properties : app demarree sur server autre que JBoss
-[27/10/2025 20:44:51:536] [INFO ] fr.laposte.disf.fwmc.core.error.impl.DefaultExceptionTranslator
+[27/10/2025 20:44:51:536] [INFO ] fr.company.branch.fwmc.core.error.impl.DefaultExceptionTranslator
 ```
 
 **Wrong format still used**: `[27/10/2025 20:44:51:536] [INFO ]` instead of `[INFO][package]`
@@ -198,12 +198,12 @@ if logging_config.is_some() {
    ```
 
 4. **Verify log format changed** to LazyMVN format:
-   - ✅ Expected: `[INFO][fr.laposte.disf.fwmc.core.error.impl.DefaultExceptionTranslator]`
-   - ❌ Old format: `[27/10/2025 20:44:51:536] [INFO ] fr.laposte.disf.fwmc.core.error.impl.DefaultExceptionTranslator`
+   - ✅ Expected: `[INFO][fr.company.branch.fwmc.core.error.impl.DefaultExceptionTranslator]`
+   - ❌ Old format: `[27/10/2025 20:44:51:536] [INFO ] fr.company.branch.fwmc.core.error.impl.DefaultExceptionTranslator`
 
 5. **Verify logging levels work**:
-   - `fr.laposte.disf.fwmc` INFO logs should NOT appear (configured as WARN)
-   - `fr.laposte.disf.assemblage` DEBUG logs SHOULD appear (configured as DEBUG)
+   - `fr.company.branch.fwmc` INFO logs should NOT appear (configured as WARN)
+   - `fr.company.branch.assemblage` DEBUG logs SHOULD appear (configured as DEBUG)
    - `org.springframework` INFO logs should NOT appear (configured as WARN)
    - `com.couchbase` INFO logs should NOT appear (configured as WARN)
 
@@ -223,7 +223,7 @@ This confirms the JVM picked up the environment variable.
 
 Then logs should appear in LazyMVN format:
 ```
-[INFO][fr.laposte.disf.assemblage.ApplicationStarter] Starting ApplicationStarter on T10J11103-0136
+[INFO][fr.company.branch.assemblage.ApplicationStarter] Starting ApplicationStarter on T10J11103-0136
 ```
 
 ## Why This Should Work
