@@ -976,6 +976,30 @@ impl TuiState {
         self.editor_command = Some((editor, config_path.to_string_lossy().to_string()));
     }
 
+    /// Refresh caches (profiles and starters) by forcing a reload
+    pub fn refresh_caches(&mut self) {
+        log::info!("Refreshing caches (profiles and starters)");
+        
+        // Get project root before any mutable borrows
+        let project_root = self.get_active_tab().project_root.clone();
+        
+        // Refresh profiles by reloading from Maven
+        self.reload_profiles_from_maven();
+        
+        // Refresh starters by rescanning dependencies
+        let tab = self.get_active_tab_mut();
+        tab.starters_cache = crate::features::starters::StartersCache::rescan(&project_root);
+        log::info!("Starters cache refreshed successfully");
+
+        // Show confirmation message
+        tab.command_output = vec![
+            "🔄 Caches refreshed successfully".to_string(),
+            String::new(),
+            "✅ Maven profiles reloaded".to_string(),
+            "✅ Spring Boot starters rescanned".to_string(),
+        ];
+    }
+
     /// Cleanup resources and kill any running Maven processes
     /// This should be called before the application exits
     pub fn cleanup(&mut self) {
@@ -1654,15 +1678,24 @@ mod tests {
             config,
         );
 
-        // Start loading profiles to set status to Loading
+        // Create a fake cache to avoid spawning thread that calls Maven
+        let cache = crate::core::config::ProfilesCache {
+            profiles: vec!["dev".to_string()],
+        };
+        let _ = cache.save(&state.get_active_tab().project_root);
+
+        // Start loading profiles (should load from cache immediately)
         state.start_loading_profiles();
 
-        // Now profiles should be in Loading state
+        // Profiles should be loaded from cache
         assert!(matches!(
             state.profile_loading_status,
-            ProfileLoadingStatus::Loading
+            ProfileLoadingStatus::Loaded
         ));
-        assert_eq!(state.get_active_tab().profiles.len(), 0);
+        assert_eq!(state.get_active_tab().profiles.len(), 1);
+        
+        // Cleanup cache
+        let _ = crate::core::config::ProfilesCache::invalidate(&state.get_active_tab().project_root);
     }
 
     #[test]

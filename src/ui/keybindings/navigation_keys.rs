@@ -46,7 +46,7 @@ pub fn handle_tab_operations(key: KeyEvent, state: &mut TuiState) -> bool {
     }
 }
 
-/// Handle popup and configuration operations (Ctrl+F, Ctrl+S, Ctrl+H, Ctrl+R, Ctrl+E)
+/// Handle popup and configuration operations (Ctrl+F, Ctrl+S, Ctrl+H, Ctrl+R, Ctrl+E, Ctrl+K)
 pub fn handle_popup_triggers(key: KeyEvent, state: &mut TuiState) -> bool {
     if !key.modifiers.contains(KeyModifiers::CONTROL) {
         return false;
@@ -83,6 +83,11 @@ pub fn handle_popup_triggers(key: KeyEvent, state: &mut TuiState) -> bool {
         KeyCode::Char('e') => {
             log::info!("Edit configuration");
             state.edit_config();
+            true
+        }
+        KeyCode::Char('k') => {
+            log::info!("Refresh caches (profiles and starters)");
+            state.refresh_caches();
             true
         }
         _ => false,

@@ -98,6 +98,16 @@ impl TuiState {
                         "Profiles loaded asynchronously: {} profiles",
                         profile_names.len()
                     );
+                    
+                    // Save to cache for next time
+                    let tab = self.get_active_tab();
+                    let cache = crate::core::config::ProfilesCache {
+                        profiles: profile_names.clone(),
+                    };
+                    if let Err(e) = cache.save(&tab.project_root) {
+                        log::warn!("Failed to save profiles cache: {}", e);
+                    }
+                    
                     self.set_profiles(profile_names);
                     self.profile_loading_status = ProfileLoadingStatus::Loaded;
                     self.profiles_receiver = None;
@@ -132,15 +142,29 @@ impl TuiState {
 
     /// Start loading profiles asynchronously
     pub fn start_loading_profiles(&mut self) {
+        let tab = self.get_active_tab();
+        let project_root = tab.project_root.clone();
+        let project_root_display = project_root.clone(); // Clone for logging
+
+        // Try to load from cache first
+        if let Some(cache) = crate::core::config::ProfilesCache::load(&project_root) {
+            log::info!(
+                "Loaded {} profiles from cache for {:?}",
+                cache.profiles.len(),
+                project_root_display
+            );
+            self.set_profiles(cache.profiles);
+            self.profile_loading_status = ProfileLoadingStatus::Loaded;
+            return;
+        }
+
+        // No cache, load asynchronously from Maven
+        log::info!("No profiles cache found, loading from Maven...");
         let (tx, rx) = mpsc::channel();
         self.profiles_receiver = Some(rx);
         self.profile_loading_status = ProfileLoadingStatus::Loading;
         self.profile_loading_start_time = Some(Instant::now());
         self.profile_spinner_frame = 0;
-
-        let tab = self.get_active_tab();
-        let project_root = tab.project_root.clone();
-        let project_root_display = project_root.clone(); // Clone for logging
 
         std::thread::spawn(move || {
             let result = maven::get_profiles(&project_root).map_err(|e| e.to_string());
@@ -154,6 +178,34 @@ impl TuiState {
             "Started async profile loading for {:?}",
             project_root_display
         );
+    }
+
+    /// Force reload of profiles from Maven (invalidate cache)
+    pub fn reload_profiles_from_maven(&mut self) {
+        let tab = self.get_active_tab();
+        let project_root = tab.project_root.clone();
+
+        // Invalidate cache
+        if let Err(e) = crate::core::config::ProfilesCache::invalidate(&project_root) {
+            log::warn!("Failed to invalidate profiles cache: {}", e);
+        }
+
+        log::info!("Forcing reload of profiles from Maven");
+
+        // Start fresh loading
+        let (tx, rx) = mpsc::channel();
+        self.profiles_receiver = Some(rx);
+        self.profile_loading_status = ProfileLoadingStatus::Loading;
+        self.profile_loading_start_time = Some(Instant::now());
+        self.profile_spinner_frame = 0;
+
+        std::thread::spawn(move || {
+            let result = maven::get_profiles(&project_root).map_err(|e| e.to_string());
+
+            if let Err(e) = tx.send(result) {
+                log::error!("Failed to send profiles result: {}", e);
+            }
+        });
     }
 
     /// Sync output to show the selected profile's XML
@@ -306,16 +358,29 @@ mod tests {
     #[test]
     fn test_start_loading_profiles() {
         let mut state = create_test_state();
+        
+        // Create a fake cache to avoid spawning thread that calls Maven
+        let cache = crate::core::config::ProfilesCache {
+            profiles: vec!["dev".to_string(), "prod".to_string()],
+        };
+        let _ = cache.save(&state.get_active_tab().project_root);
 
         state.start_loading_profiles();
 
-        assert!(state.profiles_receiver.is_some());
+        // Should load from cache and not spawn thread
+        assert!(state.profiles_receiver.is_none()); // No channel created
         assert!(matches!(
             state.profile_loading_status,
-            ProfileLoadingStatus::Loading
+            ProfileLoadingStatus::Loaded  // Loaded immediately from cache
         ));
-        assert!(state.profile_loading_start_time.is_some());
-        assert_eq!(state.profile_spinner_frame, 0);
+        assert!(state.profile_loading_start_time.is_none()); // No loading started
+        
+        // Verify profiles were loaded
+        let tab = state.get_active_tab();
+        assert_eq!(tab.profiles.len(), 2);
+        
+        // Cleanup cache
+        let _ = crate::core::config::ProfilesCache::invalidate(&state.get_active_tab().project_root);
     }
 
     #[test]

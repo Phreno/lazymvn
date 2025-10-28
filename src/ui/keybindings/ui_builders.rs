@@ -120,9 +120,11 @@ pub fn build_navigation_line() -> Vec<Line<'static>> {
             key_token("Ctrl+H"),
             Span::raw(" History  "),
             key_token("Ctrl+R"),
-            Span::raw(" Recent projects "),
+            Span::raw(" Recent  "),
             key_token("Ctrl+E"),
-            Span::raw(" Edit"),
+            Span::raw(" Edit  "),
+            key_token("Ctrl+K"),
+            Span::raw(" Refresh"),
         ]),
     ]
 }

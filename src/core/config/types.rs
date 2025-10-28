@@ -263,6 +263,75 @@ pub struct ModulePreferences {
     pub enabled_flags: Vec<String>,
 }
 
+/// Maven profiles cache for avoiding slow Maven calls
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ProfilesCache {
+    pub profiles: Vec<String>,
+}
+
+impl ProfilesCache {
+    /// Load profiles cache for a specific project
+    pub fn load(project_root: &Path) -> Option<Self> {
+        let cache_file = Self::get_cache_file(project_root);
+
+        if let Ok(content) = fs::read_to_string(&cache_file)
+            && let Ok(cache) = serde_json::from_str(&content)
+        {
+            log::debug!("Loaded profiles cache from {:?}", cache_file);
+            return Some(cache);
+        }
+
+        log::debug!("No profiles cache found");
+        None
+    }
+
+    /// Save profiles cache to disk
+    pub fn save(&self, project_root: &Path) -> Result<(), String> {
+        let cache_file = Self::get_cache_file(project_root);
+
+        if let Some(parent) = cache_file.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("Failed to create cache directory: {}", e))?;
+        }
+
+        let content = serde_json::to_string_pretty(self)
+            .map_err(|e| format!("Failed to serialize profiles cache: {}", e))?;
+
+        fs::write(&cache_file, content)
+            .map_err(|e| format!("Failed to write profiles cache: {}", e))?;
+
+        log::info!(
+            "Saved {} profiles to cache at {:?}",
+            self.profiles.len(),
+            cache_file
+        );
+        Ok(())
+    }
+
+    /// Delete profiles cache for a project
+    pub fn invalidate(project_root: &Path) -> Result<(), String> {
+        let cache_file = Self::get_cache_file(project_root);
+        if cache_file.exists() {
+            fs::remove_file(&cache_file)
+                .map_err(|e| format!("Failed to delete profiles cache: {}", e))?;
+            log::info!("Invalidated profiles cache at {:?}", cache_file);
+        }
+        Ok(())
+    }
+
+    /// Get the cache file path for a project
+    fn get_cache_file(project_root: &Path) -> PathBuf {
+        let config_dir = super::io::get_config_dir();
+        let project_hash = format!(
+            "{:x}",
+            md5::compute(project_root.to_string_lossy().as_bytes())
+        );
+        config_dir
+            .join("profiles")
+            .join(format!("{}.json", project_hash))
+    }
+}
+
 /// Manages module preferences per project
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ProjectPreferences {

@@ -48,6 +48,84 @@ impl StartersCache {
         Self::new()
     }
 
+    /// Load or scan starters - if cache is empty, scan for starters automatically
+    pub fn load_or_scan(project_root: &Path) -> Self {
+        let mut cache = Self::load(project_root);
+        
+        // If cache is empty, scan for starters
+        if cache.starters.is_empty() {
+            log::info!("Empty starters cache, scanning project...");
+            let candidates = find_potential_starters(project_root);
+            
+            for (idx, fqcn) in candidates.iter().enumerate() {
+                let label = fqcn
+                    .split('.')
+                    .next_back()
+                    .unwrap_or(fqcn)
+                    .to_string();
+                
+                cache.add_starter(Starter::new(
+                    fqcn.clone(),
+                    label,
+                    idx == 0, // First one is default
+                ));
+            }
+            
+            // Save the newly discovered starters
+            if !cache.starters.is_empty() {
+                if let Err(e) = cache.save(project_root) {
+                    log::warn!("Failed to save discovered starters: {}", e);
+                } else {
+                    log::info!("Saved {} discovered starters to cache", cache.starters.len());
+                }
+            }
+        }
+        
+        cache
+    }
+
+    /// Invalidate (delete) the starters cache
+    pub fn invalidate(project_root: &Path) -> Result<(), String> {
+        let cache_file = get_starters_cache_file(project_root);
+        if cache_file.exists() {
+            fs::remove_file(&cache_file)
+                .map_err(|e| format!("Failed to delete starters cache: {}", e))?;
+            log::info!("Invalidated starters cache at {:?}", cache_file);
+        }
+        Ok(())
+    }
+
+    /// Rescan project for starters (invalidate and scan)
+    pub fn rescan(project_root: &Path) -> Self {
+        // Invalidate existing cache
+        let _ = Self::invalidate(project_root);
+        
+        // Create new empty cache and scan
+        let mut cache = Self::new();
+        let candidates = find_potential_starters(project_root);
+        
+        for (idx, fqcn) in candidates.iter().enumerate() {
+            let label = fqcn
+                .split('.')
+                .next_back()
+                .unwrap_or(fqcn)
+                .to_string();
+            
+            cache.add_starter(Starter::new(
+                fqcn.clone(),
+                label,
+                idx == 0,
+            ));
+        }
+        
+        // Save
+        if !cache.starters.is_empty() && let Err(e) = cache.save(project_root) {
+            log::warn!("Failed to save rescanned starters: {}", e);
+        }
+        
+        cache
+    }
+
     /// Save starters cache for a project
     pub fn save(&self, project_root: &Path) -> Result<(), String> {
         let cache_file = get_starters_cache_file(project_root);

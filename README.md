@@ -119,6 +119,7 @@ I want to credit both the project and its author for the idea and for shaping ho
 | `Home` / `End` | Jump to start/end of output |
 | `Ctrl+R` | Show recent projects and switch to a different project |
 | `Ctrl+E` | Edit configuration file (lazymvn.toml) - **changes are applied immediately after editor closes** |
+| `Ctrl+K` | Refresh caches (profiles and starters) - **forces reload from Maven and rescans dependencies** |
 | **Mouse** | Click on pane to focus it, click on item to select it |
 
 ### Tab Management
@@ -407,6 +408,22 @@ When you return to a project:
 - Cache is validated against current POM hash
 - If POM changed, modules are re-parsed
 - If unchanged, cached modules are used instantly
+
+### Profile & Starter Caching
+To improve startup performance, LazyMVN also caches:
+
+**Profiles Cache** (`~/.config/lazymvn/profiles/<project-hash>.json`):
+- Maven profiles detected via `mvn help:all-profiles`
+- Loaded instantly on subsequent launches
+- Press `Ctrl+K` to refresh if profiles change
+
+**Starters Cache** (`~/.config/lazymvn/starters/<project-hash>.json`):
+- Spring Boot main classes discovered by scanning dependencies
+- Auto-scanned on first load if cache is empty
+- Allows instant starter selection without rescanning
+- Press `Ctrl+K` to refresh if dependencies change
+
+> **Tip**: Use `Ctrl+K` at any time to force a refresh of both caches. This is useful after adding new Maven profiles or Spring Boot dependencies.
 
 ### Command Execution
 For **multi-module projects**:

@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Profile & Starter Caching** (#TBD):
+  - Cache Maven profiles to avoid slow `mvn help:all-profiles` on every startup
+  - Cache Spring Boot starters to avoid dependency rescanning
+  - Profiles loaded instantly from `~/.config/lazymvn/profiles/<hash>.json`
+  - Starters auto-scanned on first load, then cached in `~/.config/lazymvn/starters/<hash>.json`
+  - Press `Ctrl+K` to manually refresh both caches when profiles or dependencies change
+  - Significant performance improvement for projects with many profiles or dependencies
+  - Per-project caching using project path hash
 - **Custom Maven Flags** (#TBD):
   - Define project-specific Maven arguments in `lazymvn.toml` configuration
   - Custom flags appear in the Flags panel alongside built-in flags

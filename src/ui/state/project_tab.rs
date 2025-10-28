@@ -163,8 +163,8 @@ impl ProjectTab {
         } else {
             (None, false)
         };
-        // Load starters cache for this project
-        let starters_cache = crate::features::starters::StartersCache::load(&project_root);
+        // Load starters cache for this project (will auto-scan if empty)
+        let starters_cache = crate::features::starters::StartersCache::load_or_scan(&project_root);
 
         Self {
             id,

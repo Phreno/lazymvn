@@ -202,11 +202,9 @@ impl TuiState {
         let agent_path = agent_dir.join("log4j-reconfig-agent.jar");
 
         // Create directory if it doesn't exist
-        if !agent_dir.exists() {
-            if let Err(e) = fs::create_dir_all(&agent_dir) {
-                log::error!("Failed to create agent directory {}: {}", agent_dir.display(), e);
-                return None;
-            }
+        if !agent_dir.exists() && let Err(e) = fs::create_dir_all(&agent_dir) {
+            log::error!("Failed to create agent directory {}: {}", agent_dir.display(), e);
+            return None;
         }
 
         // Copy agent JAR if not present or if size differs (version update)

@@ -22,16 +22,14 @@ fn extract_log4j_config_url(args: &[&str]) -> Option<String> {
     for arg in args {
         // Check if this is a JVM arguments string
         if arg.starts_with("-Drun.jvmArguments=") || arg.starts_with("-Dspring-boot.run.jvmArguments=") {
-            // Extract the value part after the FIRST '=' using splitn(2, '=')
+            // Extract the value part after the FIRST '=' using split_once
             // This is critical because the value contains multiple '=' signs
             // Example: "-Drun.jvmArguments=-Dlog4j.configuration=file:///..."
-            if let Some(jvm_args_str) = arg.splitn(2, '=').nth(1) {
+            if let Some((_, jvm_args_str)) = arg.split_once('=') {
                 // Look for -Dlog4j.configuration=file:///...
                 for part in jvm_args_str.split_whitespace() {
-                    if part.starts_with("-Dlog4j.configuration=") {
-                        if let Some(config_url) = part.strip_prefix("-Dlog4j.configuration=") {
-                            return Some(config_url.to_string());
-                        }
+                    if let Some(config_url) = part.strip_prefix("-Dlog4j.configuration=") {
+                        return Some(config_url.to_string());
                     }
                 }
             }

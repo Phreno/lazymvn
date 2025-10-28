@@ -12,6 +12,9 @@ This section contains documentation for users of Lazymvn.
     *   [Spring Boot Properties Override](./SPRING_PROPERTIES_OVERRIDE.md): Override Spring Boot properties.
     *   [Custom Maven Flags](./CUSTOM_FLAGS.md): Define project-specific Maven flags.
 
+*   **Performance**
+    *   [Caching System](./CACHING.md): Profile and starter caching for faster startup.
+
 *   **Maven Integration**
     *   [Profile Activation](./PROFILE_ACTIVATION.md): How to manage Maven profiles.
     *   [WAR Module Support](./WAR_MODULE_SUPPORT.md): Support for `exec:java` in WAR modules.

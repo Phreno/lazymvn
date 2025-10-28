@@ -42,14 +42,31 @@ mod tests {
         }
     }
 
+    /// Helper to setup a fake profiles cache to avoid async profile loading in tests
+    fn setup_fake_profiles_cache(project_root: &std::path::Path) {
+        let cache = crate::core::config::ProfilesCache {
+            profiles: vec!["dev".to_string(), "test".to_string()],
+        };
+        let _ = cache.save(project_root);
+    }
+
+    /// Helper to cleanup profiles cache after tests
+    fn cleanup_profiles_cache(project_root: &std::path::Path) {
+        let _ = crate::core::config::ProfilesCache::invalidate(project_root);
+    }
+
     #[test]
     fn test_draw_ui() {
         let _guard = fs_lock().lock().unwrap();
         let backend = TestBackend::new(80, 20);
         let mut terminal = Terminal::new(backend).unwrap();
         let modules = vec!["module1".to_string(), "module2".to_string()];
-        let project_root = PathBuf::from("/");
-        let mut state = crate::ui::state::TuiState::new(modules, project_root, test_cfg());
+        let project_root = PathBuf::from("/test_draw_ui");
+        
+        // Setup fake cache to avoid async profile loading
+        setup_fake_profiles_cache(&project_root);
+        
+        let mut state = crate::ui::state::TuiState::new(modules, project_root.clone(), test_cfg());
         {
             let tab = state.get_active_tab_mut();
             tab.command_output = vec!["output1".to_string(), "output2".to_string()];
@@ -64,14 +81,21 @@ mod tests {
             .map(|cell| cell.symbol().chars().next().unwrap_or(' '))
             .collect::<String>();
         assert!(rendered.contains("Modules") || rendered.contains("Output"));
+        
+        // Cleanup
+        cleanup_profiles_cache(&project_root);
     }
 
     #[test]
     fn test_view_switching() {
         let _guard = fs_lock().lock().unwrap();
         let modules = vec!["module1".to_string()];
-        let project_root = PathBuf::from("/");
-        let mut state = crate::ui::state::TuiState::new(modules, project_root, test_cfg());
+        let project_root = PathBuf::from("/test_view_switching");
+        
+        // Setup fake cache to avoid async profile loading
+        setup_fake_profiles_cache(&project_root);
+        
+        let mut state = crate::ui::state::TuiState::new(modules, project_root.clone(), test_cfg());
 
         // Initial view is Modules
         assert_eq!(state.current_view, CurrentView::Modules);
@@ -103,6 +127,9 @@ mod tests {
             &mut state,
         );
         assert_eq!(state.current_view, CurrentView::Projects);
+        
+        // Cleanup
+        cleanup_profiles_cache(&project_root);
     }
 
     #[test]
@@ -128,6 +155,10 @@ mod tests {
 
         // 3. Create TuiState
         let modules = vec!["module1".to_string()];
+        
+        // Setup fake cache to avoid async profile loading
+        setup_fake_profiles_cache(project_root);
+        
         let mut state =
             crate::ui::state::TuiState::new(modules, project_root.to_path_buf(), test_cfg());
 
@@ -175,6 +206,9 @@ mod tests {
         }
         drop(mvnw_file);
 
+        // Setup fake cache to avoid async profile loading
+        setup_fake_profiles_cache(project_root);
+
         let modules = vec!["module1".to_string()];
         let mut state =
             crate::ui::state::TuiState::new(modules, project_root.to_path_buf(), test_cfg());
@@ -203,6 +237,10 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let modules = vec!["module1".to_string()];
         let project_root = temp_dir.path().to_path_buf();
+        
+        // Setup fake cache to avoid async profile loading
+        setup_fake_profiles_cache(&project_root);
+        
         let mut state = crate::ui::state::TuiState::new(modules, project_root, test_cfg());
 
         // Switch to flags view with '4'
@@ -239,6 +277,9 @@ mod tests {
         let temp_dir = tempdir().unwrap();
         let project_root = temp_dir.path().to_path_buf();
 
+        // Setup fake cache to avoid async profile loading
+        setup_fake_profiles_cache(&project_root);
+
         let modules = vec!["module1".to_string()];
         let state = crate::ui::state::TuiState::new(modules, project_root, test_cfg());
 
@@ -268,6 +309,10 @@ mod tests {
         ];
         let temp_dir = tempdir().unwrap();
         let project_root = temp_dir.path().to_path_buf();
+        
+        // Setup fake cache to avoid async profile loading
+        setup_fake_profiles_cache(&project_root);
+        
         let mut state = crate::ui::state::TuiState::new(modules, project_root, test_cfg());
 
         // Initial selection should be module1 (index 0)
@@ -310,6 +355,10 @@ mod tests {
         let temp_dir = tempdir().unwrap();
         let modules = vec!["module1".to_string()];
         let project_root = temp_dir.path().to_path_buf();
+        
+        // Setup fake cache to avoid async profile loading
+        setup_fake_profiles_cache(&project_root);
+        
         let mut state = crate::ui::state::TuiState::new(modules, project_root, test_cfg());
 
         // Add some profiles (not auto-activated)
@@ -369,6 +418,10 @@ mod tests {
         let temp_dir = tempdir().unwrap();
         let modules = vec!["module1".to_string()];
         let project_root = temp_dir.path().to_path_buf();
+        
+        // Setup fake cache to avoid async profile loading
+        setup_fake_profiles_cache(&project_root);
+        
         let mut state = crate::ui::state::TuiState::new(modules, project_root, test_cfg());
 
         // Switch to flags view
@@ -426,6 +479,10 @@ mod tests {
         let temp_dir = tempdir().unwrap();
         let modules = vec!["module1".to_string()];
         let project_root = temp_dir.path().to_path_buf();
+        
+        // Setup fake cache to avoid async profile loading
+        setup_fake_profiles_cache(&project_root);
+        
         let mut state = crate::ui::state::TuiState::new(modules, project_root, test_cfg());
 
         // Initial focus is on Modules
@@ -523,6 +580,10 @@ mod tests {
         ];
         let temp_dir = tempdir().unwrap();
         let project_root = temp_dir.path().to_path_buf();
+        
+        // Setup fake cache to avoid async profile loading
+        setup_fake_profiles_cache(&project_root);
+        
         let mut state = crate::ui::state::TuiState::new(modules, project_root, test_cfg());
 
         // Initial selection is first module
