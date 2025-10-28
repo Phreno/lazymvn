@@ -38,6 +38,7 @@ mod tests {
             output: None,
             logging: None,
             spring: None,
+            maven: None,
         }
     }
 

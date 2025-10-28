@@ -79,8 +79,8 @@ impl ProjectTab {
         // Initialize profiles
         let profiles = Vec::new(); // Will be loaded asynchronously
 
-        // Initialize flags (same as in TuiState::new)
-        let flags = vec![
+        // Initialize flags (built-in flags)
+        let mut flags = vec![
             BuildFlag {
                 name: "Work offline".to_string(),
                 flag: "-o".to_string(),
@@ -117,6 +117,17 @@ impl ProjectTab {
                 enabled: false,
             },
         ];
+
+        // Add custom flags from configuration
+        if let Some(maven_config) = &config.maven {
+            for custom_flag in &maven_config.custom_flags {
+                flags.push(BuildFlag {
+                    name: custom_flag.name.clone(),
+                    flag: custom_flag.flag.clone(),
+                    enabled: custom_flag.enabled,
+                });
+            }
+        }
 
         // Initialize list states
         let mut modules_list_state = ListState::default();

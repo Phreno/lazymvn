@@ -42,6 +42,12 @@ This directory contains example configuration files for LazyMVN.
   - Different log levels (ERROR, WARN, INFO, DEBUG, TRACE)
   - Per-package configuration
 
+- **[lazymvn.toml.custom-flags-example](lazymvn.toml.custom-flags-example)** - Custom Maven flags
+  - Define project-specific Maven arguments
+  - Custom -D properties and flags
+  - Toggle custom flags in the Flags panel
+  - Enable flags by default
+
 ## Using These Examples
 
 ### Copy to Your Project
@@ -108,6 +114,17 @@ max_updates_per_poll = 100
 packages = [
   { name = "com.example", level = "DEBUG" },
   { name = "org.springframework", level = "WARN" },
+]
+```
+
+### Custom Maven Flags
+
+```toml
+[maven]
+custom_flags = [
+  { name = "Enable feature X", flag = "-Dfeature.x=true" },
+  { name = "Development mode", flag = "-Dspring.profiles.active=dev", enabled = true },
+  { name = "Skip integration tests", flag = "-DskipITs=true" },
 ]
 ```
 

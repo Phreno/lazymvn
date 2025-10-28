@@ -10,6 +10,7 @@ This section contains documentation for users of Lazymvn.
     *   [Custom Log Formatting](./LOG_FORMATTING.md): Customize the log output format.
     *   [Log4j Auto-Configuration](./LOG4J_AUTO_CONFIG.md): Automatic configuration for Log4j 1.x.
     *   [Spring Boot Properties Override](./SPRING_PROPERTIES_OVERRIDE.md): Override Spring Boot properties.
+    *   [Custom Maven Flags](./CUSTOM_FLAGS.md): Define project-specific Maven flags.
 
 *   **Maven Integration**
     *   [Profile Activation](./PROFILE_ACTIVATION.md): How to manage Maven profiles.

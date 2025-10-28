@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Custom Maven Flags** (#TBD):
+  - Define project-specific Maven arguments in `lazymvn.toml` configuration
+  - Custom flags appear in the Flags panel alongside built-in flags
+  - Toggle custom flags on/off like standard flags (press `f` then `Space`)
+  - Support for `-D` properties, Maven arguments, or any command-line options
+  - Optional `enabled` field to activate flags by default
+  - Multiple properties can be combined in a single flag
+  - Per-module persistence: custom flag states are saved with preferences
+  - Live reload support: changes to custom flags are applied immediately with `Ctrl+E`
+  - Perfect for environment switching, feature toggles, and build optimization
+  - Example: `{ name = "Dev mode", flag = "-Dspring.profiles.active=dev", enabled = true }`
+  - See `docs/user/CUSTOM_FLAGS.md` for comprehensive documentation
+  - Example configuration in `examples/lazymvn.toml.custom-flags-example`
 - **Multi-Tab Project Support** (#TBD):
   - Open up to 10 Maven projects simultaneously in separate tabs
   - Visual tab bar at top showing all open projects with active tab highlighting

@@ -15,6 +15,27 @@ pub struct Config {
     pub output: Option<OutputConfig>,
     pub logging: Option<LoggingConfig>,
     pub spring: Option<SpringConfig>,
+    pub maven: Option<MavenConfig>,
+}
+
+/// Maven configuration for custom arguments
+#[derive(Deserialize, Clone, Debug, Default, PartialEq)]
+pub struct MavenConfig {
+    /// List of custom Maven flags/arguments
+    #[serde(default)]
+    pub custom_flags: Vec<CustomFlag>,
+}
+
+/// Custom Maven flag that can be toggled
+#[derive(Deserialize, Clone, Debug, PartialEq)]
+pub struct CustomFlag {
+    /// Display name for the flag (e.g., "Custom property")
+    pub name: String,
+    /// The actual Maven flag (e.g., "-Dmy.property=value")
+    pub flag: String,
+    /// Whether the flag is enabled by default (optional, default: false)
+    #[serde(default)]
+    pub enabled: bool,
 }
 
 /// Spring Boot configuration overrides

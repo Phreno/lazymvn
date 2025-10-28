@@ -1,0 +1,108 @@
+# LazyMVN Configuration - Custom Maven Flags Example
+# This example shows how to define custom Maven flags/arguments
+# that will appear in the Flags panel
+
+# =============================================================================
+# MAVEN CUSTOM FLAGS
+# =============================================================================
+
+[maven]
+# Define custom Maven flags that appear in the Flags panel
+# Press 'f' in LazyMVN to see and toggle these flags
+custom_flags = [
+    # ===== CUSTOM PROPERTIES =====
+    # Define project-specific -D properties
+    { name = "Enable feature X", flag = "-Dfeature.x.enabled=true" },
+    { name = "Use mock services", flag = "-Dmock.services=true" },
+    { name = "Skip code generation", flag = "-Dcodegen.skip=true" },
+    
+    # ===== ENVIRONMENT SETTINGS =====
+    # Database and service URLs
+    { name = "Local database", flag = "-Ddb.host=localhost -Ddb.port=5432" },
+    { name = "Local Redis", flag = "-Dredis.host=localhost" },
+    { name = "Development API", flag = "-Dapi.url=http://localhost:3000" },
+    
+    # ===== BUILD OPTIMIZATION =====
+    # Speed up builds for development
+    { name = "Fast build", flag = "-Dmaven.test.skip=true -Dmaven.javadoc.skip=true" },
+    { name = "Skip integration tests", flag = "-DskipITs=true" },
+    { name = "Offline dependencies", flag = "-Dmaven.artifact.threads=1" },
+    
+    # ===== SPRING BOOT SPECIFIC =====
+    # Spring Boot development settings
+    { name = "Development mode", flag = "-Dspring.profiles.active=dev", enabled = true },
+    { name = "Debug logging", flag = "-Dlogging.level.root=DEBUG" },
+    { name = "Hot reload", flag = "-Dspring.devtools.restart.enabled=true" },
+    
+    # ===== TESTING =====
+    # Test-related flags
+    { name = "Single test", flag = "-Dtest=MyTestClass" },
+    { name = "Test groups", flag = "-Dgroups=unit,integration" },
+    { name = "Fail fast", flag = "-Dsurefire.skipAfterFailureCount=1" },
+    
+    # ===== CODE QUALITY =====
+    # Analysis and reporting
+    { name = "Skip Checkstyle", flag = "-Dcheckstyle.skip=true" },
+    { name = "Skip PMD", flag = "-Dpmd.skip=true" },
+    { name = "Skip SpotBugs", flag = "-Dspotbugs.skip=true" },
+    
+    # ===== DEPLOYMENT =====
+    # Deployment-related settings
+    { name = "Staging environment", flag = "-Denv=staging -Dspring.profiles.active=staging" },
+    { name = "Production build", flag = "-Denv=prod -Dmaven.test.skip=false" },
+]
+
+# =============================================================================
+# USAGE INSTRUCTIONS
+# =============================================================================
+
+# 1. Copy this file to your project's configuration:
+#    ~/.config/lazymvn/projects/<hash>/config.toml
+#
+# 2. Edit the custom_flags list to match your project's needs
+#
+# 3. Launch LazyMVN and press 'f' to open the Flags panel
+#
+# 4. Toggle flags on/off with Space, they'll be included in Maven commands
+#
+# 5. The 'enabled' field is optional (defaults to false)
+#    Use enabled=true to activate a flag by default
+#
+# 6. Multiple flags can be combined in a single entry
+#    Example: flag = "-Dprop1=value1 -Dprop2=value2"
+#
+# 7. Flags work with all Maven commands (compile, test, package, start, etc.)
+
+# =============================================================================
+# COMMON PATTERNS
+# =============================================================================
+
+# Pattern 1: Environment Switching
+# Create flags for different environments
+# { name = "Dev", flag = "-Dspring.profiles.active=dev" },
+# { name = "Staging", flag = "-Dspring.profiles.active=staging" },
+# { name = "Production", flag = "-Dspring.profiles.active=prod" },
+
+# Pattern 2: Performance Tuning
+# Adjust build performance
+# { name = "Fast build (no tests)", flag = "-DskipTests -Dmaven.javadoc.skip=true" },
+# { name = "Parallel build (8 threads)", flag = "-T 8" },
+# { name = "Incremental build", flag = "-Dmaven.compiler.useIncrementalCompilation=true" },
+
+# Pattern 3: Debug Configuration
+# Enable various debugging options
+# { name = "Remote debug", flag = "-Dmaven.surefire.debug=-Xdebug" },
+# { name = "Verbose logging", flag = "-Dorg.slf4j.simpleLogger.defaultLogLevel=debug" },
+# { name = "Show SQL", flag = "-Dhibernate.show_sql=true" },
+
+# Pattern 4: Feature Toggles
+# Enable/disable application features
+# { name = "New API enabled", flag = "-Dfeature.new-api=true" },
+# { name = "Experimental features", flag = "-Dexperimental.enabled=true" },
+# { name = "Beta features", flag = "-Dbeta.features=true" },
+
+# Pattern 5: Service Mocking
+# Toggle between real and mock services
+# { name = "Mock external API", flag = "-Dapi.mock=true" },
+# { name = "Mock database", flag = "-Ddb.mock=true" },
+# { name = "Mock payment gateway", flag = "-Dpayment.mock=true" },

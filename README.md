@@ -342,7 +342,17 @@ Create a `lazymvn.toml` in your project root for custom settings:
 ```toml
 # Optional: Custom Maven settings file path
 maven_settings = "./custom-settings.xml"
+
+# Optional: Custom Maven flags (appear in Flags panel)
+[maven]
+custom_flags = [
+  { name = "Enable feature X", flag = "-Dfeature.x=true" },
+  { name = "Development mode", flag = "-Dspring.profiles.active=dev", enabled = true },
+  { name = "Skip integration tests", flag = "-DskipITs=true" },
+]
 ```
+
+See [examples/](examples/) for more configuration options.
 
 **Live Configuration Reload:**
 
@@ -353,6 +363,7 @@ Press `Ctrl+E` to edit the configuration file in your system editor (`$EDITOR`, 
 - Notification settings
 - Output buffer settings
 - Logging configuration
+- Custom Maven flags
 
 The application will log detected changes and recreate the file watcher if watch settings were modified.
 

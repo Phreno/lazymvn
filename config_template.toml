@@ -15,6 +15,37 @@
 # maven_settings = "./settings.xml"
 
 # =============================================================================
+# MAVEN CUSTOM FLAGS
+# =============================================================================
+
+# Custom Maven flags that will appear in the Flags panel
+# These can be toggled on/off like built-in flags (Skip tests, Debug output, etc.)
+# Useful for project-specific -D properties or other Maven arguments
+#
+# [maven]
+# custom_flags = [
+#     # Custom property definitions
+#     { name = "Enable feature X", flag = "-Dfeature.x.enabled=true" },
+#     { name = "Custom profile prop", flag = "-Dmy.custom.property=value" },
+#     
+#     # Environment-specific settings
+#     { name = "Local database", flag = "-Ddb.host=localhost" },
+#     { name = "Debug mode", flag = "-Ddebug.mode=true" },
+#     
+#     # Build options
+#     { name = "Skip integration tests", flag = "-DskipITs=true" },
+#     { name = "Fast build", flag = "-Dmaven.test.skip=true -Dmaven.javadoc.skip=true" },
+#     
+#     # You can enable a flag by default
+#     { name = "Development mode", flag = "-Dspring.profiles.active=dev", enabled = true },
+# ]
+#
+# Each custom flag will appear in the Flags panel (press 'f' in LazyMVN)
+# and can be toggled on/off like built-in flags.
+#
+# The 'enabled' field is optional and defaults to false.
+
+# =============================================================================
 # SPRING BOOT LAUNCH MODE
 # =============================================================================
 

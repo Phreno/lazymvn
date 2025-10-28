@@ -10,7 +10,8 @@ mod types;
 
 // Re-export main types
 pub use types::{
-    Config, LaunchMode, ModulePreferences, ProjectPreferences, RecentProjects, WatchConfig,
+    Config, CustomFlag, LaunchMode, MavenConfig, ModulePreferences, ProjectPreferences,
+    RecentProjects, WatchConfig,
 };
 
 pub use logging::{LoggingConfig, PackageLogLevel};
