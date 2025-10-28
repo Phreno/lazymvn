@@ -43,7 +43,7 @@ pub fn clean_log_line(raw: &str) -> Option<String> {
 }
 
 /// Create a line with keyword-based coloring (simple approach)
-/// Highlights [INFO], [WARNING], [ERROR] keywords and command lines
+/// Highlights [INFO], [WARNING], [ERROR], [DEBUG] keywords and command lines
 pub fn colorize_log_line(text: &str) -> Line<'static> {
     let mut spans = Vec::new();
 
@@ -55,6 +55,19 @@ pub fn colorize_log_line(text: &str) -> Line<'static> {
                 .fg(Color::Cyan)
                 .add_modifier(ratatui::style::Modifier::BOLD),
         ));
+    } else if let Some(debug_pos) = text.find("[DEBUG]") {
+        // Split around [DEBUG]
+        if debug_pos > 0 {
+            spans.push(Span::raw(text[..debug_pos].to_string()));
+        }
+        spans.push(Span::styled(
+            "[DEBUG]".to_string(),
+            Style::default().fg(Color::Magenta),
+        ));
+        let remaining = &text[debug_pos + 7..];
+        if !remaining.is_empty() {
+            spans.push(Span::raw(remaining.to_string()));
+        }
     } else if let Some(info_pos) = text.find("[INFO]") {
         // Split around [INFO]
         if info_pos > 0 {
@@ -330,6 +343,14 @@ mod tests {
     fn colorize_log_line_highlights_info() {
         let line = colorize_log_line("This is [INFO] message");
         assert!(line.spans.len() >= 2);
+    }
+
+    #[test]
+    fn colorize_log_line_highlights_debug() {
+        let line = colorize_log_line("This is [DEBUG] message");
+        assert!(line.spans.len() >= 2);
+        // Check that [DEBUG] is colored in magenta
+        assert!(line.spans.iter().any(|s| s.content == "[DEBUG]"));
     }
 
     #[test]
