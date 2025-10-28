@@ -1,7 +1,6 @@
 package io.github.phreno.lazymvn.agent;
 
 import java.lang.instrument.Instrumentation;
-import java.lang.reflect.Method;
 import java.net.URL;
 
 /**
@@ -59,117 +58,107 @@ public class Log4jReconfigAgent {
         @Override
         public void run() {
             try {
-                // Monitor Log4j configuration and reconfigure only when needed
-                // This prevents appender closing issues from multiple reconfigurations
+                // Force reconfiguration multiple times to override any late Log4j reconfigurations
+                // This ensures LazyMVN config persists even if Log4jJbossLoggerFactory reconfigures late
                 for (int attempt = 1; attempt <= 5; attempt++) {
-                    Thread.sleep(2000); // Wait 2 seconds between each check
+                    Thread.sleep(2000); // Wait 2 seconds between each attempt
                     
-                    // Check if reconfiguration is needed by comparing current config
-                    if (isReconfigurationNeeded(configUrl)) {
-                        System.err.println("[LazyMVN Agent] Reconfiguration needed (attempt " + attempt + "/5)...");
-                        reconfigureLog4j(configUrl);
-                    } else {
-                        System.err.println("[LazyMVN Agent] Configuration check " + attempt + "/5 - LazyMVN config already active, skipping reconfiguration");
-                    }
+                    System.err.println("[LazyMVN Agent] Reconfiguration attempt " + attempt + "/5...");
+                    reconfigureLog4j(configUrl);
                     
                     if (attempt == 5) {
-                        System.err.println("[LazyMVN Agent] Final check completed");
-                        System.err.println("[LazyMVN Agent] LazyMVN log configuration is active");
+                        System.err.println("[LazyMVN Agent] Final reconfiguration completed");
+                        System.err.println("[LazyMVN Agent] LazyMVN log configuration should now persist");
                     }
                 }
             } catch (InterruptedException e) {
                 System.err.println("[LazyMVN Agent] Thread interrupted: " + e.getMessage());
             }
-        }
-
-        /**
-         * Check if Log4j reconfiguration is needed by comparing current configuration
-         * with the expected LazyMVN configuration.
-         * 
-         * @param configUrl URL to the LazyMVN Log4j configuration file
-         * @return true if reconfiguration is needed, false if LazyMVN config is already active
-         */
-        private boolean isReconfigurationNeeded(String configUrl) {
-            try {
-                // Get current Log4j configuration via reflection
-                Class<?> logManagerClass = Class.forName("org.apache.log4j.LogManager");
-                
-                // Get root logger to inspect current configuration
-                Method getRootLoggerMethod = logManagerClass.getMethod("getRootLogger");
-                Object rootLogger = getRootLoggerMethod.invoke(null);
-                
-                // Get current appenders
-                Method getAllAppendersMethod = rootLogger.getClass().getMethod("getAllAppenders");
-                Object appenders = getAllAppendersMethod.invoke(rootLogger);
-                
-                // Check if appenders exist (if not, reconfiguration needed)
-                Method hasMoreElementsMethod = appenders.getClass().getMethod("hasMoreElements");
-                boolean hasAppenders = (Boolean) hasMoreElementsMethod.invoke(appenders);
-                
-                if (!hasAppenders) {
-                    System.err.println("[LazyMVN Agent] No appenders found - reconfiguration needed");
-                    return true;
-                }
-                
-                // Get the first appender to check its layout
-                Method nextElementMethod = appenders.getClass().getMethod("nextElement");
-                Object appender = nextElementMethod.invoke(appenders);
-                
-                // Get the layout from the appender
-                Method getLayoutMethod = appender.getClass().getMethod("getLayout");
-                Object layout = getLayoutMethod.invoke(appender);
-                
-                if (layout == null) {
-                    System.err.println("[LazyMVN Agent] No layout found - reconfiguration needed");
-                    return true;
-                }
-                
-                // Get the conversion pattern from the layout
-                Method getConversionPatternMethod = layout.getClass().getMethod("getConversionPattern");
-                String currentPattern = (String) getConversionPatternMethod.invoke(layout);
-                
-                // Expected pattern from lazymvn.toml: "[%p][%c] %m%n"
-                String expectedPattern = "[%p][%c] %m%n";
-                
-                if (currentPattern != null && currentPattern.equals(expectedPattern)) {
-                    System.err.println("[LazyMVN Agent] LazyMVN pattern detected: " + currentPattern);
-                    return false; // Configuration already correct
-                } else {
-                    System.err.println("[LazyMVN Agent] Different pattern detected: " + currentPattern + " (expected: " + expectedPattern + ")");
-                    return true; // Reconfiguration needed
-                }
-                
-            } catch (Exception e) {
-                System.err.println("[LazyMVN Agent] Could not inspect current Log4j configuration: " + e.getMessage());
-                // If we can't inspect, better to reconfigure
-                return true;
-            }
-        }
-
-        /**
-         * Reconfigures Log4j with the specified configuration URL.
+        }        /**
+         * Reconfigures Log4j with the specified configuration URL WITHOUT closing existing appenders.
+         * This prevents "Attempted to append to closed appender" errors during reconfiguration.
          * Uses reflection to avoid compile-time dependency on Log4j.
          */
         private void reconfigureLog4j(String configUrl) {
             try {
-                // Convert file:/// URL to actual URL object
+                // Load Log4j classes via reflection
+                Class<?> logManagerClass = Class.forName("org.apache.log4j.LogManager");
+                Class<?> loggerClass = Class.forName("org.apache.log4j.Logger");
+                Class<?> levelClass = Class.forName("org.apache.log4j.Level");
+                Class<?> layoutClass = Class.forName("org.apache.log4j.Layout");
+                Class<?> patternLayoutClass = Class.forName("org.apache.log4j.PatternLayout");
+                Class<?> appenderClass = Class.forName("org.apache.log4j.Appender");
+                
+                // Get root logger
+                java.lang.reflect.Method getRootLoggerMethod = logManagerClass.getMethod("getRootLogger");
+                Object rootLogger = getRootLoggerMethod.invoke(null);
+                
+                // Load configuration properties from URL
                 URL url = new URL(configUrl);
+                java.util.Properties props = new java.util.Properties();
+                java.io.InputStream is = url.openStream();
+                try {
+                    props.load(is);
+                } finally {
+                    is.close();
+                }
                 
-                // Use reflection to call PropertyConfigurator.configure(URL)
-                // This avoids compile-time dependency on Log4j 1.x
-                Class<?> configuratorClass = Class.forName("org.apache.log4j.PropertyConfigurator");
-                java.lang.reflect.Method configureMethod = configuratorClass.getMethod("configure", URL.class);
-                configureMethod.invoke(null, url);
+                // Update layout pattern for existing appenders (without closing them)
+                java.lang.reflect.Method getAllAppendersMethod = loggerClass.getMethod("getAllAppenders");
+                Object appendersEnum = getAllAppendersMethod.invoke(rootLogger);
                 
-                System.err.println("[LazyMVN Agent] ✓ Log4j successfully reconfigured with LazyMVN config");
+                java.lang.reflect.Method hasMoreElementsMethod = java.util.Enumeration.class.getMethod("hasMoreElements");
+                java.lang.reflect.Method nextElementMethod = java.util.Enumeration.class.getMethod("nextElement");
+                
+                while ((Boolean) hasMoreElementsMethod.invoke(appendersEnum)) {
+                    Object appender = nextElementMethod.invoke(appendersEnum);
+                    
+                    // Get current layout
+                    java.lang.reflect.Method getLayoutMethod = appenderClass.getMethod("getLayout");
+                    Object currentLayout = getLayoutMethod.invoke(appender);
+                    
+                    // Update pattern if it's a PatternLayout
+                    if (currentLayout != null && patternLayoutClass.isInstance(currentLayout)) {
+                        String newPattern = props.getProperty("log4j.appender.CONSOLE.layout.ConversionPattern", "[%p][%c] %m%n");
+                        java.lang.reflect.Method setConversionPatternMethod = patternLayoutClass.getMethod("setConversionPattern", String.class);
+                        setConversionPatternMethod.invoke(currentLayout, newPattern);
+                    }
+                }
+                
+                // Update logger levels from properties
+                for (String propKey : props.stringPropertyNames()) {
+                    if (propKey.startsWith("log4j.logger.")) {
+                        String loggerName = propKey.substring("log4j.logger.".length());
+                        String levelName = props.getProperty(propKey).split(",")[0].trim().toUpperCase();
+                        
+                        // Get or create logger
+                        java.lang.reflect.Method getLoggerMethod = logManagerClass.getMethod("getLogger", String.class);
+                        Object logger = getLoggerMethod.invoke(null, loggerName);
+                        
+                        // Parse level
+                        java.lang.reflect.Method toLevelMethod = levelClass.getMethod("toLevel", String.class);
+                        Object level = toLevelMethod.invoke(null, levelName);
+                        
+                        // Set level
+                        java.lang.reflect.Method setLevelMethod = loggerClass.getMethod("setLevel", levelClass);
+                        setLevelMethod.invoke(logger, level);
+                    }
+                }
+                
+                // Update root logger level
+                String rootLevelName = props.getProperty("log4j.rootLogger", "INFO").split(",")[0].trim().toUpperCase();
+                java.lang.reflect.Method toLevelMethod = levelClass.getMethod("toLevel", String.class);
+                Object rootLevel = toLevelMethod.invoke(null, rootLevelName);
+                java.lang.reflect.Method setLevelMethod = loggerClass.getMethod("setLevel", levelClass);
+                setLevelMethod.invoke(rootLogger, rootLevel);
+                
+                System.err.println("[LazyMVN Agent] ✓ Log4j successfully reconfigured with LazyMVN config (soft update)");
                 System.err.println("[LazyMVN Agent] ✓ Log format and levels from lazymvn.toml are now active");
                 
             } catch (ClassNotFoundException e) {
                 System.err.println("[LazyMVN Agent] Log4j not found in classpath (this is normal if not using Log4j 1.x)");
-            } catch (NoSuchMethodException e) {
-                System.err.println("[LazyMVN Agent] PropertyConfigurator.configure(URL) method not found");
             } catch (Exception e) {
-                System.err.println("[LazyMVN Agent] Error during reconfiguration: " + e.getMessage());
+                System.err.println("[LazyMVN Agent] Error during soft reconfiguration: " + e.getMessage());
                 e.printStackTrace();
             }
         }

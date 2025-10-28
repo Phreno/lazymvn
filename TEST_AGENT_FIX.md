@@ -73,7 +73,7 @@ for (int attempt = 1; attempt <= 5; attempt++) {
 
 ### 1️⃣ Compiler le nouveau binaire
 
-**Sur votre poste Windows :**
+**Sur votre foo Windows :**
 
 ```bash
 # Récupérer la dernière version
