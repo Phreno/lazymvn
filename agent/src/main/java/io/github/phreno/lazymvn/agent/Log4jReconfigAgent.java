@@ -58,23 +58,23 @@ public class Log4jReconfigAgent {
         @Override
         public void run() {
             try {
-                // Wait for application to initialize and potentially overwrite our config
-                // The custom factory usually initializes within the first 2 seconds
-                Thread.sleep(2000);
-                
-                // Force reconfiguration with LazyMVN config
-                reconfigureLog4j(configUrl);
-                
+                // Force reconfiguration multiple times to override any late Log4j reconfigurations
+                // This ensures LazyMVN config persists even if Log4jJbossLoggerFactory reconfigures late
+                for (int attempt = 1; attempt <= 5; attempt++) {
+                    Thread.sleep(2000); // Wait 2 seconds between each attempt
+                    
+                    System.err.println("[LazyMVN Agent] Reconfiguration attempt " + attempt + "/5...");
+                    reconfigureLog4j(configUrl);
+                    
+                    if (attempt == 5) {
+                        System.err.println("[LazyMVN Agent] Final reconfiguration completed");
+                        System.err.println("[LazyMVN Agent] LazyMVN log configuration should now persist");
+                    }
+                }
             } catch (InterruptedException e) {
-                System.err.println("[LazyMVN Agent] Interrupted while waiting: " + e.getMessage());
-                Thread.currentThread().interrupt();
-            } catch (Exception e) {
-                System.err.println("[LazyMVN Agent] Failed to reconfigure Log4j: " + e.getMessage());
-                e.printStackTrace();
+                System.err.println("[LazyMVN Agent] Thread interrupted: " + e.getMessage());
             }
-        }
-        
-        /**
+        }        /**
          * Reconfigures Log4j with the specified configuration URL.
          * Uses reflection to avoid compile-time dependency on Log4j.
          */
