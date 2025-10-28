@@ -126,6 +126,7 @@ pub struct TuiState {
     pub recent_projects: Vec<PathBuf>,
     pub projects_list_state: ListState,
     pub show_projects_popup: bool,
+    pub projects_filter: String,
 
     // Spring Boot starters UI (global UI state, cache is per-tab)
     pub show_starter_selector: bool,
@@ -141,11 +142,13 @@ pub struct TuiState {
     pub command_history: crate::features::history::CommandHistory,
     pub show_history_popup: bool,
     pub history_list_state: ListState,
+    pub history_filter: String,
 
     // Favorites (global)
     pub favorites: crate::features::favorites::Favorites,
     pub show_favorites_popup: bool,
     pub favorites_list_state: ListState,
+    pub favorites_filter: String,
     pub show_save_favorite_popup: bool,
     pub favorite_name_input: String,
     pub pending_favorite: Option<crate::features::history::HistoryEntry>,
@@ -291,6 +294,7 @@ impl TuiState {
             recent_projects: crate::core::config::RecentProjects::load().get_projects(),
             projects_list_state: ListState::default(),
             show_projects_popup: false,
+            projects_filter: String::new(),
 
             show_starter_selector: false,
             show_starter_manager: false,
@@ -303,10 +307,12 @@ impl TuiState {
             command_history: crate::features::history::CommandHistory::load(),
             show_history_popup: false,
             history_list_state: ListState::default(),
+            history_filter: String::new(),
 
             favorites: crate::features::favorites::Favorites::load(),
             show_favorites_popup: false,
             favorites_list_state: ListState::default(),
+            favorites_filter: String::new(),
             show_save_favorite_popup: false,
             favorite_name_input: String::new(),
             pending_favorite: None,
@@ -865,6 +871,7 @@ impl TuiState {
     pub fn show_recent_projects(&mut self) {
         log::info!("Showing recent projects popup");
         self.show_projects_popup = true;
+        self.projects_filter.clear();
         if self.focus != Focus::Projects {
             self.focus = Focus::Projects;
         }
@@ -873,6 +880,41 @@ impl TuiState {
     pub fn hide_recent_projects(&mut self) {
         log::info!("Hiding recent projects popup");
         self.show_projects_popup = false;
+        self.projects_filter.clear();
+    }
+
+    /// Get filtered recent projects based on current filter
+    pub fn get_filtered_projects(&self) -> Vec<PathBuf> {
+        if self.projects_filter.is_empty() {
+            self.recent_projects.clone()
+        } else {
+            let filter = self.projects_filter.to_lowercase();
+            self.recent_projects
+                .iter()
+                .filter(|p| {
+                    p.to_string_lossy().to_lowercase().contains(&filter)
+                })
+                .cloned()
+                .collect()
+        }
+    }
+
+    /// Push character to projects filter
+    pub fn push_projects_filter_char(&mut self, ch: char) {
+        self.projects_filter.push(ch);
+        // Reset selection when filter changes
+        if !self.get_filtered_projects().is_empty() {
+            self.projects_list_state.select(Some(0));
+        }
+    }
+
+    /// Pop character from projects filter
+    pub fn pop_projects_filter_char(&mut self) {
+        self.projects_filter.pop();
+        // Reset selection when filter changes
+        if !self.get_filtered_projects().is_empty() {
+            self.projects_list_state.select(Some(0));
+        }
     }
 
     pub fn select_current_project(&mut self) {
@@ -1083,6 +1125,44 @@ impl TuiState {
         log::info!("History entry applied and command executed");
     }
 
+    /// Get filtered history entries based on current filter
+    pub fn get_filtered_history(&self) -> Vec<crate::features::history::HistoryEntry> {
+        if self.history_filter.is_empty() {
+            self.command_history.entries().to_vec()
+        } else {
+            let filter = self.history_filter.to_lowercase();
+            self.command_history
+                .entries()
+                .iter()
+                .filter(|entry| {
+                    entry.module.to_lowercase().contains(&filter)
+                        || entry.goal.to_lowercase().contains(&filter)
+                        || entry.profiles.iter().any(|p| p.to_lowercase().contains(&filter))
+                        || entry.flags.iter().any(|f| f.to_lowercase().contains(&filter))
+                })
+                .cloned()
+                .collect()
+        }
+    }
+
+    /// Push character to history filter
+    pub fn push_history_filter_char(&mut self, ch: char) {
+        self.history_filter.push(ch);
+        // Reset selection when filter changes
+        if !self.get_filtered_history().is_empty() {
+            self.history_list_state.select(Some(0));
+        }
+    }
+
+    /// Pop character from history filter
+    pub fn pop_history_filter_char(&mut self) {
+        self.history_filter.pop();
+        // Reset selection when filter changes
+        if !self.get_filtered_history().is_empty() {
+            self.history_list_state.select(Some(0));
+        }
+    }
+
     /// Show save favorite dialog with current context
     pub fn show_save_favorite_dialog_from_current(&mut self) {
         if let Some(module) = self.selected_module() {
@@ -1192,6 +1272,45 @@ impl TuiState {
         self.run_selected_module_command(&goal_parts);
 
         log::info!("Favorite applied and command executed");
+    }
+
+    /// Get filtered favorites based on current filter
+    pub fn get_filtered_favorites(&self) -> Vec<crate::features::favorites::Favorite> {
+        if self.favorites_filter.is_empty() {
+            self.favorites.list().to_vec()
+        } else {
+            let filter = self.favorites_filter.to_lowercase();
+            self.favorites
+                .list()
+                .iter()
+                .filter(|fav| {
+                    fav.name.to_lowercase().contains(&filter)
+                        || fav.module.to_lowercase().contains(&filter)
+                        || fav.goal.to_lowercase().contains(&filter)
+                        || fav.profiles.iter().any(|p| p.to_lowercase().contains(&filter))
+                        || fav.flags.iter().any(|f| f.to_lowercase().contains(&filter))
+                })
+                .cloned()
+                .collect()
+        }
+    }
+
+    /// Push character to favorites filter
+    pub fn push_favorites_filter_char(&mut self, ch: char) {
+        self.favorites_filter.push(ch);
+        // Reset selection when filter changes
+        if !self.get_filtered_favorites().is_empty() {
+            self.favorites_list_state.select(Some(0));
+        }
+    }
+
+    /// Pop character from favorites filter
+    pub fn pop_favorites_filter_char(&mut self) {
+        self.favorites_filter.pop();
+        // Reset selection when filter changes
+        if !self.get_filtered_favorites().is_empty() {
+            self.favorites_list_state.select(Some(0));
+        }
     }
 
     /// Delete the selected favorite

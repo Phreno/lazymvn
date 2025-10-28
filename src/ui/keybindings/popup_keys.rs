@@ -36,9 +36,30 @@ pub fn handle_save_favorite_popup(key: KeyEvent, state: &mut TuiState) -> bool {
 /// Handle keyboard events for favorites popup
 pub fn handle_favorites_popup(key: KeyEvent, state: &mut TuiState) -> bool {
     match key.code {
+        KeyCode::Esc | KeyCode::Char('q') => {
+            log::info!("Close favorites popup");
+            state.show_favorites_popup = false;
+            state.favorites_filter.clear();
+        }
+        KeyCode::Delete | KeyCode::Char('d') => {
+            log::info!("Delete favorite");
+            state.delete_selected_favorite();
+        }
+        KeyCode::Char(ch)
+            if !key
+                .modifiers
+                .contains(crossterm::event::KeyModifiers::CONTROL) =>
+        {
+            log::debug!("Favorites filter input: '{}'", ch);
+            state.push_favorites_filter_char(ch);
+        }
+        KeyCode::Backspace => {
+            log::debug!("Favorites filter backspace");
+            state.pop_favorites_filter_char();
+        }
         KeyCode::Down => {
             log::debug!("Navigate down in favorites");
-            let len = state.favorites.list().len();
+            let len = state.get_filtered_favorites().len();
             if len > 0 {
                 let i = match state.favorites_list_state.selected() {
                     Some(i) => {
@@ -55,7 +76,7 @@ pub fn handle_favorites_popup(key: KeyEvent, state: &mut TuiState) -> bool {
         }
         KeyCode::Up => {
             log::debug!("Navigate up in favorites");
-            let len = state.favorites.list().len();
+            let len = state.get_filtered_favorites().len();
             if len > 0 {
                 let i = match state.favorites_list_state.selected() {
                     Some(i) => {
@@ -73,19 +94,12 @@ pub fn handle_favorites_popup(key: KeyEvent, state: &mut TuiState) -> bool {
         KeyCode::Enter => {
             log::info!("Execute favorite");
             if let Some(selected) = state.favorites_list_state.selected()
-                && let Some(fav) = state.favorites.list().get(selected).cloned()
+                && let Some(fav) = state.get_filtered_favorites().get(selected).cloned()
             {
                 state.apply_favorite(&fav);
                 state.show_favorites_popup = false;
+                state.favorites_filter.clear();
             }
-        }
-        KeyCode::Delete | KeyCode::Char('d') => {
-            log::info!("Delete favorite");
-            state.delete_selected_favorite();
-        }
-        KeyCode::Esc | KeyCode::Char('q') => {
-            log::info!("Close favorites popup");
-            state.show_favorites_popup = false;
         }
         _ => {}
     }
@@ -95,9 +109,41 @@ pub fn handle_favorites_popup(key: KeyEvent, state: &mut TuiState) -> bool {
 /// Handle keyboard events for history popup
 pub fn handle_history_popup(key: KeyEvent, state: &mut TuiState) -> bool {
     match key.code {
+        KeyCode::Esc | KeyCode::Char('q') => {
+            log::info!("Close history popup");
+            state.show_history_popup = false;
+            state.history_filter.clear();
+        }
+        KeyCode::Char('s')
+            if key
+                .modifiers
+                .contains(crossterm::event::KeyModifiers::CONTROL) =>
+        {
+            log::info!("Save selected history entry as favorite");
+            if let Some(selected) = state.history_list_state.selected()
+                && let Some(entry) = state.get_filtered_history().get(selected).cloned()
+            {
+                state.pending_favorite = Some(entry);
+                state.show_history_popup = false;
+                state.show_save_favorite_popup = true;
+                state.favorite_name_input.clear();
+            }
+        }
+        KeyCode::Char(ch)
+            if !key
+                .modifiers
+                .contains(crossterm::event::KeyModifiers::CONTROL) =>
+        {
+            log::debug!("History filter input: '{}'", ch);
+            state.push_history_filter_char(ch);
+        }
+        KeyCode::Backspace => {
+            log::debug!("History filter backspace");
+            state.pop_history_filter_char();
+        }
         KeyCode::Down => {
             log::debug!("Navigate down in history");
-            let len = state.command_history.entries().len();
+            let len = state.get_filtered_history().len();
             if len > 0 {
                 let i = match state.history_list_state.selected() {
                     Some(i) => {
@@ -114,7 +160,7 @@ pub fn handle_history_popup(key: KeyEvent, state: &mut TuiState) -> bool {
         }
         KeyCode::Up => {
             log::debug!("Navigate up in history");
-            let len = state.command_history.entries().len();
+            let len = state.get_filtered_history().len();
             if len > 0 {
                 let i = match state.history_list_state.selected() {
                     Some(i) => {
@@ -132,31 +178,12 @@ pub fn handle_history_popup(key: KeyEvent, state: &mut TuiState) -> bool {
         KeyCode::Enter => {
             log::info!("Execute command from history");
             if let Some(selected) = state.history_list_state.selected()
-                && let Some(entry) = state.command_history.entries().get(selected)
+                && let Some(entry) = state.get_filtered_history().get(selected)
             {
                 // Apply the command's configuration
                 state.apply_history_entry(entry.clone());
                 state.show_history_popup = false;
             }
-        }
-        KeyCode::Char('s')
-            if key
-                .modifiers
-                .contains(crossterm::event::KeyModifiers::CONTROL) =>
-        {
-            log::info!("Save selected history entry as favorite");
-            if let Some(selected) = state.history_list_state.selected()
-                && let Some(entry) = state.command_history.entries().get(selected).cloned()
-            {
-                state.pending_favorite = Some(entry);
-                state.show_history_popup = false;
-                state.show_save_favorite_popup = true;
-                state.favorite_name_input.clear();
-            }
-        }
-        KeyCode::Esc | KeyCode::Char('q') => {
-            log::info!("Close history popup");
-            state.show_history_popup = false;
         }
         _ => {}
     }
@@ -166,6 +193,22 @@ pub fn handle_history_popup(key: KeyEvent, state: &mut TuiState) -> bool {
 /// Handle keyboard events for projects popup
 pub fn handle_projects_popup(key: KeyEvent, state: &mut TuiState) -> bool {
     match key.code {
+        KeyCode::Char('q') | KeyCode::Esc => {
+            log::info!("Cancel project selection");
+            state.hide_recent_projects();
+        }
+        KeyCode::Char(ch)
+            if !key
+                .modifiers
+                .contains(crossterm::event::KeyModifiers::CONTROL) =>
+        {
+            log::debug!("Projects filter input: '{}'", ch);
+            state.push_projects_filter_char(ch);
+        }
+        KeyCode::Backspace => {
+            log::debug!("Projects filter backspace");
+            state.pop_projects_filter_char();
+        }
         KeyCode::Down => {
             log::debug!("Navigate down in projects list");
             state.next_project();
@@ -177,10 +220,6 @@ pub fn handle_projects_popup(key: KeyEvent, state: &mut TuiState) -> bool {
         KeyCode::Enter => {
             log::info!("Select project from recent list");
             state.select_current_project();
-        }
-        KeyCode::Esc | KeyCode::Char('q') => {
-            log::info!("Cancel project selection");
-            state.hide_recent_projects();
         }
         _ => {}
     }

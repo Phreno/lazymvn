@@ -1,12 +1,28 @@
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout, Rect},
-    style::Style,
+    style::{Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
 };
 
 use crate::ui::theme::Theme;
+
+/// Create a centered popup area with the given width and height percentages.
+/// Returns a Rect centered in the terminal area.
+fn centered_popup_area(area: Rect, width_percent: u16, height_percent: u16) -> Rect {
+    let popup_width = (area.width * width_percent) / 100;
+    let popup_height = (area.height * height_percent) / 100;
+    let popup_x = (area.width.saturating_sub(popup_width)) / 2;
+    let popup_y = (area.height.saturating_sub(popup_height)) / 2;
+
+    Rect {
+        x: popup_x,
+        y: popup_y,
+        width: popup_width,
+        height: popup_height,
+    }
+}
 
 pub fn render_starter_selector_popup(
     f: &mut Frame,
@@ -229,30 +245,37 @@ pub fn render_projects_popup(
     f: &mut Frame,
     projects: &[std::path::PathBuf],
     list_state: &mut ListState,
+    filter: &str,
 ) {
-    // Calculate popup size (centered, 60% width, 60% height)
-    let area = f.area();
-    let popup_width = (area.width * 60) / 100;
-    let popup_height = (area.height * 60) / 100;
-    let popup_x = (area.width - popup_width) / 2;
-    let popup_y = (area.height - popup_height) / 2;
-
-    let popup_area = Rect {
-        x: popup_x,
-        y: popup_y,
-        width: popup_width,
-        height: popup_height,
-    };
+    // Calculate popup size (centered, 70% width, 70% height)
+    let popup_area = centered_popup_area(f.area(), 70, 70);
 
     // Clear the area behind the popup with solid background
     f.render_widget(ratatui::widgets::Clear, popup_area);
 
-    // Create the popup block with rounded borders
-    let block = Block::default()
-        .title("Recent Projects [Ctrl+R]")
+    // Split popup into filter input, list, and help sections
+    let popup_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3), // Filter input
+            Constraint::Min(1),    // List
+            Constraint::Length(3), // Help
+        ])
+        .split(popup_area);
+
+    // Render filter input
+    let filter_block = Block::default()
+        .title("Filter (type to search)")
         .borders(Borders::ALL)
         .border_type(ratatui::widgets::BorderType::Rounded)
         .border_style(Theme::FOCUS_STYLE);
+    let filter_text = if filter.is_empty() {
+        Line::from("Type to filter projects...")
+    } else {
+        Line::from(filter.to_string())
+    };
+    let filter_para = Paragraph::new(filter_text).block(filter_block);
+    f.render_widget(filter_para, popup_chunks[0]);
 
     // Create list items from projects
     let items: Vec<ListItem> = projects
@@ -263,35 +286,35 @@ pub fn render_projects_popup(
         })
         .collect();
 
-    let help_text = if projects.is_empty() {
-        "No recent projects. Open Maven projects to add them to this list."
+    let title = if projects.is_empty() {
+        "Recent Projects (no matches)".to_string()
     } else {
-        "↑↓: Navigate | Enter: Select | Esc: Cancel"
+        format!("Recent Projects ({} matches)", projects.len())
     };
 
-    // Split popup into list and help sections
-    let popup_chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Min(1), Constraint::Length(3)])
-        .split(popup_area);
+    let list_block = Block::default()
+        .title(title)
+        .borders(Borders::ALL)
+        .border_type(ratatui::widgets::BorderType::Rounded)
+        .border_style(Theme::FOCUS_STYLE);
 
-    // Render the list
     let list = List::new(items)
-        .block(block)
+        .block(list_block)
         .style(Theme::DEFAULT_STYLE)
         .highlight_style(Theme::SELECTED_STYLE)
         .highlight_symbol(">> ");
 
-    f.render_stateful_widget(list, popup_chunks[0], list_state);
+    f.render_stateful_widget(list, popup_chunks[1], list_state);
 
     // Render help text
     let help_block = Block::default()
         .borders(Borders::TOP)
         .border_style(Theme::DEFAULT_STYLE);
+    let help_text = "Type: Filter | ↑↓: Navigate | Enter: Select | Esc: Cancel";
     let help = Paragraph::new(Line::from(help_text))
         .block(help_block)
         .style(Theme::FOOTER_SECTION_STYLE);
-    f.render_widget(help, popup_chunks[1]);
+    f.render_widget(help, popup_chunks[2]);
 }
 
 /// Render command history popup
@@ -299,42 +322,35 @@ pub fn render_history_popup(
     f: &mut Frame,
     history: &[crate::features::history::HistoryEntry],
     list_state: &mut ListState,
+    filter: &str,
 ) {
-    // Calculate popup size (centered, 80% width, 80% height)
-    let area = f.area();
-    let popup_width = (area.width * 80) / 100;
-    let popup_height = (area.height * 80) / 100;
-    let popup_x = (area.width - popup_width) / 2;
-    let popup_y = (area.height - popup_height) / 2;
-
-    let popup_area = Rect {
-        x: popup_x,
-        y: popup_y,
-        width: popup_width,
-        height: popup_height,
-    };
-
-    // Clear the area behind the popup with solid background
+    let popup_area = centered_popup_area(f.area(), 70, 70);
     f.render_widget(ratatui::widgets::Clear, popup_area);
 
-    // Split popup into title, list, preview, and help sections
     let popup_chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),      // Title
-            Constraint::Percentage(60), // List
-            Constraint::Min(1),         // Preview
-            Constraint::Length(2),      // Help
+            Constraint::Length(3), // Filter input
+            Constraint::Min(1),    // List
+            Constraint::Length(3), // Help
         ])
         .split(popup_area);
 
-    // Title
-    let title_block = Block::default()
-        .title("Command History (Ctrl+H)")
+    // Filter input section
+    let filter_block = Block::default()
+        .title("Filter (type to search)")
         .borders(Borders::ALL)
         .border_type(ratatui::widgets::BorderType::Rounded)
         .border_style(Theme::FOCUS_STYLE);
-    f.render_widget(title_block, popup_chunks[0]);
+
+    let filter_text = if filter.is_empty() {
+        Span::styled("Type to filter commands...", Theme::DEFAULT_STYLE.add_modifier(Modifier::DIM))
+    } else {
+        Span::raw(filter)
+    };
+
+    let filter_para = Paragraph::new(filter_text).block(filter_block);
+    f.render_widget(filter_para, popup_chunks[0]);
 
     // Command list
     let items: Vec<ListItem> = history
@@ -347,10 +363,17 @@ pub fn render_history_popup(
         })
         .collect();
 
+    let title = if history.is_empty() {
+        "Command History (no matches)".to_string()
+    } else {
+        format!("Command History ({} matches)", history.len())
+    };
+
     let list_block = Block::default()
-        .title("Recent Commands")
+        .title(title)
         .borders(Borders::ALL)
-        .border_type(ratatui::widgets::BorderType::Rounded);
+        .border_type(ratatui::widgets::BorderType::Rounded)
+        .border_style(Theme::FOCUS_STYLE);
 
     let list = List::new(items)
         .block(list_block)
@@ -360,79 +383,15 @@ pub fn render_history_popup(
 
     f.render_stateful_widget(list, popup_chunks[1], list_state);
 
-    // Preview of selected command
-    let preview_text = if let Some(selected) = list_state.selected() {
-        if let Some(entry) = history.get(selected) {
-            let mut lines = vec![
-                Line::from(vec![
-                    Span::styled(
-                        "Module: ",
-                        Style::default().fg(ratatui::style::Color::Yellow),
-                    ),
-                    Span::raw(&entry.module),
-                ]),
-                Line::from(vec![
-                    Span::styled("Goal: ", Style::default().fg(ratatui::style::Color::Yellow)),
-                    Span::raw(&entry.goal),
-                ]),
-            ];
-
-            if !entry.profiles.is_empty() {
-                lines.push(Line::from(vec![
-                    Span::styled(
-                        "Profiles: ",
-                        Style::default().fg(ratatui::style::Color::Yellow),
-                    ),
-                    Span::raw(entry.profiles.join(", ")),
-                ]));
-            }
-
-            if !entry.flags.is_empty() {
-                lines.push(Line::from(vec![
-                    Span::styled(
-                        "Flags: ",
-                        Style::default().fg(ratatui::style::Color::Yellow),
-                    ),
-                    Span::raw(entry.flags.join(", ")),
-                ]));
-            }
-
-            lines.push(Line::from(""));
-            lines.push(Line::from(vec![
-                Span::styled("Time: ", Style::default().fg(ratatui::style::Color::Yellow)),
-                Span::raw(entry.format_time()),
-            ]));
-
-            lines
-        } else {
-            vec![Line::from("No command selected")]
-        }
-    } else {
-        vec![Line::from("No command selected")]
-    };
-
-    let preview_block = Block::default()
-        .title("Command Details")
-        .borders(Borders::ALL)
-        .border_type(ratatui::widgets::BorderType::Rounded);
-
-    let preview = Paragraph::new(preview_text).block(preview_block);
-    f.render_widget(preview, popup_chunks[2]);
-
-    // Help
-    let help_text = Line::from(vec![
-        Span::styled("Enter", Style::default().fg(ratatui::style::Color::Green)),
-        Span::raw(" Run | "),
-        Span::styled("↑↓", Style::default().fg(ratatui::style::Color::Cyan)),
-        Span::raw(" Navigate | "),
-        Span::styled("Esc", Style::default().fg(ratatui::style::Color::Red)),
-        Span::raw(" Close"),
-    ]);
-
-    let help_paragraph = Paragraph::new(help_text)
-        .alignment(ratatui::layout::Alignment::Center)
-        .style(Theme::DEFAULT_STYLE);
-    f.render_widget(help_paragraph, popup_chunks[3]);
+    // Render help text
+    let help_block = Block::default()
+        .borders(Borders::TOP)
+        .border_style(Theme::DEFAULT_STYLE);
+    let help_text = "Type: Filter | ↑↓: Navigate | Enter: Run | Ctrl+S: Save | Esc: Cancel";
+    let help = Paragraph::new(Line::from(help_text))
+        .block(help_block)
+        .style(Theme::FOOTER_SECTION_STYLE);
+    f.render_widget(help, popup_chunks[2]);
 }
 
 /// Render favorites popup
@@ -440,42 +399,35 @@ pub fn render_favorites_popup(
     f: &mut Frame,
     favorites: &[crate::features::favorites::Favorite],
     list_state: &mut ListState,
+    filter: &str,
 ) {
-    // Calculate popup size
-    let area = f.area();
-    let popup_width = (area.width * 80) / 100;
-    let popup_height = (area.height * 80) / 100;
-    let popup_x = (area.width - popup_width) / 2;
-    let popup_y = (area.height - popup_height) / 2;
-
-    let popup_area = Rect {
-        x: popup_x,
-        y: popup_y,
-        width: popup_width,
-        height: popup_height,
-    };
-
-    // Clear background
+    let popup_area = centered_popup_area(f.area(), 70, 70);
     f.render_widget(ratatui::widgets::Clear, popup_area);
 
-    // Split popup
     let popup_chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),      // Title
-            Constraint::Percentage(60), // List
-            Constraint::Min(1),         // Preview
-            Constraint::Length(2),      // Help
+            Constraint::Length(3), // Filter input
+            Constraint::Min(1),    // List
+            Constraint::Length(3), // Help
         ])
         .split(popup_area);
 
-    // Title
-    let title_block = Block::default()
-        .title("Favorite Commands (Ctrl+F)")
+    // Filter input section
+    let filter_block = Block::default()
+        .title("Filter (type to search)")
         .borders(Borders::ALL)
         .border_type(ratatui::widgets::BorderType::Rounded)
         .border_style(Theme::FOCUS_STYLE);
-    f.render_widget(title_block, popup_chunks[0]);
+
+    let filter_text = if filter.is_empty() {
+        Span::styled("Type to filter favorites...", Theme::DEFAULT_STYLE.add_modifier(Modifier::DIM))
+    } else {
+        Span::raw(filter)
+    };
+
+    let filter_para = Paragraph::new(filter_text).block(filter_block);
+    f.render_widget(filter_para, popup_chunks[0]);
 
     // List
     let items: Vec<ListItem> = if favorites.is_empty() {
@@ -492,10 +444,17 @@ pub fn render_favorites_popup(
             .collect()
     };
 
+    let title = if favorites.is_empty() {
+        "Favorite Commands (no matches)".to_string()
+    } else {
+        format!("Favorite Commands ({} matches)", favorites.len())
+    };
+
     let list_block = Block::default()
-        .title("Saved Favorites")
+        .title(title)
         .borders(Borders::ALL)
-        .border_type(ratatui::widgets::BorderType::Rounded);
+        .border_type(ratatui::widgets::BorderType::Rounded)
+        .border_style(Theme::FOCUS_STYLE);
 
     let list = List::new(items)
         .block(list_block)
@@ -505,81 +464,15 @@ pub fn render_favorites_popup(
 
     f.render_stateful_widget(list, popup_chunks[1], list_state);
 
-    // Preview
-    let preview_text = if favorites.is_empty() {
-        vec![Line::from("No favorites to preview")]
-    } else if let Some(selected) = list_state.selected() {
-        if let Some(fav) = favorites.get(selected) {
-            let mut lines = vec![
-                Line::from(vec![
-                    Span::styled("Name: ", Style::default().fg(ratatui::style::Color::Yellow)),
-                    Span::raw(&fav.name),
-                ]),
-                Line::from(vec![
-                    Span::styled(
-                        "Module: ",
-                        Style::default().fg(ratatui::style::Color::Yellow),
-                    ),
-                    Span::raw(&fav.module),
-                ]),
-                Line::from(vec![
-                    Span::styled("Goal: ", Style::default().fg(ratatui::style::Color::Yellow)),
-                    Span::raw(&fav.goal),
-                ]),
-            ];
-
-            if !fav.profiles.is_empty() {
-                lines.push(Line::from(vec![
-                    Span::styled(
-                        "Profiles: ",
-                        Style::default().fg(ratatui::style::Color::Yellow),
-                    ),
-                    Span::raw(fav.profiles.join(", ")),
-                ]));
-            }
-
-            if !fav.flags.is_empty() {
-                lines.push(Line::from(vec![
-                    Span::styled(
-                        "Flags: ",
-                        Style::default().fg(ratatui::style::Color::Yellow),
-                    ),
-                    Span::raw(fav.flags.join(", ")),
-                ]));
-            }
-
-            lines
-        } else {
-            vec![Line::from("No favorite selected")]
-        }
-    } else {
-        vec![Line::from("No favorite selected")]
-    };
-
-    let preview_block = Block::default()
-        .title("Command Details")
-        .borders(Borders::ALL)
-        .border_type(ratatui::widgets::BorderType::Rounded);
-
-    let preview = Paragraph::new(preview_text).block(preview_block);
-    f.render_widget(preview, popup_chunks[2]);
-
-    // Help
-    let help_text = Line::from(vec![
-        Span::styled("Enter", Style::default().fg(ratatui::style::Color::Green)),
-        Span::raw(" Run | "),
-        Span::styled("Del", Style::default().fg(ratatui::style::Color::Red)),
-        Span::raw(" Delete | "),
-        Span::styled("↑↓", Style::default().fg(ratatui::style::Color::Cyan)),
-        Span::raw(" Navigate | "),
-        Span::styled("Esc", Style::default().fg(ratatui::style::Color::Red)),
-        Span::raw(" Close"),
-    ]);
-
-    let help_paragraph = Paragraph::new(help_text)
-        .alignment(ratatui::layout::Alignment::Center)
-        .style(Theme::DEFAULT_STYLE);
-    f.render_widget(help_paragraph, popup_chunks[3]);
+    // Render help text
+    let help_block = Block::default()
+        .borders(Borders::TOP)
+        .border_style(Theme::DEFAULT_STYLE);
+    let help_text = "Type: Filter | ↑↓: Navigate | Enter: Run | d/Del: Delete | Esc: Cancel";
+    let help = Paragraph::new(Line::from(help_text))
+        .block(help_block)
+        .style(Theme::FOOTER_SECTION_STYLE);
+    f.render_widget(help, popup_chunks[2]);
 }
 
 /// Render save favorite popup (name input)

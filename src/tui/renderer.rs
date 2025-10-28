@@ -151,7 +151,13 @@ pub fn draw<B: Backend>(
 
         // Render projects popup on top if shown
         if state.show_projects_popup {
-            render_projects_popup(f, &state.recent_projects, &mut state.projects_list_state);
+            let projects = state.get_filtered_projects();
+            render_projects_popup(
+                f,
+                &projects,
+                &mut state.projects_list_state,
+                &state.projects_filter,
+            );
         }
 
         // Render starter selector popup if shown
@@ -173,16 +179,24 @@ pub fn draw<B: Backend>(
 
         // Render command history popup if shown
         if state.show_history_popup {
+            let history = state.get_filtered_history();
             render_history_popup(
                 f,
-                state.command_history.entries(),
+                &history,
                 &mut state.history_list_state,
+                &state.history_filter,
             );
         }
 
         // Render favorites popup if shown
         if state.show_favorites_popup {
-            render_favorites_popup(f, state.favorites.list(), &mut state.favorites_list_state);
+            let favorites = state.get_filtered_favorites();
+            render_favorites_popup(
+                f,
+                &favorites,
+                &mut state.favorites_list_state,
+                &state.favorites_filter,
+            );
         }
 
         // Render save favorite popup if shown
@@ -192,3 +206,4 @@ pub fn draw<B: Backend>(
     })?;
     Ok(())
 }
+

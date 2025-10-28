@@ -168,15 +168,21 @@ pub(super) fn create_single_column_layout(
 ///
 /// In two column mode, left panes (projects, modules, profiles, flags)
 /// are in one column, and output occupies the right column.
+/// The left column is limited to a maximum of 40 characters to avoid
+/// wasting space on large screens.
 pub(super) fn create_two_column_layout(
     content_area: Rect,
     footer_area: Rect,
     focused_pane: Option<Focus>,
     is_short: bool,
 ) -> (Rect, Rect, Rect, Rect, Rect, Rect) {
+    // Calculate left column width: 30% of screen, but max 40 columns
+    let left_width = ((content_area.width * 30) / 100).min(40);
+    let right_width = content_area.width.saturating_sub(left_width);
+
     let content_chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(30), Constraint::Percentage(70)].as_ref())
+        .constraints([Constraint::Length(left_width), Constraint::Length(right_width)].as_ref())
         .split(content_area);
 
     // Adaptive left pane layout based on height and focus
@@ -290,5 +296,32 @@ mod tests {
         assert!(mods.height >= 3);
         assert!(profs.height >= 3);
         assert!(flags.height >= 3);
+    }
+
+    #[test]
+    fn test_adaptive_layout_limits_left_column_width() {
+        // Very wide terminal (200 columns)
+        let area = Rect::new(0, 0, 200, 40);
+        let (_tab, proj, _mods, _profs, _flags, out, _foot) = create_adaptive_layout(area, None);
+
+        // Left column should be capped at 40 columns
+        assert!(proj.width <= 40, "Left column width should not exceed 40, got {}", proj.width);
+        
+        // Output should take the rest
+        assert!(out.width >= 160, "Output should use remaining space, got {}", out.width);
+    }
+
+    #[test]
+    fn test_adaptive_layout_normal_width_uses_percentage() {
+        // Normal terminal (100 columns)
+        let area = Rect::new(0, 0, 100, 40);
+        let (_tab, proj, _mods, _profs, _flags, out, _foot) = create_adaptive_layout(area, None);
+
+        // Left column should be ~30% (30 columns)
+        assert!(proj.width <= 35, "Left column should be around 30% for normal terminals, got {}", proj.width);
+        assert!(proj.width >= 25, "Left column should be around 30% for normal terminals, got {}", proj.width);
+        
+        // Output should be ~70%
+        assert!(out.width >= 65, "Output should be around 70% for normal terminals, got {}", out.width);
     }
 }
