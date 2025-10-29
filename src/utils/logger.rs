@@ -84,6 +84,74 @@ fn get_log_dir() -> Result<PathBuf, std::io::Error> {
     Ok(log_dir)
 }
 
+/// Clean up old rotated log files (older than 30 days)
+fn cleanup_old_logs(log_dir: &PathBuf) -> Result<(), std::io::Error> {
+    use std::time::{Duration, SystemTime};
+
+    let thirty_days_ago = SystemTime::now() - Duration::from_secs(30 * 24 * 60 * 60);
+
+    // Read all files in the log directory
+    let entries = std::fs::read_dir(log_dir)?;
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        
+        // Only process rotated log files (*.log.1, *.log.2, etc.)
+        if let Some(filename) = path.file_name().and_then(|n| n.to_str())
+            && filename.contains(".log.")
+        {
+            // Check file modification time
+            if let Ok(metadata) = entry.metadata()
+                && let Ok(modified) = metadata.modified()
+                && modified < thirty_days_ago
+            {
+                // Delete old rotated log
+                let _ = std::fs::remove_file(&path);
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Rotate a log file if it exceeds the size limit
+/// Keeps up to 5 rotated files (file.log.1, file.log.2, ..., file.log.5)
+fn rotate_log_file(log_path: &PathBuf, max_size_mb: u64) -> Result<(), std::io::Error> {
+    // Check if file exists and its size
+    if !log_path.exists() {
+        return Ok(());
+    }
+
+    let metadata = std::fs::metadata(log_path)?;
+    let size_mb = metadata.len() / (1024 * 1024);
+
+    // If file is under the limit, no rotation needed
+    if size_mb < max_size_mb {
+        return Ok(());
+    }
+
+    // Rotate existing backups (5 -> delete, 4 -> 5, 3 -> 4, 2 -> 3, 1 -> 2)
+    for i in (1..=5).rev() {
+        let old_backup = log_path.with_extension(format!("log.{}", i));
+        if i == 5 {
+            // Delete the oldest backup
+            let _ = std::fs::remove_file(&old_backup);
+        } else {
+            // Rename to next number
+            let new_backup = log_path.with_extension(format!("log.{}", i + 1));
+            if old_backup.exists() {
+                let _ = std::fs::rename(&old_backup, &new_backup);
+            }
+        }
+    }
+
+    // Move current log to .log.1
+    let backup = log_path.with_extension("log.1");
+    std::fs::rename(log_path, &backup)?;
+
+    Ok(())
+}
+
 /// Get the path to the debug log file
 pub fn get_debug_log_path() -> Option<PathBuf> {
     get_log_dir().ok().map(|dir| dir.join("debug.log"))
@@ -226,6 +294,13 @@ pub fn init(log_level: Option<&str>) -> Result<(), SetLoggerError> {
 
         let debug_log_path = log_dir.join("debug.log");
         let error_log_path = log_dir.join("error.log");
+
+        // Clean up old rotated logs (older than 30 days)
+        let _ = cleanup_old_logs(&log_dir);
+
+        // Rotate logs if they're too large (5 MB limit per file)
+        let _ = rotate_log_file(&debug_log_path, 5);
+        let _ = rotate_log_file(&error_log_path, 5);
 
         let file = OpenOptions::new()
             .create(true)

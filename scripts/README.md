@@ -6,6 +6,18 @@ This directory contains test scripts for validating LazyMVN features.
 
 ### Feature Tests
 
+- **[test-custom-goals.sh](test-custom-goals.sh)** - Test custom Maven goals feature (Ctrl+G)
+  - Validates custom goals configuration loading
+  - Tests popup display and navigation
+  - Verifies goal execution on modules
+  - Usage: `./scripts/test-custom-goals.sh`
+
+- **[test-log-rotation.sh](test-log-rotation.sh)** - Test automatic log rotation system
+  - Demonstrates log rotation when files exceed 5 MB
+  - Shows backup creation (.log.1 through .log.5)
+  - Validates cleanup of logs older than 30 days
+  - Usage: `./scripts/test-log-rotation.sh`
+
 - **[test_debug_yank.sh](test_debug_yank.sh)** - Test debug yank feature (Shift+Y)
   - Tests comprehensive debug information collection
   - Verifies clipboard functionality

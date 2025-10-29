@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Log Rotation System** - Automatic log file management to prevent unbounded growth:
+  - Size-based rotation: Logs rotated when they exceed 5 MB
+  - Keeps up to 5 rotated backups per file (debug.log.1 through debug.log.5)
+  - Time-based cleanup: Automatically deletes rotated logs older than 30 days
+  - Maximum disk usage: ~60 MB (30 MB for debug logs + 30 MB for error logs)
+  - Transparent operation: Rotation happens on startup without user interaction
+  - See `docs/user/LOG_ROTATION.md` for details
 - **Custom Maven Goals** - Execute custom Maven plugin goals with a popup:
   - Press `Ctrl+G` to open the custom goals popup
   - Define goals in `lazymvn.toml` config: `custom_goals = [{ name = "Format", goal = "formatter:format" }]`

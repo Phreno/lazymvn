@@ -96,6 +96,7 @@ I want to credit both the project and its author for the idea and for shaping ho
   - Spring Boot starters in `~/.config/lazymvn/starters/`
 - Global configuration in `~/.config/lazymvn/` (Linux/macOS) or `%APPDATA%\lazymvn\` (Windows)
 - Recent projects list stored in `recent.json` (automatically maintained)
+- **Automatic log rotation**: Debug and error logs are rotated when they exceed 5 MB, keeping up to 5 backups per file (max ~60 MB total). Old rotated logs are cleaned up after 30 days. See [Log Rotation](docs/user/LOG_ROTATION.md) for details.
 
 ### Technical Stack
 
