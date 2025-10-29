@@ -338,6 +338,7 @@ pub fn init(log_level: Option<&str>) -> Result<(), SetLoggerError> {
 }
 
 /// Read the last N lines from a file (tail-like functionality)
+#[allow(dead_code)]
 fn read_last_lines(path: &PathBuf, max_lines: usize) -> Result<Vec<String>, std::io::Error> {
     use std::io::{BufRead, BufReader};
 
@@ -357,6 +358,7 @@ fn read_last_lines(path: &PathBuf, max_lines: usize) -> Result<Vec<String>, std:
 }
 
 /// Get all available logs (last 500 lines from debug and error logs)
+#[allow(dead_code)]
 pub fn get_all_logs() -> String {
     let mut output = Vec::new();
 
@@ -400,4 +402,50 @@ pub fn get_all_logs() -> String {
     }
 
     output.join("\n")
+}
+
+/// Get logs for debug report (optimized for size)
+/// - Only includes current session logs (across all rotated files)
+/// - Filters out TRACE level logs (keeps DEBUG, INFO, WARN, ERROR)
+/// - Limits to last 300 lines to keep report manageable
+pub fn get_logs_for_debug_report() -> String {
+    // Get current session logs (already handles rotation)
+    match get_current_session_logs() {
+        Ok(session_logs) => {
+            let lines: Vec<&str> = session_logs.lines().collect();
+            
+            // Filter out TRACE level logs and limit size
+            let filtered: Vec<String> = lines
+                .iter()
+                .filter(|line| {
+                    // Keep lines that don't contain TRACE level
+                    // TRACE logs look like: [SESSION:...] [timestamp] TRACE - ...
+                    !line.contains("] TRACE - ")
+                })
+                .take(300) // Limit to 300 lines
+                .map(|s| s.to_string())
+                .collect();
+            
+            if filtered.is_empty() {
+                "(No logs for current session)".to_string()
+            } else {
+                let total_lines = lines.len();
+                let filtered_lines = filtered.len();
+                let mut output = Vec::new();
+                
+                if filtered_lines < total_lines {
+                    output.push(format!(
+                        "(Filtered {} lines, showing {} lines - TRACE logs excluded)",
+                        total_lines, filtered_lines
+                    ));
+                }
+                
+                output.extend(filtered);
+                output.join("\n")
+            }
+        }
+        Err(e) => {
+            format!("Error getting session logs: {}", e)
+        }
+    }
 }

@@ -13,7 +13,7 @@ pub fn handle_mouse_event(mouse: MouseEvent, state: &mut TuiState) {
         return;
     }
 
-    log::debug!("Mouse click at ({}, {})", mouse.column, mouse.row);
+    log::trace!("Mouse click at ({}, {})", mouse.column, mouse.row);
 
     // Get the current layout areas to determine which pane was clicked
     // We need to calculate this based on terminal size
@@ -45,23 +45,23 @@ pub fn handle_mouse_event(mouse: MouseEvent, state: &mut TuiState) {
     let click_pos = (mouse.column, mouse.row);
 
     if is_inside_area(click_pos, projects_area) {
-        log::info!("Mouse clicked on Projects pane");
+        log::trace!("Mouse clicked on Projects pane");
         state.switch_to_projects();
         handle_pane_item_click(mouse, projects_area, state, Focus::Projects);
     } else if is_inside_area(click_pos, modules_area) {
-        log::info!("Mouse clicked on Modules pane");
+        log::trace!("Mouse clicked on Modules pane");
         state.switch_to_modules();
         handle_pane_item_click(mouse, modules_area, state, Focus::Modules);
     } else if is_inside_area(click_pos, profiles_area) {
-        log::info!("Mouse clicked on Profiles pane");
+        log::trace!("Mouse clicked on Profiles pane");
         state.switch_to_profiles();
         handle_pane_item_click(mouse, profiles_area, state, Focus::Profiles);
     } else if is_inside_area(click_pos, flags_area) {
-        log::info!("Mouse clicked on Flags pane");
+        log::trace!("Mouse clicked on Flags pane");
         state.switch_to_flags();
         handle_pane_item_click(mouse, flags_area, state, Focus::Flags);
     } else if is_inside_area(click_pos, output_area) {
-        log::info!("Mouse clicked on Output pane");
+        log::trace!("Mouse clicked on Output pane");
         state.focus_output();
     }
 }

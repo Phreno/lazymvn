@@ -6,6 +6,13 @@ This directory contains test scripts for validating LazyMVN features.
 
 ### Feature Tests
 
+- **[test-debug-report-optimization.sh](test-debug-report-optimization.sh)** - Test debug report size optimization
+  - Validates config filtering (comment removal)
+  - Verifies log level filtering (DEBUG/INFO/WARN/ERROR only)
+  - Tests session-scoped log extraction
+  - Shows expected size reduction (80-90%)
+  - Usage: `./scripts/test-debug-report-optimization.sh`
+
 - **[test-custom-goals.sh](test-custom-goals.sh)** - Test custom Maven goals feature (Ctrl+G)
   - Validates custom goals configuration loading
   - Tests popup display and navigation

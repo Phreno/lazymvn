@@ -10,11 +10,11 @@ use crate::ui::state::TuiState;
 pub fn handle_scroll_down(state: &mut TuiState, focus: Focus) {
     match focus {
         Focus::Output => {
-            log::debug!("Scroll output down");
+            log::trace!("Scroll output down");
             state.scroll_output_lines(1);
         }
         _ => {
-            log::debug!("Navigate down in list");
+            log::trace!("Navigate down in list");
             state.next_item();
         }
     }
@@ -24,11 +24,11 @@ pub fn handle_scroll_down(state: &mut TuiState, focus: Focus) {
 pub fn handle_scroll_up(state: &mut TuiState, focus: Focus) {
     match focus {
         Focus::Output => {
-            log::debug!("Scroll output up");
+            log::trace!("Scroll output up");
             state.scroll_output_lines(-1);
         }
         _ => {
-            log::debug!("Navigate up in list");
+            log::trace!("Navigate up in list");
             state.previous_item();
         }
     }
@@ -36,25 +36,25 @@ pub fn handle_scroll_up(state: &mut TuiState, focus: Focus) {
 
 /// Handle page up in output
 pub fn handle_page_up(state: &mut TuiState) {
-    log::debug!("Page up");
+    log::trace!("Page up");
     state.scroll_output_pages(-1);
 }
 
 /// Handle page down in output
 pub fn handle_page_down(state: &mut TuiState) {
-    log::debug!("Page down");
+    log::trace!("Page down");
     state.scroll_output_pages(1);
 }
 
 /// Handle scroll to start (Home key)
 pub fn handle_scroll_to_start(state: &mut TuiState) {
-    log::debug!("Scroll to start");
+    log::trace!("Scroll to start");
     state.scroll_output_to_start();
 }
 
 /// Handle scroll to end (End key)
 pub fn handle_scroll_to_end(state: &mut TuiState) {
-    log::debug!("Scroll to end");
+    log::trace!("Scroll to end");
     state.scroll_output_to_end();
 }
 

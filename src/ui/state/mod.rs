@@ -597,7 +597,23 @@ impl TuiState {
             info.push(format!("Location: {}", config_path.display()));
             match std::fs::read_to_string(&config_path) {
                 Ok(content) => {
-                    info.push(content);
+                    // Filter out comments and empty lines to reduce size
+                    let filtered_lines: Vec<String> = content
+                        .lines()
+                        .filter(|line| {
+                            let trimmed = line.trim();
+                            // Keep non-empty lines that don't start with #
+                            !trimmed.is_empty() && !trimmed.starts_with('#')
+                        })
+                        .map(String::from)
+                        .collect();
+                    
+                    if filtered_lines.is_empty() {
+                        info.push("(Config file is empty or contains only comments)".to_string());
+                    } else {
+                        info.push("(Comments and empty lines removed for brevity)".to_string());
+                        info.extend(filtered_lines);
+                    }
                 }
                 Err(e) => {
                     info.push(format!("Error reading config file: {}", e));
@@ -680,8 +696,8 @@ impl TuiState {
     /// Collect LazyMVN logs
     fn collect_logs() -> Vec<String> {
         let mut info = Vec::new();
-        info.push("=== LazyMVN Logs ===".to_string());
-        let logs = crate::utils::logger::get_all_logs();
+        info.push("=== LazyMVN Logs (Current Session) ===".to_string());
+        let logs = crate::utils::logger::get_logs_for_debug_report();
         info.push(logs);
         info.push(String::new());
         info

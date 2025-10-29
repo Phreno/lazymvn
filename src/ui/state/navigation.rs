@@ -14,7 +14,7 @@ impl TuiState {
         if let Some(last_time) = self.last_nav_key_time
             && now.duration_since(last_time) < self.nav_debounce_duration
         {
-            log::debug!("Navigation debounced (too fast)");
+            log::trace!("Navigation debounced (too fast)");
             return false;
         }
 

@@ -22,6 +22,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Navigate with `↑↓`, execute with `Enter`, close with `Esc` or `q`
   - Supports formatters, code quality tools, code generators, Docker builds, and more
   - See `examples/lazymvn.toml.custom-goals-example` for comprehensive examples
+
+### Improved
+- **Debug Report Optimization** (Shift+Y) - Significantly reduced report size:
+  - Configuration dump now filters out comments and empty lines (50-70% size reduction)
+  - Logs limited to current session only (excludes previous sessions even after rotation)
+  - Only includes DEBUG/INFO/WARN/ERROR levels (excludes verbose TRACE logs)
+  - Limited to last 300 log lines per report (down from 500)
+  - Tab output limited to last 100 lines each (most relevant for errors)
+  - Typical report size reduced from 5000+ lines to 500-1000 lines
+  - See `docs/internal/LOGGING_BEST_PRACTICES.md` for logging guidelines
+- **Logging Strategy** - Better distinction between log levels:
+  - Mouse events moved to TRACE level (excluded from debug reports)
+  - Frequent UI events use TRACE to reduce noise
+  - DEBUG reserved for important state changes and flow
+  - Reports now contain only actionable information for bug diagnosis
 - **Help Popup** - Press `?` to display comprehensive keybindings reference:
   - Shows all available keyboard shortcuts organized by category
   - Navigation, Tab Management, Maven Commands, Spring Boot, Workflow, Search, and General
