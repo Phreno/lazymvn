@@ -539,75 +539,123 @@ pub fn render_save_favorite_popup(f: &mut Frame, name_input: &str) {
 }
 
 /// Render help popup with all keybindings
-pub fn render_help_popup(f: &mut Frame) {
+pub fn render_help_popup(f: &mut Frame, search_query: &str, list_state: &mut ListState) {
+    use crate::ui::keybindings::get_all_keybindings;
+    
     let popup_area = centered_popup_area(f.area(), 80, 90);
     f.render_widget(ratatui::widgets::Clear, popup_area);
 
-    let block = Block::default()
-        .title(" LazyMVN - Keyboard Shortcuts [Press ? or Esc to close] ")
+    // Split into main area and search bar
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3),  // Search bar
+            Constraint::Min(1),     // Keybindings list
+            Constraint::Length(3),  // Controls
+        ])
+        .split(popup_area);
+
+    // Render search bar
+    let search_block = Block::default()
+        .title(" Search (type to filter) ")
+        .borders(Borders::ALL)
+        .border_type(ratatui::widgets::BorderType::Rounded)
+        .border_style(Theme::FOCUS_STYLE);
+    
+    let search_text = if search_query.is_empty() {
+        Span::styled("Type to filter keybindings...", Style::default().fg(ratatui::style::Color::DarkGray))
+    } else {
+        Span::raw(search_query)
+    };
+    
+    let search_paragraph = Paragraph::new(search_text)
+        .block(search_block)
+        .style(Theme::DEFAULT_STYLE);
+    f.render_widget(search_paragraph, chunks[0]);
+
+    // Get and filter keybindings
+    let all_keybindings = get_all_keybindings();
+    let filtered_keybindings: Vec<_> = if search_query.is_empty() {
+        all_keybindings
+    } else {
+        let query_lower = search_query.to_lowercase();
+        all_keybindings.into_iter().filter(|kb| {
+            kb.keys.to_lowercase().contains(&query_lower) ||
+            kb.description.to_lowercase().contains(&query_lower) ||
+            kb.category.to_lowercase().contains(&query_lower)
+        }).collect()
+    };
+
+    // Group by category and create list items
+    let mut items = Vec::new();
+    let mut current_category = "";
+    
+    for keybinding in &filtered_keybindings {
+        // Add category header if changed
+        if keybinding.category != current_category {
+            if !current_category.is_empty() {
+                items.push(ListItem::new(Line::from(""))); // Empty line between categories
+            }
+            current_category = keybinding.category;
+            items.push(ListItem::new(Line::from(vec![
+                Span::styled(
+                    format!("═══ {} ═══", keybinding.category),
+                    Style::default()
+                        .fg(ratatui::style::Color::Yellow)
+                        .add_modifier(Modifier::BOLD)
+                )
+            ])));
+        }
+        
+        // Add keybinding item
+        items.push(ListItem::new(Line::from(vec![
+            Span::raw("  "),
+            Span::styled(
+                format!("{:12}", keybinding.keys),
+                Style::default().fg(ratatui::style::Color::Cyan)
+            ),
+            Span::raw(" "),
+            Span::raw(keybinding.description),
+        ])));
+    }
+
+    let list_block = Block::default()
+        .title(format!(" LazyMVN - Keyboard Shortcuts ({} bindings) ", filtered_keybindings.len()))
         .borders(Borders::ALL)
         .border_type(ratatui::widgets::BorderType::Rounded)
         .border_style(Theme::FOCUS_STYLE);
 
-    let inner = block.inner(popup_area);
-    f.render_widget(block, popup_area);
+    let list = List::new(items)
+        .block(list_block)
+        .highlight_style(Theme::SELECTED_STYLE)
+        .highlight_symbol("▶ ");
 
-    // Build help content
-    let help_lines = vec![
-        Line::from(vec![Span::styled("═══ Navigation ═══", Style::default().fg(ratatui::style::Color::Yellow).add_modifier(Modifier::BOLD))]),
-        Line::from("  ←/→         Cycle focus between panes"),
-        Line::from("  ↑/↓         Move selection / Scroll output"),
-        Line::from("  PgUp/PgDn   Scroll output by pages"),
-        Line::from("  Home/End    Jump to start/end of output"),
-        Line::from("  0-4         Focus specific pane (0=Output, 1=Projects, 2=Modules, 3=Profiles, 4=Flags)"),
-        Line::from("  Mouse       Click to focus/select"),
-        Line::from(""),
-        Line::from(vec![Span::styled("═══ Tab Management ═══", Style::default().fg(ratatui::style::Color::Yellow).add_modifier(Modifier::BOLD))]),
-        Line::from("  Ctrl+T      Create new tab"),
-        Line::from("  Ctrl+W      Close current tab"),
-        Line::from("  Ctrl+←/→    Switch between tabs"),
-        Line::from(""),
-        Line::from(vec![Span::styled("═══ Maven Commands ═══", Style::default().fg(ratatui::style::Color::Yellow).add_modifier(Modifier::BOLD))]),
-        Line::from("  b           Build (clean install)"),
-        Line::from("  c           Compile"),
-        Line::from("  C           Clean"),
-        Line::from("  k           Package"),
-        Line::from("  t           Test"),
-        Line::from("  i           Install"),
-        Line::from("  d           Dependencies (tree)"),
-        Line::from("  Esc         Kill running process"),
-        Line::from(""),
-        Line::from(vec![Span::styled("═══ Spring Boot ═══", Style::default().fg(ratatui::style::Color::Yellow).add_modifier(Modifier::BOLD))]),
-        Line::from("  s           Run starter (opens selector)"),
-        Line::from("  Ctrl+Shift+S Open starter manager"),
-        Line::from(""),
-        Line::from(vec![Span::styled("═══ Workflow ═══", Style::default().fg(ratatui::style::Color::Yellow).add_modifier(Modifier::BOLD))]),
-        Line::from("  Ctrl+F      Show favorites"),
-        Line::from("  Ctrl+S      Save current config as favorite"),
-        Line::from("  Ctrl+H      Show command history"),
-        Line::from("  Ctrl+R      Show recent projects"),
-        Line::from("  Ctrl+E      Edit configuration (lazymvn.toml)"),
-        Line::from("  Ctrl+K      Refresh caches (profiles/starters)"),
-        Line::from(""),
-        Line::from(vec![Span::styled("═══ Selection & Search ═══", Style::default().fg(ratatui::style::Color::Yellow).add_modifier(Modifier::BOLD))]),
-        Line::from("  Space/Enter Toggle selection (profiles/flags)"),
-        Line::from("  /           Start search in output"),
-        Line::from("  n           Next search match"),
-        Line::from("  N           Previous search match"),
-        Line::from("  y           Yank (copy) output to clipboard"),
-        Line::from("  Y           Yank debug report (comprehensive)"),
-        Line::from("  Esc         Exit search mode"),
-        Line::from(""),
-        Line::from(vec![Span::styled("═══ General ═══", Style::default().fg(ratatui::style::Color::Yellow).add_modifier(Modifier::BOLD))]),
-        Line::from("  ?           Show this help"),
-        Line::from("  q           Quit LazyMVN"),
+    f.render_stateful_widget(list, chunks[1], list_state);
+
+    // Render controls
+    let controls_block = Block::default()
+        .title("Controls")
+        .borders(Borders::ALL)
+        .border_type(ratatui::widgets::BorderType::Rounded);
+
+    let controls_text = vec![
+        Line::from(vec![
+            Span::styled("Type", Style::default().fg(ratatui::style::Color::Yellow)),
+            Span::raw(" Filter  "),
+            Span::styled("↑↓", Style::default().fg(ratatui::style::Color::Yellow)),
+            Span::raw(" Navigate  "),
+            Span::styled("Enter", Style::default().fg(ratatui::style::Color::Yellow)),
+            Span::raw(" Execute  "),
+            Span::styled("Esc/?/q", Style::default().fg(ratatui::style::Color::Yellow)),
+            Span::raw(" Close"),
+        ]),
     ];
 
-    let paragraph = Paragraph::new(help_lines)
-        .style(Theme::DEFAULT_STYLE)
-        .scroll((0, 0));
+    let controls_paragraph = Paragraph::new(controls_text)
+        .block(controls_block)
+        .style(Theme::DEFAULT_STYLE);
 
-    f.render_widget(paragraph, inner);
+    f.render_widget(controls_paragraph, chunks[2]);
 }
 
 /// Render custom goals popup

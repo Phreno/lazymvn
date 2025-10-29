@@ -158,6 +158,8 @@ pub struct TuiState {
 
     // Help popup (global)
     pub show_help_popup: bool,
+    pub help_list_state: ListState,
+    pub help_search_query: String,
 
     // Editor command to execute (global)
     pub editor_command: Option<(String, String)>,
@@ -326,6 +328,8 @@ impl TuiState {
             pending_favorite: None,
 
             show_help_popup: false,
+            help_list_state: ListState::default(),
+            help_search_query: String::new(),
 
             editor_command: None,
         }
@@ -1505,11 +1509,15 @@ impl TuiState {
     pub fn show_help_popup(&mut self) {
         log::info!("Showing help popup");
         self.show_help_popup = true;
+        self.help_search_query.clear();
+        // Select first item
+        self.help_list_state.select(Some(0));
     }
 
     pub fn hide_help_popup(&mut self) {
         log::info!("Hiding help popup");
         self.show_help_popup = false;
+        self.help_search_query.clear();
     }
 
     pub fn select_and_run_starter(&mut self) {

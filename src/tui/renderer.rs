@@ -15,13 +15,26 @@ use crate::ui::{
     },
     state::TuiState,
 };
-use ratatui::{Terminal, backend::Backend};
+use ratatui::{Terminal, backend::Backend, widgets::ListState};
 
 /// Main drawing function that renders the complete TUI
 pub fn draw<B: Backend>(
     terminal: &mut Terminal<B>,
     state: &mut TuiState,
 ) -> Result<(), std::io::Error> {
+    // Extract help popup data before drawing (to avoid mut borrow issues)
+    let show_help = state.show_help_popup;
+    let help_search_query = if show_help {
+        state.help_search_query.clone()
+    } else {
+        String::new()
+    };
+    let mut help_list_state = if show_help {
+        state.help_list_state.clone()
+    } else {
+        ListState::default()
+    };
+    
     terminal.draw(|f| {
         // Extract data from state that doesn't require mutable access
         let focus = state.focus;
@@ -216,10 +229,16 @@ pub fn draw<B: Backend>(
         }
 
         // Render help popup if shown
-        if state.show_help_popup {
-            render_help_popup(f);
+        if show_help {
+            render_help_popup(f, &help_search_query, &mut help_list_state);
         }
     })?;
+    
+    // Update help list state after drawing
+    if show_help {
+        state.help_list_state = help_list_state;
+    }
+    
     Ok(())
 }
 

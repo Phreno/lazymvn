@@ -4,6 +4,7 @@
 
 mod command_keys;
 mod helpers;
+mod keybinding_data;
 mod navigation_keys;
 mod output_keys;
 mod popup_keys;
@@ -11,6 +12,7 @@ mod search_keys;
 mod types;
 mod ui_builders;
 
+pub use keybinding_data::{get_all_keybindings, Keybinding, KeybindingAction};
 pub use types::{CurrentView, Focus, SearchMode};
 pub use ui_builders::{
     blank_line, build_navigation_line, simplified_footer_body, simplified_footer_title,
