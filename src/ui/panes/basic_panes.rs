@@ -242,6 +242,7 @@ pub fn render_output_pane(
     output_context: Option<(String, Vec<String>, Vec<String>)>,
     is_command_running: bool,
     elapsed_seconds: Option<u64>,
+    log_format: Option<&str>,
 ) {
     // Build title with context and running indicator
     let mut title =
@@ -323,9 +324,9 @@ pub fn render_output_pane(
                     // Don't use clean_log_line as it may trim - use raw line
                     crate::utils::colorize_xml_line(line)
                 } else {
-                    // Normal mode: use keyword-based coloring
+                    // Normal mode: use keyword-based coloring with log format for package extraction
                     let cleaned = crate::utils::clean_log_line(line).unwrap_or_default();
-                    crate::utils::colorize_log_line(&cleaned)
+                    crate::utils::colorize_log_line_with_format(&cleaned, log_format)
                 }
             })
             .collect()

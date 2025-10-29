@@ -137,6 +137,7 @@ pub fn draw<B: Backend>(
         let tab = state.get_active_tab();
         let command_output = &tab.command_output;
         let output_offset = tab.output_offset;
+        let log_format = tab.config.logging.as_ref().and_then(|l| l.log_format.as_deref());
         render_output_pane(
             f,
             output_area,
@@ -149,6 +150,7 @@ pub fn draw<B: Backend>(
             current_context,
             is_running,
             elapsed,
+            log_format,
         );
 
         // Render footer

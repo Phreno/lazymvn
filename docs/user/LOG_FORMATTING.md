@@ -42,6 +42,19 @@ The format is a string with special "conversion characters" prefixed with a `%`.
 
 For a full list, refer to the [Log4j PatternLayout documentation](https://logging.apache.org/log4j/1.2/apidocs/org/apache/log4j/PatternLayout.html).
 
+### Package Name Highlighting
+
+**Important:** When you specify a `log_format` that includes `%c` (logger/package name), LazyMVN will automatically **highlight package names in cyan** in the output pane. This makes it much easier to visually scan logs and identify which package each log line comes from.
+
+Example with `log_format = "[%p] %c - %m%n"`:
+```
+[INFO] com.example.service.UserService - User created successfully
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+       (displayed in cyan)
+```
+
+This highlighting works for any format pattern that includes the `%c` specifier.
+
 ## Use Cases
 
 ### Show only package and message

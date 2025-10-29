@@ -1,5 +1,11 @@
 # LazyMVN Configuration for Demo Multi-Module Project
 
+# Logging configuration for package name highlighting
+[logging]
+# Log format pattern (used to extract and colorize package names)
+# Supported patterns: %c (logger/package), %p (level), %m (message), %n (newline)
+log_format = "[%p] %c - %m%n"
+
 [maven]
 # Custom Maven goals - Press Ctrl+G to execute
 custom_goals = [
