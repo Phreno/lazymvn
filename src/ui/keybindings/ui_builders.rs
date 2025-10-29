@@ -15,7 +15,7 @@ pub(crate) struct ModuleAction {
 }
 
 /// Module action key bindings
-pub(crate) const MODULE_ACTIONS: [ModuleAction; 9] = [
+pub(crate) const MODULE_ACTIONS: [ModuleAction; 10] = [
     ModuleAction {
         key_display: "b",
         prefix: "",
@@ -60,6 +60,11 @@ pub(crate) const MODULE_ACTIONS: [ModuleAction; 9] = [
         key_display: "y",
         prefix: "",
         suffix: "ank output",
+    },
+    ModuleAction {
+        key_display: "?",
+        prefix: "",
+        suffix: "",
     },
 ];
 
