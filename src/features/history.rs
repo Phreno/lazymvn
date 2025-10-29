@@ -9,6 +9,7 @@ const MAX_HISTORY_SIZE: usize = 100;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HistoryEntry {
     pub timestamp: i64,
+    pub project_root: PathBuf,  // Added to track which project this command belongs to
     pub module: String,
     pub goal: String,
     pub profiles: Vec<String>,
@@ -17,9 +18,16 @@ pub struct HistoryEntry {
 
 impl HistoryEntry {
     /// Create a new history entry
-    pub fn new(module: String, goal: String, profiles: Vec<String>, flags: Vec<String>) -> Self {
+    pub fn new(
+        project_root: PathBuf,
+        module: String,
+        goal: String,
+        profiles: Vec<String>,
+        flags: Vec<String>,
+    ) -> Self {
         Self {
             timestamp: chrono::Utc::now().timestamp(),
+            project_root,
             module,
             goal,
             profiles,
@@ -146,6 +154,7 @@ mod tests {
     #[test]
     fn history_entry_format_command_with_profiles_and_flags() {
         let entry = HistoryEntry::new(
+            PathBuf::from("/tmp/project"),
             "my-module".to_string(),
             "clean install".to_string(),
             vec!["dev".to_string(), "test".to_string()],
@@ -162,7 +171,13 @@ mod tests {
 
     #[test]
     fn history_entry_format_command_root_module() {
-        let entry = HistoryEntry::new(".".to_string(), "package".to_string(), vec![], vec![]);
+        let entry = HistoryEntry::new(
+            PathBuf::from("/tmp/project"),
+            ".".to_string(),
+            "package".to_string(),
+            vec![],
+            vec![],
+        );
 
         let formatted = entry.format_command();
         assert!(formatted.contains("(root)"));
@@ -174,6 +189,7 @@ mod tests {
         let mut history = CommandHistory::default();
 
         history.add(HistoryEntry::new(
+            PathBuf::from("/tmp/project"),
             "module1".to_string(),
             "goal1".to_string(),
             vec![],
@@ -181,6 +197,7 @@ mod tests {
         ));
 
         history.add(HistoryEntry::new(
+            PathBuf::from("/tmp/project"),
             "module2".to_string(),
             "goal2".to_string(),
             vec![],
@@ -199,6 +216,7 @@ mod tests {
 
         for i in 0..150 {
             history.add(HistoryEntry::new(
+                PathBuf::from("/tmp/project"),
                 format!("module{}", i),
                 "goal".to_string(),
                 vec![],

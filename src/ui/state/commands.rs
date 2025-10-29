@@ -177,6 +177,7 @@ impl TuiState {
 
                     // Add to command history
                     let history_entry = crate::features::history::HistoryEntry::new(
+                        tab.project_root.clone(),
                         module,
                         args.join(" "),
                         active_profile_names,

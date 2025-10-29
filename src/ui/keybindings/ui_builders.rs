@@ -252,12 +252,12 @@ mod tests {
 
     #[test]
     fn test_module_actions_count() {
-        assert_eq!(MODULE_ACTIONS.len(), 9);
+        assert_eq!(MODULE_ACTIONS.len(), 10);
     }
 
     #[test]
     fn test_module_actions_keys() {
         let keys: Vec<&str> = MODULE_ACTIONS.iter().map(|a| a.key_display).collect();
-        assert_eq!(keys, vec!["b", "C", "c", "k", "t", "i", "s", "d", "y"]);
+        assert_eq!(keys, vec!["b", "C", "c", "k", "t", "i", "s", "d", "y", "?"]);
     }
 }

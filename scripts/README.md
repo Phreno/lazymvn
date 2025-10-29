@@ -28,6 +28,12 @@ This directory contains test scripts for validating LazyMVN features.
   - Tests popup opening/closing
   - Usage: `./scripts/test-help-popup.sh`
 
+- **[test-history-context.sh](test-history-context.sh)** - Test history context switching
+  - Validates automatic project switching for history replay
+  - Tests multi-tab history command execution
+  - Verifies tab creation for missing projects
+  - Usage: `./scripts/test-history-context.sh`
+
 - **[test-profile-loading.sh](test-profile-loading.sh)** - Test profile loading in new tabs
   - Tests Maven profile loading when creating new tabs
   - Validates per-tab profile independence
