@@ -17,4 +17,4 @@ pub use types::{
 pub use logging::{LoggingConfig, PackageLogLevel};
 
 // Re-export main functions
-pub use io::{create_project_config, get_project_config_path, has_project_config, load_config};
+pub use io::{create_project_config, get_project_config_path, has_project_config, load_config, save_config};

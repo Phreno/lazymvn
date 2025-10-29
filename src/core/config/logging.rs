@@ -1,8 +1,8 @@
 // Logging configuration for JVM log level control
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// Logging configuration for controlling log verbosity via JVM arguments
-#[derive(Deserialize, Clone, Debug, Default, PartialEq)]
+#[derive(Deserialize, Serialize, Clone, Debug, Default, PartialEq)]
 pub struct LoggingConfig {
     /// Custom log format override
     pub log_format: Option<String>,
@@ -13,7 +13,7 @@ pub struct LoggingConfig {
 }
 
 /// Package-specific log level configuration
-#[derive(Deserialize, Clone, Debug, PartialEq)]
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
 pub struct PackageLogLevel {
     /// Package name (e.g., "com.mycompany.api.service")
     pub name: String,

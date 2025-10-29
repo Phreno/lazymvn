@@ -75,6 +75,11 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
         return;
     }
 
+    // Handle package selector popup
+    if state.show_package_selector && popup_keys::handle_package_selector(key, state) {
+        return;
+    }
+
     // Handle starter manager popup
     if state.show_starter_manager && popup_keys::handle_starter_manager(key, state) {
         return;

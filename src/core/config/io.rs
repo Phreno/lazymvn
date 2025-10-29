@@ -139,6 +139,30 @@ pub fn load_config(project_root: &Path) -> Config {
     config
 }
 
+/// Save configuration to disk
+/// Saves to the centralized configuration location
+pub fn save_config(project_root: &Path, config: &Config) -> Result<(), String> {
+    log::debug!("Saving config to project root: {:?}", project_root);
+    
+    let config_path = get_project_config_path(project_root);
+    let config_dir = config_path.parent().unwrap();
+
+    // Create directory structure if it doesn't exist
+    fs::create_dir_all(config_dir)
+        .map_err(|e| format!("Failed to create config directory: {}", e))?;
+
+    // Serialize config to TOML
+    let toml_string = toml::to_string_pretty(config)
+        .map_err(|e| format!("Failed to serialize config: {}", e))?;
+
+    // Write to config path
+    fs::write(&config_path, toml_string)
+        .map_err(|e| format!("Failed to write config file: {}", e))?;
+
+    log::info!("Configuration saved to: {:?}", config_path);
+    Ok(())
+}
+
 /// Find Maven settings.xml in project directory
 /// Searches for maven_settings.xml or settings.xml
 fn find_maven_settings(project_root: &Path) -> Option<PathBuf> {

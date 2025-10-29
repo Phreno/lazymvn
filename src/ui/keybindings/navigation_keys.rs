@@ -95,6 +95,11 @@ pub fn handle_popup_triggers(key: KeyEvent, state: &mut TuiState) -> bool {
             state.show_custom_goals_popup();
             true
         }
+        KeyCode::Char('p') => {
+            log::info!("Show package selector");
+            state.show_package_selector();
+            true
+        }
         _ => false,
     }
 }

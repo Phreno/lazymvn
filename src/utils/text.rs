@@ -4,11 +4,13 @@
 //! - ANSI escape sequence stripping
 //! - Log line colorization
 //! - XML syntax highlighting
+//! - Package name extraction from logs
 
 use ratatui::{
     style::{Color, Style},
     text::{Line, Span},
 };
+use std::collections::HashSet;
 
 /// Clean a log line by removing ANSI escape sequences and carriage returns
 /// Returns None if the line is empty after cleaning
@@ -552,4 +554,33 @@ mod tests {
             }
         }
     }
+}
+
+/// Extract unique package names from command output lines
+/// Returns a sorted list of unique package names found in the logs
+pub fn extract_unique_packages(lines: &[String], log_format: Option<&str>) -> Vec<String> {
+    if log_format.is_none() {
+        return Vec::new();
+    }
+    
+    let format = log_format.unwrap();
+    let mut packages = HashSet::new();
+    
+    for line in lines {
+        // Clean the line first
+        if let Some(cleaned) = clean_log_line(line) {
+            // Try to extract package from this line
+            if let Some((_start, _end, package_name)) = extract_package_from_log_line(&cleaned, format) {
+                // Only add if it looks like a valid package (contains at least one dot or is a simple word)
+                if !package_name.is_empty() && package_name.len() <= 100 {
+                    packages.insert(package_name.to_string());
+                }
+            }
+        }
+    }
+    
+    // Convert to sorted vector for consistent ordering
+    let mut result: Vec<String> = packages.into_iter().collect();
+    result.sort();
+    result
 }

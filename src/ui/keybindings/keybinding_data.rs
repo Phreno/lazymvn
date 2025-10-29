@@ -246,6 +246,12 @@ pub fn get_all_keybindings() -> Vec<Keybinding> {
             description: "Show custom goals popup",
             action: Some(KeybindingAction::ShowCustomGoals),
         },
+        Keybinding {
+            category: "Workflow",
+            keys: "Ctrl+P",
+            description: "Select package for logging config",
+            action: None,
+        },
         
         // Selection & Search
         Keybinding {

@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use super::logging::LoggingConfig;
 
 /// Main configuration structure
-#[derive(Deserialize, Default, Clone)]
+#[derive(Deserialize, Serialize, Default, Clone)]
 pub struct Config {
     pub maven_settings: Option<String>,
     pub launch_mode: Option<LaunchMode>,
@@ -19,7 +19,7 @@ pub struct Config {
 }
 
 /// Maven configuration for custom arguments
-#[derive(Deserialize, Clone, Debug, Default, PartialEq)]
+#[derive(Deserialize, Serialize, Clone, Debug, Default, PartialEq)]
 pub struct MavenConfig {
     /// List of custom Maven flags/arguments
     #[serde(default)]
@@ -31,7 +31,7 @@ pub struct MavenConfig {
 }
 
 /// Custom Maven flag that can be toggled
-#[derive(Deserialize, Clone, Debug, PartialEq)]
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
 pub struct CustomFlag {
     /// Display name for the flag (e.g., "Custom property")
     pub name: String,
@@ -44,7 +44,7 @@ pub struct CustomFlag {
 
 /// Custom Maven goal for quick execution
 /// These are typically plugin invocations that don't fit well as flags
-#[derive(Deserialize, Clone, Debug, PartialEq)]
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
 pub struct CustomGoal {
     /// Display name for the goal (e.g., "Format code")
     pub name: String,
@@ -53,7 +53,7 @@ pub struct CustomGoal {
 }
 
 /// Spring Boot configuration overrides
-#[derive(Deserialize, Clone, Debug, Default, PartialEq)]
+#[derive(Deserialize, Serialize, Clone, Debug, Default, PartialEq)]
 pub struct SpringConfig {
     /// List of Spring Boot properties to override
     #[serde(default)]
@@ -65,7 +65,7 @@ pub struct SpringConfig {
 }
 
 /// Spring Boot property override
-#[derive(Deserialize, Clone, Debug, PartialEq)]
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
 pub struct SpringProperty {
     /// Property name (e.g., "server.port")
     pub name: String,
@@ -74,7 +74,7 @@ pub struct SpringProperty {
 }
 
 /// Output buffer configuration
-#[derive(Deserialize, Clone, Debug, PartialEq)]
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
 pub struct OutputConfig {
     /// Maximum number of lines to keep in output buffer (default: 10000)
     #[serde(default = "default_max_lines")]
@@ -103,7 +103,7 @@ impl Default for OutputConfig {
 }
 
 /// File watching configuration
-#[derive(Deserialize, Clone, Debug, PartialEq)]
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
 pub struct WatchConfig {
     /// Enable file watching (default: false)
     #[serde(default)]
@@ -152,7 +152,7 @@ impl Default for WatchConfig {
 }
 
 /// Launch mode for running Maven applications
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum LaunchMode {
     /// Auto-detect: use spring-boot:run if available, fallback to exec:java

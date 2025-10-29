@@ -9,8 +9,9 @@ use crate::ui::{
     panes::{
         create_adaptive_layout, render_custom_goals_popup, render_favorites_popup,
         render_flags_pane, render_footer, render_help_popup, render_history_popup,
-        render_modules_pane, render_output_pane, render_profiles_pane, render_projects_pane,
-        render_projects_popup, render_save_favorite_popup, render_starter_manager_popup,
+        render_modules_pane, render_output_pane, render_package_selector_popup,
+        render_profiles_pane, render_projects_pane, render_projects_popup,
+        render_save_favorite_popup, render_starter_manager_popup,
         render_starter_selector_popup, render_tab_bar,
     },
     state::TuiState,
@@ -184,6 +185,17 @@ pub fn draw<B: Backend>(
                 &candidates,
                 &state.starter_filter,
                 &mut state.starters_list_state,
+            );
+        }
+
+        // Render package selector popup if shown
+        if state.show_package_selector {
+            let candidates = state.get_filtered_package_candidates();
+            render_package_selector_popup(
+                f,
+                &candidates,
+                &state.package_filter,
+                &mut state.packages_list_state,
             );
         }
 
