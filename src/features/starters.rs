@@ -181,11 +181,13 @@ impl StartersCache {
     }
 
     /// Get the default starter
+    #[allow(dead_code)]
     pub fn get_default(&self) -> Option<&Starter> {
         self.starters.iter().find(|s| s.is_default)
     }
 
     /// Get the last used or default starter
+    #[allow(dead_code)]
     pub fn get_preferred_starter(&self) -> Option<&Starter> {
         // First try last used
         if let Some(ref last_fqcn) = self.last_used

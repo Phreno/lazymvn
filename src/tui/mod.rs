@@ -46,6 +46,7 @@ mod tests {
     fn setup_fake_profiles_cache(project_root: &std::path::Path) {
         let cache = crate::core::config::ProfilesCache {
             profiles: vec!["dev".to_string(), "test".to_string()],
+            auto_activated: vec!["dev".to_string()],
         };
         let _ = cache.save(project_root);
     }

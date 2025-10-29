@@ -8,17 +8,33 @@ use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 impl TuiState {
-    /// Set the list of available Maven profiles
+    /// Set the list of available Maven profiles (convenience wrapper)
+    #[allow(dead_code)]
     pub fn set_profiles(&mut self, profile_names: Vec<String>) {
+        self.set_profiles_with_auto_activated(profile_names, None);
+    }
+
+    /// Set profiles with optional pre-computed auto-activated list
+    pub fn set_profiles_with_auto_activated(
+        &mut self,
+        profile_names: Vec<String>,
+        auto_activated: Option<Vec<String>>,
+    ) {
         log::info!("set_profiles: Loading {} profiles", profile_names.len());
 
         let tab = self.get_active_tab_mut();
 
-        // Get auto-activated profiles
-        let auto_activated = maven::get_active_profiles(&tab.project_root).unwrap_or_else(|e| {
-            log::warn!("Failed to get active profiles: {}", e);
-            vec![]
-        });
+        // Get auto-activated profiles - use cached value if provided, otherwise query Maven
+        let auto_activated = if let Some(cached) = auto_activated {
+            log::debug!("Using cached auto-activated profiles: {:?}", cached);
+            cached
+        } else {
+            log::debug!("Querying Maven for auto-activated profiles");
+            maven::get_active_profiles(&tab.project_root).unwrap_or_else(|e| {
+                log::warn!("Failed to get active profiles: {}", e);
+                vec![]
+            })
+        };
 
         log::debug!("Auto-activated profiles: {:?}", auto_activated);
 
@@ -99,16 +115,26 @@ impl TuiState {
                         profile_names.len()
                     );
                     
-                    // Save to cache for next time
+                    // Get auto-activated profiles
                     let tab = self.get_active_tab();
+                    let auto_activated = maven::get_active_profiles(&tab.project_root)
+                        .unwrap_or_else(|e| {
+                            log::warn!("Failed to get active profiles: {}", e);
+                            vec![]
+                        });
+                    
+                    log::debug!("Auto-activated profiles: {:?}", auto_activated);
+                    
+                    // Save to cache for next time (including auto-activated)
                     let cache = crate::core::config::ProfilesCache {
                         profiles: profile_names.clone(),
+                        auto_activated: auto_activated.clone(),
                     };
                     if let Err(e) = cache.save(&tab.project_root) {
                         log::warn!("Failed to save profiles cache: {}", e);
                     }
                     
-                    self.set_profiles(profile_names);
+                    self.set_profiles_with_auto_activated(profile_names, Some(auto_activated));
                     self.profile_loading_status = ProfileLoadingStatus::Loaded;
                     self.profiles_receiver = None;
                     self.profile_loading_start_time = None;
@@ -149,11 +175,12 @@ impl TuiState {
         // Try to load from cache first
         if let Some(cache) = crate::core::config::ProfilesCache::load(&project_root) {
             log::info!(
-                "Loaded {} profiles from cache for {:?}",
+                "Loaded {} profiles from cache for {:?} ({} auto-activated)",
                 cache.profiles.len(),
-                project_root_display
+                project_root_display,
+                cache.auto_activated.len()
             );
-            self.set_profiles(cache.profiles);
+            self.set_profiles_with_auto_activated(cache.profiles, Some(cache.auto_activated));
             self.profile_loading_status = ProfileLoadingStatus::Loaded;
             return;
         }
@@ -362,6 +389,7 @@ mod tests {
         // Create a fake cache to avoid spawning thread that calls Maven
         let cache = crate::core::config::ProfilesCache {
             profiles: vec!["dev".to_string(), "prod".to_string()],
+            auto_activated: vec!["dev".to_string()],
         };
         let _ = cache.save(&state.get_active_tab().project_root);
 

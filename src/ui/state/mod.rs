@@ -1527,16 +1527,9 @@ impl TuiState {
     }
 
     pub fn run_preferred_starter(&mut self) {
-        let tab = self.get_active_tab();
-        if let Some(starter) = tab.starters_cache.get_preferred_starter() {
-            let fqcn = starter.fully_qualified_class_name.clone();
-            log::info!("Running preferred starter: {}", fqcn);
-            self.run_spring_boot_starter(&fqcn);
-        } else {
-            // No cached starter, show selector
-            log::info!("No preferred starter found, showing selector");
-            self.show_starter_selector();
-        }
+        // Always show selector popup when 's' is pressed
+        log::info!("Showing starter selector");
+        self.show_starter_selector();
     }
 
     pub fn get_filtered_starter_candidates(&self) -> Vec<String> {
@@ -1800,6 +1793,7 @@ mod tests {
         // Create a fake cache to avoid spawning thread that calls Maven
         let cache = crate::core::config::ProfilesCache {
             profiles: vec!["dev".to_string()],
+            auto_activated: vec![],
         };
         let _ = cache.save(&state.get_active_tab().project_root);
 

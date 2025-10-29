@@ -267,6 +267,8 @@ pub struct ModulePreferences {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ProfilesCache {
     pub profiles: Vec<String>,
+    #[serde(default)]
+    pub auto_activated: Vec<String>,
 }
 
 impl ProfilesCache {
@@ -322,9 +324,16 @@ impl ProfilesCache {
     /// Get the cache file path for a project
     fn get_cache_file(project_root: &Path) -> PathBuf {
         let config_dir = super::io::get_config_dir();
+        
+        // Canonicalize the path to ensure consistent hashing regardless of
+        // symlinks, relative paths, etc.
+        let canonical_root = project_root
+            .canonicalize()
+            .unwrap_or_else(|_| project_root.to_path_buf());
+        
         let project_hash = format!(
             "{:x}",
-            md5::compute(project_root.to_string_lossy().as_bytes())
+            md5::compute(canonical_root.to_string_lossy().as_bytes())
         );
         config_dir
             .join("profiles")
