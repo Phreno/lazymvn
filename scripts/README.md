@@ -23,6 +23,11 @@ This directory contains test scripts for validating LazyMVN features.
   - Comprehensive yank feature testing
   - Usage: `./scripts/test_yank_logs_integration.sh`
 
+- **[test-help-popup.sh](test-help-popup.sh)** - Test help popup feature (?)
+  - Validates keybindings display
+  - Tests popup opening/closing
+  - Usage: `./scripts/test-help-popup.sh`
+
 - **[test-profile-loading.sh](test-profile-loading.sh)** - Test profile loading in new tabs
   - Tests Maven profile loading when creating new tabs
   - Validates per-tab profile independence

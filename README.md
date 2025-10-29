@@ -179,6 +179,7 @@ I want to credit both the project and its author for the idea and for shaping ho
 ### General
 | Key | Action |
 |-----|--------|
+| `?` | Show help popup with all keybindings |
 | `q` | Quit lazymvn |
 
 

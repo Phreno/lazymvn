@@ -300,3 +300,15 @@ pub fn handle_starter_manager(key: KeyEvent, state: &mut TuiState) -> bool {
     }
     true
 }
+
+/// Handle keyboard events for help popup
+pub fn handle_help_popup(key: KeyEvent, state: &mut TuiState) -> bool {
+    match key.code {
+        KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('?') => {
+            log::info!("Close help popup");
+            state.hide_help_popup();
+        }
+        _ => {}
+    }
+    true
+}

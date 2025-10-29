@@ -8,9 +8,10 @@ use crate::ui::{
     keybindings::Focus,
     panes::{
         create_adaptive_layout, render_favorites_popup, render_flags_pane, render_footer,
-        render_history_popup, render_modules_pane, render_output_pane, render_profiles_pane,
-        render_projects_pane, render_projects_popup, render_save_favorite_popup,
-        render_starter_manager_popup, render_starter_selector_popup, render_tab_bar,
+        render_help_popup, render_history_popup, render_modules_pane, render_output_pane,
+        render_profiles_pane, render_projects_pane, render_projects_popup,
+        render_save_favorite_popup, render_starter_manager_popup, render_starter_selector_popup,
+        render_tab_bar,
     },
     state::TuiState,
 };
@@ -202,6 +203,11 @@ pub fn draw<B: Backend>(
         // Render save favorite popup if shown
         if state.show_save_favorite_popup {
             render_save_favorite_popup(f, &state.favorite_name_input);
+        }
+
+        // Render help popup if shown
+        if state.show_help_popup {
+            render_help_popup(f);
         }
     })?;
     Ok(())

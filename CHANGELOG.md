@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Help Popup** - Press `?` to display comprehensive keybindings reference:
+  - Shows all available keyboard shortcuts organized by category
+  - Navigation, Tab Management, Maven Commands, Spring Boot, Workflow, Search, and General
+  - 80% x 90% popup with rounded borders
+  - Close with `q`, `Esc`, or `?` again
+  - Improves discoverability without cluttering the minimal footer
 - **Profile & Starter Caching** (#TBD):
   - Cache Maven profiles to avoid slow `mvn help:all-profiles` on every startup
   - Cache Spring Boot starters to avoid dependency rescanning

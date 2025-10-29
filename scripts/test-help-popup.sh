@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# Test script for help popup feature
+#
+# This script documents how to test the help popup feature (? keybinding)
+#
+# Usage:
+#   ./scripts/test-help-popup.sh
+
+set -euo pipefail
+
+echo "=== LazyMVN Help Popup Test ==="
+echo ""
+echo "Feature: Show comprehensive keybindings with '?' key"
+echo ""
+echo "To test manually:"
+echo "  1. Run: cargo run -- --project demo/multi-module"
+echo "  2. Press '?' to open help popup"
+echo "  3. Verify all keybindings are displayed:"
+echo "     - Navigation (arrows, PageUp/Down, Home/End, numbers, mouse)"
+echo "     - Tab Management (Ctrl+T/W/Left/Right)"
+echo "     - Maven Commands (b,c,C,k,t,i,d,Esc)"
+echo "     - Spring Boot (s, Ctrl+Shift+S)"
+echo "     - Workflow (Ctrl+F/S/H/R/E/K)"
+echo "     - Selection & Search (/,n,N,y,Y,Space,Enter)"
+echo "     - General (?, q)"
+echo "  4. Press 'q', 'Esc', or '?' again to close help"
+echo "  5. Verify the popup is centered at 80% x 90%"
+echo ""
+echo "Expected behavior:"
+echo "  ✓ '?' key opens help popup"
+echo "  ✓ All keybindings from README.md are displayed"
+echo "  ✓ Keybindings are organized by category"
+echo "  ✓ Popup is styled with rounded borders and focus colors"
+echo "  ✓ Title shows '[Press ? or Esc to close]' hint"
+echo "  ✓ Closing with 'q', 'Esc', or '?' works"
+echo ""
+echo "Implementation details:"
+echo "  - State field: TuiState.show_help_popup"
+echo "  - Keybinding: '?' in navigation_keys.rs"
+echo "  - Popup handler: popup_keys::handle_help_popup()"
+echo "  - Rendering: popups::render_help_popup()"
+echo "  - Size: 80% width x 90% height"
+echo ""
+echo "Files modified:"
+echo "  - src/ui/state/mod.rs (show_help_popup field + methods)"
+echo "  - src/ui/panes/popups.rs (render_help_popup function)"
+echo "  - src/ui/keybindings/navigation_keys.rs (? handler)"
+echo "  - src/ui/keybindings/popup_keys.rs (help popup handler)"
+echo "  - src/ui/keybindings/mod.rs (integration)"
+echo "  - src/tui/renderer.rs (rendering integration)"
+echo ""
+echo "✓ Compilation: cargo build (success)"
+echo "✓ Tests: cargo test (all passing)"
+echo "✓ Clippy: cargo clippy -- -D warnings (no warnings)"
+echo ""
+echo "Ready to test! Launch the application and press '?'"

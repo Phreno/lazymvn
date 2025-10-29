@@ -94,7 +94,7 @@ pub fn handle_popup_triggers(key: KeyEvent, state: &mut TuiState) -> bool {
     }
 }
 
-/// Handle view switching (0-4 keys)
+/// Handle view switching (0-4 keys) and help display (?)
 pub fn handle_view_switching(key: KeyEvent, state: &mut TuiState) -> bool {
     match key.code {
         KeyCode::Char('0') => {
@@ -120,6 +120,11 @@ pub fn handle_view_switching(key: KeyEvent, state: &mut TuiState) -> bool {
         KeyCode::Char('4') => {
             log::info!("Switch to flags view");
             state.switch_to_flags();
+            true
+        }
+        KeyCode::Char('?') => {
+            log::info!("Show help popup");
+            state.show_help_popup();
             true
         }
         _ => false,

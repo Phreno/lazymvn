@@ -537,3 +537,75 @@ pub fn render_save_favorite_popup(f: &mut Frame, name_input: &str) {
     .alignment(ratatui::layout::Alignment::Center);
     f.render_widget(help, chunks[4]);
 }
+
+/// Render help popup with all keybindings
+pub fn render_help_popup(f: &mut Frame) {
+    let popup_area = centered_popup_area(f.area(), 80, 90);
+    f.render_widget(ratatui::widgets::Clear, popup_area);
+
+    let block = Block::default()
+        .title(" LazyMVN - Keyboard Shortcuts [Press ? or Esc to close] ")
+        .borders(Borders::ALL)
+        .border_type(ratatui::widgets::BorderType::Rounded)
+        .border_style(Theme::FOCUS_STYLE);
+
+    let inner = block.inner(popup_area);
+    f.render_widget(block, popup_area);
+
+    // Build help content
+    let help_lines = vec![
+        Line::from(vec![Span::styled("═══ Navigation ═══", Style::default().fg(ratatui::style::Color::Yellow).add_modifier(Modifier::BOLD))]),
+        Line::from("  ←/→         Cycle focus between panes"),
+        Line::from("  ↑/↓         Move selection / Scroll output"),
+        Line::from("  PgUp/PgDn   Scroll output by pages"),
+        Line::from("  Home/End    Jump to start/end of output"),
+        Line::from("  0-4         Focus specific pane (0=Output, 1=Projects, 2=Modules, 3=Profiles, 4=Flags)"),
+        Line::from("  Mouse       Click to focus/select"),
+        Line::from(""),
+        Line::from(vec![Span::styled("═══ Tab Management ═══", Style::default().fg(ratatui::style::Color::Yellow).add_modifier(Modifier::BOLD))]),
+        Line::from("  Ctrl+T      Create new tab"),
+        Line::from("  Ctrl+W      Close current tab"),
+        Line::from("  Ctrl+←/→    Switch between tabs"),
+        Line::from(""),
+        Line::from(vec![Span::styled("═══ Maven Commands ═══", Style::default().fg(ratatui::style::Color::Yellow).add_modifier(Modifier::BOLD))]),
+        Line::from("  b           Build (clean install)"),
+        Line::from("  c           Compile"),
+        Line::from("  C           Clean"),
+        Line::from("  k           Package"),
+        Line::from("  t           Test"),
+        Line::from("  i           Install"),
+        Line::from("  d           Dependencies (tree)"),
+        Line::from("  Esc         Kill running process"),
+        Line::from(""),
+        Line::from(vec![Span::styled("═══ Spring Boot ═══", Style::default().fg(ratatui::style::Color::Yellow).add_modifier(Modifier::BOLD))]),
+        Line::from("  s           Run starter (opens selector)"),
+        Line::from("  Ctrl+Shift+S Open starter manager"),
+        Line::from(""),
+        Line::from(vec![Span::styled("═══ Workflow ═══", Style::default().fg(ratatui::style::Color::Yellow).add_modifier(Modifier::BOLD))]),
+        Line::from("  Ctrl+F      Show favorites"),
+        Line::from("  Ctrl+S      Save current config as favorite"),
+        Line::from("  Ctrl+H      Show command history"),
+        Line::from("  Ctrl+R      Show recent projects"),
+        Line::from("  Ctrl+E      Edit configuration (lazymvn.toml)"),
+        Line::from("  Ctrl+K      Refresh caches (profiles/starters)"),
+        Line::from(""),
+        Line::from(vec![Span::styled("═══ Selection & Search ═══", Style::default().fg(ratatui::style::Color::Yellow).add_modifier(Modifier::BOLD))]),
+        Line::from("  Space/Enter Toggle selection (profiles/flags)"),
+        Line::from("  /           Start search in output"),
+        Line::from("  n           Next search match"),
+        Line::from("  N           Previous search match"),
+        Line::from("  y           Yank (copy) output to clipboard"),
+        Line::from("  Y           Yank debug report (comprehensive)"),
+        Line::from("  Esc         Exit search mode"),
+        Line::from(""),
+        Line::from(vec![Span::styled("═══ General ═══", Style::default().fg(ratatui::style::Color::Yellow).add_modifier(Modifier::BOLD))]),
+        Line::from("  ?           Show this help"),
+        Line::from("  q           Quit LazyMVN"),
+    ];
+
+    let paragraph = Paragraph::new(help_lines)
+        .style(Theme::DEFAULT_STYLE)
+        .scroll((0, 0));
+
+    f.render_widget(paragraph, inner);
+}

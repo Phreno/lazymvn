@@ -78,6 +78,11 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
         return;
     }
 
+    // Handle help popup
+    if state.show_help_popup && popup_keys::handle_help_popup(key, state) {
+        return;
+    }
+
     // Direct command execution - no menu navigation needed
 
     // Try Maven command keys first

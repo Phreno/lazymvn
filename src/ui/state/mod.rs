@@ -153,6 +153,9 @@ pub struct TuiState {
     pub favorite_name_input: String,
     pub pending_favorite: Option<crate::features::history::HistoryEntry>,
 
+    // Help popup (global)
+    pub show_help_popup: bool,
+
     // Editor command to execute (global)
     pub editor_command: Option<(String, String)>,
 }
@@ -316,6 +319,8 @@ impl TuiState {
             show_save_favorite_popup: false,
             favorite_name_input: String::new(),
             pending_favorite: None,
+
+            show_help_popup: false,
 
             editor_command: None,
         }
@@ -1367,6 +1372,16 @@ impl TuiState {
     pub fn hide_starter_manager(&mut self) {
         log::info!("Hiding starter manager");
         self.show_starter_manager = false;
+    }
+
+    pub fn show_help_popup(&mut self) {
+        log::info!("Showing help popup");
+        self.show_help_popup = true;
+    }
+
+    pub fn hide_help_popup(&mut self) {
+        log::info!("Hiding help popup");
+        self.show_help_popup = false;
     }
 
     pub fn select_and_run_starter(&mut self) {
