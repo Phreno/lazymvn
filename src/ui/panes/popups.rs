@@ -587,12 +587,15 @@ pub fn render_help_popup(f: &mut Frame, search_query: &str, list_state: &mut Lis
     };
 
     // Group by category and create list items
+    // Note: Ne pas afficher les en-têtes de catégorie quand un filtre est actif
+    // pour éviter les problèmes de sélection avec les indices
     let mut items = Vec::new();
     let mut current_category = "";
+    let show_headers = search_query.is_empty();
     
     for keybinding in &filtered_keybindings {
-        // Add category header if changed
-        if keybinding.category != current_category {
+        // Add category header if changed (only when no filter)
+        if show_headers && keybinding.category != current_category {
             if !current_category.is_empty() {
                 items.push(ListItem::new(Line::from(""))); // Empty line between categories
             }
@@ -608,15 +611,36 @@ pub fn render_help_popup(f: &mut Frame, search_query: &str, list_state: &mut Lis
         }
         
         // Add keybinding item
-        items.push(ListItem::new(Line::from(vec![
-            Span::raw("  "),
-            Span::styled(
-                format!("{:12}", keybinding.keys),
-                Style::default().fg(ratatui::style::Color::Cyan)
-            ),
-            Span::raw(" "),
-            Span::raw(keybinding.description),
-        ])));
+        let prefix = if show_headers { "  " } else { "" };
+        
+        // En mode filtré, afficher la catégorie entre parenthèses
+        let line_spans = if show_headers {
+            vec![
+                Span::raw(prefix),
+                Span::styled(
+                    format!("{:12}", keybinding.keys),
+                    Style::default().fg(ratatui::style::Color::Cyan)
+                ),
+                Span::raw(" "),
+                Span::raw(keybinding.description),
+            ]
+        } else {
+            vec![
+                Span::styled(
+                    format!("{:12}", keybinding.keys),
+                    Style::default().fg(ratatui::style::Color::Cyan)
+                ),
+                Span::raw(" "),
+                Span::raw(keybinding.description),
+                Span::raw(" "),
+                Span::styled(
+                    format!("({})", keybinding.category),
+                    Style::default().fg(ratatui::style::Color::DarkGray)
+                ),
+            ]
+        };
+        
+        items.push(ListItem::new(Line::from(line_spans)));
     }
 
     let list_block = Block::default()
