@@ -34,6 +34,12 @@ This directory contains test scripts for validating LazyMVN features.
   - Verifies tab creation for missing projects
   - Usage: `./scripts/test-history-context.sh`
 
+- **[test-history-deduplication.sh](test-history-deduplication.sh)** - Test history deduplication
+  - Validates duplicate command detection
+  - Tests MRU (Most Recently Used) ordering
+  - Verifies position updates instead of duplication
+  - Usage: `./scripts/test-history-deduplication.sh`
+
 - **[test-profile-loading.sh](test-profile-loading.sh)** - Test profile loading in new tabs
   - Tests Maven profile loading when creating new tabs
   - Validates per-tab profile independence

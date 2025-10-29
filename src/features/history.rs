@@ -61,6 +61,15 @@ impl HistoryEntry {
         let local_dt = dt.with_timezone(&chrono::Local);
         local_dt.format("%Y-%m-%d %H:%M:%S").to_string()
     }
+
+    /// Check if this entry matches another (ignoring timestamp)
+    pub fn matches(&self, other: &HistoryEntry) -> bool {
+        self.project_root == other.project_root
+            && self.module == other.module
+            && self.goal == other.goal
+            && self.profiles == other.profiles
+            && self.flags == other.flags
+    }
 }
 
 /// Command history manager
@@ -94,7 +103,18 @@ impl CommandHistory {
     }
 
     /// Add a command to history
+    /// If a matching command already exists, it will be moved to the top instead of creating a duplicate
     pub fn add(&mut self, entry: HistoryEntry) {
+        // Check if this command already exists in history
+        if let Some(existing_idx) = self.entries.iter().position(|e| e.matches(&entry)) {
+            // Remove the existing entry
+            self.entries.remove(existing_idx);
+            log::debug!(
+                "Removed duplicate history entry at index {} (moving to top)",
+                existing_idx
+            );
+        }
+
         // Add to beginning (most recent first)
         self.entries.insert(0, entry);
 
@@ -225,5 +245,166 @@ mod tests {
         }
 
         assert_eq!(history.entries().len(), MAX_HISTORY_SIZE);
+    }
+
+    #[test]
+    fn history_entry_matches_ignores_timestamp() {
+        let entry1 = HistoryEntry {
+            timestamp: 1000,
+            project_root: PathBuf::from("/tmp/project"),
+            module: "module1".to_string(),
+            goal: "test".to_string(),
+            profiles: vec!["dev".to_string()],
+            flags: vec!["-X".to_string()],
+        };
+
+        let entry2 = HistoryEntry {
+            timestamp: 2000, // Different timestamp
+            project_root: PathBuf::from("/tmp/project"),
+            module: "module1".to_string(),
+            goal: "test".to_string(),
+            profiles: vec!["dev".to_string()],
+            flags: vec!["-X".to_string()],
+        };
+
+        assert!(entry1.matches(&entry2));
+    }
+
+    #[test]
+    fn history_entry_does_not_match_different_module() {
+        let entry1 = HistoryEntry::new(
+            PathBuf::from("/tmp/project"),
+            "module1".to_string(),
+            "test".to_string(),
+            vec![],
+            vec![],
+        );
+
+        let entry2 = HistoryEntry::new(
+            PathBuf::from("/tmp/project"),
+            "module2".to_string(), // Different module
+            "test".to_string(),
+            vec![],
+            vec![],
+        );
+
+        assert!(!entry1.matches(&entry2));
+    }
+
+    #[test]
+    fn history_entry_does_not_match_different_profiles() {
+        let entry1 = HistoryEntry::new(
+            PathBuf::from("/tmp/project"),
+            "module1".to_string(),
+            "test".to_string(),
+            vec!["dev".to_string()],
+            vec![],
+        );
+
+        let entry2 = HistoryEntry::new(
+            PathBuf::from("/tmp/project"),
+            "module1".to_string(),
+            "test".to_string(),
+            vec!["prod".to_string()], // Different profile
+            vec![],
+        );
+
+        assert!(!entry1.matches(&entry2));
+    }
+
+    #[test]
+    fn command_history_deduplicates_entries() {
+        let mut history = CommandHistory::default();
+
+        // Add first entry
+        history.add(HistoryEntry::new(
+            PathBuf::from("/tmp/project"),
+            "module1".to_string(),
+            "test".to_string(),
+            vec!["dev".to_string()],
+            vec!["-X".to_string()],
+        ));
+
+        // Add a different entry
+        history.add(HistoryEntry::new(
+            PathBuf::from("/tmp/project"),
+            "module2".to_string(),
+            "package".to_string(),
+            vec![],
+            vec![],
+        ));
+
+        // Add the same command as the first one
+        history.add(HistoryEntry::new(
+            PathBuf::from("/tmp/project"),
+            "module1".to_string(),
+            "test".to_string(),
+            vec!["dev".to_string()],
+            vec!["-X".to_string()],
+        ));
+
+        let entries = history.entries();
+
+        // Should have 2 entries, not 3 (duplicate removed)
+        assert_eq!(entries.len(), 2);
+
+        // The duplicate should be moved to the top
+        assert_eq!(entries[0].module, "module1");
+        assert_eq!(entries[0].goal, "test");
+
+        // Second entry should still be there
+        assert_eq!(entries[1].module, "module2");
+        assert_eq!(entries[1].goal, "package");
+    }
+
+    #[test]
+    fn command_history_deduplication_updates_position() {
+        let mut history = CommandHistory::default();
+
+        // Add three different entries
+        history.add(HistoryEntry::new(
+            PathBuf::from("/tmp/project"),
+            "module1".to_string(),
+            "test".to_string(),
+            vec![],
+            vec![],
+        ));
+
+        history.add(HistoryEntry::new(
+            PathBuf::from("/tmp/project"),
+            "module2".to_string(),
+            "compile".to_string(),
+            vec![],
+            vec![],
+        ));
+
+        history.add(HistoryEntry::new(
+            PathBuf::from("/tmp/project"),
+            "module3".to_string(),
+            "package".to_string(),
+            vec![],
+            vec![],
+        ));
+
+        // Re-run the first command (module1/test)
+        history.add(HistoryEntry::new(
+            PathBuf::from("/tmp/project"),
+            "module1".to_string(),
+            "test".to_string(),
+            vec![],
+            vec![],
+        ));
+
+        let entries = history.entries();
+
+        // Still 3 entries
+        assert_eq!(entries.len(), 3);
+
+        // module1/test should be at the top now (moved from position 2)
+        assert_eq!(entries[0].module, "module1");
+
+        // Others shifted down
+        assert_eq!(entries[1].module, "module3");
+        assert_eq!(entries[2].module, "module2");
     }
 }

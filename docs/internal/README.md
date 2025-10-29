@@ -11,6 +11,7 @@ This section contains technical documentation for developers and contributors of
 ## 🚀 Feature Implementation Guides
 
 ### Recent Features (2025)
+- **[History Deduplication](./HISTORY_DEDUPLICATION.md)** - Intelligent duplicate command detection and MRU ordering
 - **[History Context Switching](./HISTORY_CONTEXT_SWITCHING.md)** - Automatic project switching for history replay
 - **[Help Popup Implementation](./HELP_POPUP_IMPLEMENTATION.md)** - Interactive help system (? key)
 - **[Ctrl+K Conflict Fix](./FIX_CTRL_K_CONFLICT.md)** - Keybinding disambiguation
