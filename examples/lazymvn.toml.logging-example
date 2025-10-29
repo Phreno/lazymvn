@@ -7,6 +7,10 @@ notifications_enabled = true
 
 # Control log verbosity without modifying source code
 [logging]
+# Custom log format - %p = level, %c = logger/package name, %m = message, %n = newline
+# Package names (e.g., "com.example.MyClass") will be highlighted in CYAN in the output
+log_format = "[%p] %c - %m%n"
+
 packages = [
     # Reduce Spring Framework verbosity
     { name = "org.springframework.web", level = "WARN" },

@@ -42,9 +42,79 @@ pub fn clean_log_line(raw: &str) -> Option<String> {
     Some(trimmed.to_string())
 }
 
+/// Parse a log format pattern to extract marker positions
+/// Returns information about where %p (level) and %c (logger/package) appear in the format
+fn parse_log_format_pattern(log_format: &str) -> Option<(usize, usize)> {
+    // Find positions of %p (level) and %c (logger/package) in the format string
+    // This helps us locate them in actual log lines
+    
+    let level_marker_pos = log_format.find("%p")?;
+    
+    // Support %c, %c{1}, %c{2}, etc.
+    let logger_marker_pos = log_format.find("%c")?;
+    
+    // Calculate relative order: which comes first in the format?
+    Some((level_marker_pos, logger_marker_pos))
+}
+
+/// Extract package name from a log line based on the log format pattern
+/// Returns (start_pos, end_pos, package_name) if found
+fn extract_package_from_log_line<'a>(text: &'a str, log_format: &str) -> Option<(usize, usize, &'a str)> {
+    let (_level_pos, _logger_pos) = parse_log_format_pattern(log_format)?;
+    
+    // Strategy: Find the log level marker first ([DEBUG], [INFO], etc.)
+    // Then look for the package name after it
+    
+    let level_end = if let Some(pos) = text.find("[DEBUG]") {
+        Some(pos + 7)
+    } else if let Some(pos) = text.find("[INFO]") {
+        Some(pos + 6)
+    } else if let Some(pos) = text.find("[WARNING]").or_else(|| text.find("[WARN]")) {
+        if text[pos..].starts_with("[WARNING]") {
+            Some(pos + 9)
+        } else {
+            Some(pos + 6)
+        }
+    } else if let Some(pos) = text.find("[ERROR]").or_else(|| text.find("[ERR]")) {
+        if text[pos..].starts_with("[ERROR]") {
+            Some(pos + 7)
+        } else {
+            Some(pos + 5)
+        }
+    } else {
+        None
+    }?;
+    
+    // Skip whitespace after level
+    let search_start = text[level_end..].chars()
+        .position(|c| !c.is_whitespace())
+        .map(|p| level_end + p)?;
+    
+    // Extract package name (stop at whitespace, dash, or other separator)
+    let package_start = search_start;
+    let package_text = &text[package_start..];
+    
+    // Find end of package name - stop at common separators
+    let package_end = package_text.chars()
+        .position(|c| c.is_whitespace() || c == '-' || c == ':' || c == ']')
+        .map(|p| package_start + p)
+        .unwrap_or(text.len());
+    
+    let package_name = &text[package_start..package_end];
+    
+    // Validate it looks like a package name (contains dots or is a simple word)
+    if package_name.is_empty() || package_name.len() > 100 {
+        return None;
+    }
+    
+    Some((package_start, package_end, package_name))
+}
+
 /// Create a line with keyword-based coloring (simple approach)
-/// Highlights [INFO], [WARNING], [ERROR], [DEBUG] keywords and command lines
-pub fn colorize_log_line(text: &str) -> Line<'static> {
+/// Highlights [INFO], [WARNING], [ERROR], [DEBUG] keywords, command lines, and package names
+/// 
+/// If log_format is provided, will attempt to extract and colorize package names based on the pattern
+pub fn colorize_log_line_with_format(text: &str, log_format: Option<&str>) -> Line<'static> {
     let mut spans = Vec::new();
 
     // Check if this is a command line (starts with $)
@@ -55,70 +125,100 @@ pub fn colorize_log_line(text: &str) -> Line<'static> {
                 .fg(Color::Cyan)
                 .add_modifier(ratatui::style::Modifier::BOLD),
         ));
-    } else if let Some(debug_pos) = text.find("[DEBUG]") {
-        // Split around [DEBUG]
-        if debug_pos > 0 {
-            spans.push(Span::raw(text[..debug_pos].to_string()));
-        }
-        spans.push(Span::styled(
-            "[DEBUG]".to_string(),
-            Style::default().fg(Color::Magenta),
-        ));
-        let remaining = &text[debug_pos + 7..];
-        if !remaining.is_empty() {
-            spans.push(Span::raw(remaining.to_string()));
-        }
+        return Line::from(spans);
+    }
+    
+    // Try to extract package name if log_format is provided
+    let package_info = log_format.and_then(|fmt| extract_package_from_log_line(text, fmt));
+
+    // Find and colorize log level
+    if let Some(debug_pos) = text.find("[DEBUG]") {
+        colorize_with_level_and_package(text, debug_pos, "[DEBUG]", 7, Color::Magenta, package_info, &mut spans);
     } else if let Some(info_pos) = text.find("[INFO]") {
-        // Split around [INFO]
-        if info_pos > 0 {
-            spans.push(Span::raw(text[..info_pos].to_string()));
-        }
-        spans.push(Span::styled(
-            "[INFO]".to_string(),
-            Style::default().fg(Color::Green),
-        ));
-        let remaining = &text[info_pos + 6..];
-        if !remaining.is_empty() {
-            spans.push(Span::raw(remaining.to_string()));
-        }
-    } else if let Some(warn_pos) = text.find("[WARNING]") {
-        // Split around [WARNING]
-        if warn_pos > 0 {
-            spans.push(Span::raw(text[..warn_pos].to_string()));
-        }
-        spans.push(Span::styled(
-            "[WARNING]".to_string(),
-            Style::default().fg(Color::Yellow),
-        ));
-        let remaining = &text[warn_pos + 9..];
-        if !remaining.is_empty() {
-            spans.push(Span::raw(remaining.to_string()));
-        }
+        colorize_with_level_and_package(text, info_pos, "[INFO]", 6, Color::Green, package_info, &mut spans);
+    } else if let Some(warn_pos) = text.find("[WARNING]").or_else(|| text.find("[WARN]")) {
+        let (keyword, len) = if text[warn_pos..].starts_with("[WARNING]") {
+            ("[WARNING]", 9)
+        } else {
+            ("[WARN]", 6)
+        };
+        colorize_with_level_and_package(text, warn_pos, keyword, len, Color::Yellow, package_info, &mut spans);
     } else if let Some(error_pos) = text.find("[ERROR]").or_else(|| text.find("[ERR]")) {
-        // Split around [ERROR] or [ERR]
         let (keyword, len) = if text[error_pos..].starts_with("[ERROR]") {
             ("[ERROR]", 7)
         } else {
             ("[ERR]", 5)
         };
-
-        if error_pos > 0 {
-            spans.push(Span::raw(text[..error_pos].to_string()));
-        }
-        spans.push(Span::styled(
-            keyword.to_string(),
-            Style::default().fg(Color::Red),
-        ));
-        let remaining = &text[error_pos + len..];
-        if !remaining.is_empty() {
-            spans.push(Span::raw(remaining.to_string()));
-        }
+        colorize_with_level_and_package(text, error_pos, keyword, len, Color::Red, package_info, &mut spans);
     } else {
         // No special keywords, return as-is
         spans.push(Span::raw(text.to_string()));
     }
 
     Line::from(spans)
+}
+
+/// Helper function to colorize a log line with level and optional package name
+fn colorize_with_level_and_package(
+    text: &str,
+    level_pos: usize,
+    level_keyword: &str,
+    level_len: usize,
+    level_color: Color,
+    package_info: Option<(usize, usize, &str)>,
+    spans: &mut Vec<Span<'static>>,
+) {
+    // Add text before level
+    if level_pos > 0 {
+        spans.push(Span::raw(text[..level_pos].to_string()));
+    }
+    
+    // Add colored level
+    spans.push(Span::styled(
+        level_keyword.to_string(),
+        Style::default().fg(level_color),
+    ));
+    
+    let remaining_start = level_pos + level_len;
+    
+    // If we have package info, split the remaining text around it
+    if let Some((pkg_start, pkg_end, pkg_name)) = package_info {
+        if pkg_start >= remaining_start && pkg_start < text.len() {
+            // Add text between level and package
+            if pkg_start > remaining_start {
+                spans.push(Span::raw(text[remaining_start..pkg_start].to_string()));
+            }
+            
+            // Add colored package name
+            spans.push(Span::styled(
+                pkg_name.to_string(),
+                Style::default().fg(Color::Cyan),
+            ));
+            
+            // Add remaining text after package
+            if pkg_end < text.len() {
+                spans.push(Span::raw(text[pkg_end..].to_string()));
+            }
+        } else {
+            // Package position is invalid, just add remaining text
+            if remaining_start < text.len() {
+                spans.push(Span::raw(text[remaining_start..].to_string()));
+            }
+        }
+    } else {
+        // No package info, just add remaining text
+        if remaining_start < text.len() {
+            spans.push(Span::raw(text[remaining_start..].to_string()));
+        }
+    }
+}
+
+/// Create a line with keyword-based coloring (simple approach)
+/// Highlights [INFO], [WARNING], [ERROR], [DEBUG] keywords and command lines
+/// 
+/// This is a convenience wrapper around colorize_log_line_with_format for backward compatibility
+pub fn colorize_log_line(text: &str) -> Line<'static> {
+    colorize_log_line_with_format(text, None)
 }
 
 /// Colorize XML syntax for better readability
@@ -393,5 +493,63 @@ mod tests {
     fn test_colorize_xml_comment() {
         let line = colorize_xml_line("<!-- This is a comment -->");
         assert_eq!(line.spans.len(), 1);
+    }
+
+    #[test]
+    fn test_colorize_log_line_with_package() {
+        // Test with log format containing %p and %c
+        let log_format = "[%p] %c - %m%n";
+        let log_line = "[INFO] com.example.MyClass - Starting application";
+        let line = colorize_log_line_with_format(log_line, Some(log_format));
+        
+        // Should have at least 4 spans: before level, level, package, and message
+        assert!(line.spans.len() >= 3);
+        
+        // Check that one span contains the package name
+        let has_package = line.spans.iter().any(|span| span.content.contains("com.example.MyClass"));
+        assert!(has_package, "Package name should be present in spans");
+    }
+
+    #[test]
+    fn test_colorize_log_line_with_short_logger() {
+        // Test with shortened logger format %c{1}
+        let log_format = "[%p] %c{1} - %m%n";
+        let log_line = "[DEBUG] MyClass - Debug message";
+        let line = colorize_log_line_with_format(log_line, Some(log_format));
+        
+        assert!(line.spans.len() >= 3);
+        let has_logger = line.spans.iter().any(|span| span.content.contains("MyClass"));
+        assert!(has_logger, "Short logger name should be present in spans");
+    }
+
+    #[test]
+    fn test_colorize_log_line_without_format() {
+        // Test backward compatibility - no format provided
+        let log_line = "[INFO] Some message";
+        let line = colorize_log_line_with_format(log_line, None);
+        
+        // Should still colorize the level
+        assert!(line.spans.len() >= 2);
+    }
+
+    #[test]
+    fn test_extract_package_from_various_formats() {
+        let test_cases = vec![
+            ("[INFO] com.example.service.UserService - User created", Some("com.example.service.UserService")),
+            ("[DEBUG] MyClass - Debug info", Some("MyClass")),
+            ("[ERROR] org.springframework.boot.SpringApplication - Failed to start", Some("org.springframework.boot.SpringApplication")),
+            ("[WARN] test.package - Warning message", Some("test.package")),
+        ];
+        
+        let log_format = "[%p] %c - %m%n";
+        
+        for (log_line, expected_package) in test_cases {
+            if let Some(expected) = expected_package {
+                let result = extract_package_from_log_line(log_line, log_format);
+                assert!(result.is_some(), "Should extract package from: {}", log_line);
+                let (_start, _end, pkg) = result.unwrap();
+                assert_eq!(pkg, expected, "Package mismatch for line: {}", log_line);
+            }
+        }
     }
 }
