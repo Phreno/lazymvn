@@ -467,9 +467,11 @@ lazymvn/
 ## Project Resources
 
 ### Documentation
-- **[docs/](docs/)** - Detailed feature documentation and implementation notes.
-  - **[User Documentation](docs/user/README.md)**: For end-users.
-  - **[Internal Documentation](docs/internal/README.md)**: For developers and contributors.
+- **[docs/](docs/)** - Comprehensive documentation hub
+  - **[User Documentation](docs/user/README.md)**: Feature guides and tutorials
+  - **[Internal Documentation](docs/internal/README.md)**: Implementation details and architecture
+  - **[Roadmap](docs/ROADMAP_EXECUTIVE_SUMMARY.md)**: Project vision and planning
+  - **[Quick Wins](docs/QUICK_WINS.md)**: High-impact improvements for contributors
 
 ### Configuration Examples
 - **[examples/](examples/)** - Configuration file examples
@@ -482,8 +484,9 @@ lazymvn/
   - See [scripts/README.md](scripts/README.md) for usage instructions
 
 ### Development Guidelines
-- **[AGENTS.md](AGENTS.md)** - Coding guidelines and project structure for contributors and AI agents
+- **[docs/internal/AGENTS.md](docs/internal/AGENTS.md)** - Coding guidelines and project structure for contributors and AI agents
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** - Contribution process and code of conduct
+- **[docs/internal/VERSIONING.md](docs/internal/VERSIONING.md)** - Versioning strategy and release process
 
 
 ### Development Setup
