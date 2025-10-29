@@ -7,11 +7,11 @@
 use crate::ui::{
     keybindings::Focus,
     panes::{
-        create_adaptive_layout, render_favorites_popup, render_flags_pane, render_footer,
-        render_help_popup, render_history_popup, render_modules_pane, render_output_pane,
-        render_profiles_pane, render_projects_pane, render_projects_popup,
-        render_save_favorite_popup, render_starter_manager_popup, render_starter_selector_popup,
-        render_tab_bar,
+        create_adaptive_layout, render_custom_goals_popup, render_favorites_popup,
+        render_flags_pane, render_footer, render_help_popup, render_history_popup,
+        render_modules_pane, render_output_pane, render_profiles_pane, render_projects_pane,
+        render_projects_popup, render_save_favorite_popup, render_starter_manager_popup,
+        render_starter_selector_popup, render_tab_bar,
     },
     state::TuiState,
 };
@@ -176,6 +176,16 @@ pub fn draw<B: Backend>(
         if state.show_starter_manager {
             let starters = state.get_active_tab().starters_cache.starters.clone();
             render_starter_manager_popup(f, &starters, &mut state.starters_list_state);
+        }
+
+        // Render custom goals popup if shown
+        if state.show_custom_goals_popup {
+            let tab = state.get_active_tab();
+            let custom_goals = tab.custom_goals.clone();
+            let mut list_state = tab.custom_goals_list_state.clone();
+            render_custom_goals_popup(f, &custom_goals, &mut list_state);
+            // Update the state back
+            state.get_active_tab_mut().custom_goals_list_state = list_state;
         }
 
         // Render command history popup if shown

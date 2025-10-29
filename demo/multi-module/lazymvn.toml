@@ -1,0 +1,9 @@
+# LazyMVN Configuration for Demo Multi-Module Project
+
+[maven]
+# Custom Maven goals - Press Ctrl+G to execute
+custom_goals = [
+    { name = "Format Code", goal = "net.revelc.code.formatter:formatter-maven-plugin:2.23.0:format" },
+    { name = "Checkstyle", goal = "org.apache.maven.plugins:maven-checkstyle-plugin:3.3.1:check" },
+    { name = "Dependency Tree", goal = "dependency:tree" },
+]

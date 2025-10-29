@@ -62,6 +62,19 @@ pub fn handle_maven_command(key: KeyEvent, state: &mut TuiState) -> bool {
             state.show_starter_manager();
             true
         }
+        // Custom goals: Alt+1 to Alt+9
+        KeyCode::Char(c @ '1'..='9') if key.modifiers.contains(KeyModifiers::ALT) => {
+            let goal_index = c.to_digit(10).unwrap() as usize - 1;
+            let tab = state.get_active_tab();
+            if goal_index < tab.custom_goals.len() {
+                log::info!("Execute custom goal {}: {}", goal_index + 1, tab.custom_goals[goal_index].name);
+                state.run_custom_goal(goal_index);
+                true
+            } else {
+                log::warn!("No custom goal defined at index {}", goal_index + 1);
+                false
+            }
+        }
         _ => false,
     }
 }

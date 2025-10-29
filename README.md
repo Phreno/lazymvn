@@ -120,6 +120,7 @@ I want to credit both the project and its author for the idea and for shaping ho
 | `Ctrl+R` | Show recent projects and switch to a different project |
 | `Ctrl+E` | Edit configuration file (lazymvn.toml) - **changes are applied immediately after editor closes** |
 | `Ctrl+K` | Refresh caches (profiles and starters) - **forces reload from Maven and rescans dependencies** |
+| `Ctrl+G` | Show custom goals popup - **execute configured Maven plugin goals** |
 | **Mouse** | Click on pane to focus it, click on item to select it |
 
 ### Tab Management

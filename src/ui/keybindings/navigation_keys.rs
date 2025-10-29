@@ -90,6 +90,11 @@ pub fn handle_popup_triggers(key: KeyEvent, state: &mut TuiState) -> bool {
             state.refresh_caches();
             true
         }
+        KeyCode::Char('g') => {
+            log::info!("Show custom goals popup");
+            state.show_custom_goals_popup();
+            true
+        }
         _ => false,
     }
 }

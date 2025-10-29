@@ -202,6 +202,27 @@ impl TuiState {
         self.clamp_output_offset();
     }
 
+    /// Run a custom Maven goal for the selected module
+    /// Custom goals are typically full plugin invocations (e.g., "groupId:artifactId:version:goal")
+    pub fn run_custom_goal(&mut self, goal_index: usize) {
+        let tab = self.get_active_tab();
+        
+        // Get the custom goal
+        if goal_index >= tab.custom_goals.len() {
+            log::warn!("Invalid custom goal index: {}", goal_index);
+            return;
+        }
+        
+        let custom_goal = tab.custom_goals[goal_index].clone();
+        log::info!("Executing custom goal: {} ({})", custom_goal.name, custom_goal.goal);
+        
+        // Parse the goal string (might contain spaces for multiple goals or arguments)
+        let goal_parts: Vec<&str> = custom_goal.goal.split_whitespace().collect();
+        
+        // Execute the goal using the standard command execution
+        self.run_selected_module_command(&goal_parts);
+    }
+
     /// Check for and process any pending command updates
     /// Should be called regularly from the main event loop
     pub fn poll_command_updates(&mut self) {

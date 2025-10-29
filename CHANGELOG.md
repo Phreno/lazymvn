@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Custom Maven Goals** - Execute custom Maven plugin goals with a popup:
+  - Press `Ctrl+G` to open the custom goals popup
+  - Define goals in `lazymvn.toml` config: `custom_goals = [{ name = "Format", goal = "formatter:format" }]`
+  - Execute full plugin coordinates like `net.revelc.code.formatter:formatter-maven-plugin:2.23.0:format`
+  - Navigate with `↑↓`, execute with `Enter`, close with `Esc` or `q`
+  - Supports formatters, code quality tools, code generators, Docker builds, and more
+  - See `examples/lazymvn.toml.custom-goals-example` for comprehensive examples
 - **Help Popup** - Press `?` to display comprehensive keybindings reference:
   - Shows all available keyboard shortcuts organized by category
   - Navigation, Tab Management, Maven Commands, Spring Boot, Workflow, Search, and General

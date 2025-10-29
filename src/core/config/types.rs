@@ -24,6 +24,10 @@ pub struct MavenConfig {
     /// List of custom Maven flags/arguments
     #[serde(default)]
     pub custom_flags: Vec<CustomFlag>,
+    
+    /// List of custom Maven goals (e.g., plugins with full coordinates)
+    #[serde(default)]
+    pub custom_goals: Vec<CustomGoal>,
 }
 
 /// Custom Maven flag that can be toggled
@@ -36,6 +40,16 @@ pub struct CustomFlag {
     /// Whether the flag is enabled by default (optional, default: false)
     #[serde(default)]
     pub enabled: bool,
+}
+
+/// Custom Maven goal for quick execution
+/// These are typically plugin invocations that don't fit well as flags
+#[derive(Deserialize, Clone, Debug, PartialEq)]
+pub struct CustomGoal {
+    /// Display name for the goal (e.g., "Format code")
+    pub name: String,
+    /// The Maven goal to execute (e.g., "net.revelc.code.formatter:formatter-maven-plugin:2.23.0:format")
+    pub goal: String,
 }
 
 /// Spring Boot configuration overrides

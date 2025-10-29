@@ -23,11 +23,13 @@ pub struct ProjectTab {
     pub modules: Vec<String>,
     pub profiles: Vec<MavenProfile>,
     pub flags: Vec<BuildFlag>,
+    pub custom_goals: Vec<config::CustomGoal>,
 
     // List states
     pub modules_list_state: ListState,
     pub profiles_list_state: ListState,
     pub flags_list_state: ListState,
+    pub custom_goals_list_state: ListState,
 
     // Command execution
     pub command_output: Vec<String>,
@@ -129,6 +131,13 @@ impl ProjectTab {
             }
         }
 
+        // Load custom goals from configuration
+        let custom_goals = if let Some(maven_config) = &config.maven {
+            maven_config.custom_goals.clone()
+        } else {
+            Vec::new()
+        };
+
         // Initialize list states
         let mut modules_list_state = ListState::default();
         if !modules.is_empty() {
@@ -138,6 +147,11 @@ impl ProjectTab {
         let mut flags_list_state = ListState::default();
         if !flags.is_empty() {
             flags_list_state.select(Some(0));
+        }
+
+        let mut custom_goals_list_state = ListState::default();
+        if !custom_goals.is_empty() {
+            custom_goals_list_state.select(Some(0));
         }
 
         // Create file watcher if enabled in config
@@ -172,9 +186,11 @@ impl ProjectTab {
             modules,
             profiles,
             flags,
+            custom_goals,
             modules_list_state,
             profiles_list_state: ListState::default(),
             flags_list_state,
+            custom_goals_list_state,
             command_output: vec!["Ready. Select a module and press a command key.".to_string()],
             output_offset: 0,
             is_command_running: false,

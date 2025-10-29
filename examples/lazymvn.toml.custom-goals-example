@@ -1,0 +1,57 @@
+# Custom Maven Goals Example
+# Press Ctrl+G to open the custom goals popup and execute them
+
+[maven]
+# Define custom Maven goals to execute on the current module
+# These are full plugin invocations, not flags
+custom_goals = [
+    # Code formatting
+    { name = "Format Code", goal = "net.revelc.code.formatter:formatter-maven-plugin:2.23.0:format" },
+    
+    # Code quality checks
+    { name = "Checkstyle", goal = "org.apache.maven.plugins:maven-checkstyle-plugin:3.3.1:check" },
+    { name = "PMD", goal = "org.apache.maven.plugins:maven-pmd-plugin:3.21.2:check" },
+    { name = "SpotBugs", goal = "com.github.spotbugs:spotbugs-maven-plugin:4.8.3.0:check" },
+    
+    # Code generation
+    { name = "Generate Sources", goal = "org.jooq:jooq-codegen-maven:3.18.7:generate" },
+    { name = "OpenAPI Gen", goal = "org.openapitools:openapi-generator-maven-plugin:7.2.0:generate" },
+    
+    # Documentation
+    { name = "Generate Javadoc", goal = "org.apache.maven.plugins:maven-javadoc-plugin:3.6.3:javadoc" },
+    { name = "Generate Site", goal = "org.apache.maven.plugins:maven-site-plugin:4.0.0-M13:site" },
+    
+    # Dependency management
+    { name = "Dependency Tree", goal = "org.apache.maven.plugins:maven-dependency-plugin:3.6.1:tree" },
+    { name = "Dependency Analyze", goal = "org.apache.maven.plugins:maven-dependency-plugin:3.6.1:analyze" },
+    { name = "Update Versions", goal = "org.codehaus.mojo:versions-maven-plugin:2.16.2:display-dependency-updates" },
+    
+    # Docker/Container
+    { name = "Build Docker Image", goal = "com.google.cloud.tools:jib-maven-plugin:3.4.0:dockerBuild" },
+    { name = "Push to Registry", goal = "com.google.cloud.tools:jib-maven-plugin:3.4.0:build" },
+    
+    # Spring Boot (short form)
+    { name = "Spring Boot Run", goal = "spring-boot:run" },
+    { name = "Spring Boot Build Image", goal = "spring-boot:build-image" },
+    
+    # Quarkus
+    { name = "Quarkus Dev", goal = "quarkus:dev" },
+    { name = "Quarkus Build Native", goal = "quarkus:build -Dnative" },
+    
+    # Micronaut
+    { name = "Micronaut Run", goal = "mn:run" },
+    
+    # License management
+    { name = "Add License Headers", goal = "com.mycila:license-maven-plugin:4.3:format" },
+    { name = "Check Licenses", goal = "org.codehaus.mojo:license-maven-plugin:2.3.0:add-third-party" },
+]
+
+# You can also use short forms when the plugin is already in your pom.xml:
+# { name = "Format", goal = "formatter:format" }
+# { name = "Checkstyle", goal = "checkstyle:check" }
+
+# Usage:
+# 1. Press Ctrl+G to open the custom goals popup
+# 2. Use ↑↓ arrows to select a goal
+# 3. Press Enter to execute it on the current module
+# 4. Press Esc or 'q' to close the popup

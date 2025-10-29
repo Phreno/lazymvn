@@ -78,6 +78,11 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
         return;
     }
 
+    // Handle custom goals popup
+    if state.show_custom_goals_popup && popup_keys::handle_custom_goals_popup(key, state) {
+        return;
+    }
+
     // Handle help popup
     if state.show_help_popup && popup_keys::handle_help_popup(key, state) {
         return;
