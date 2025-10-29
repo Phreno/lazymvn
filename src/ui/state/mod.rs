@@ -1334,13 +1334,11 @@ impl TuiState {
     pub fn show_starter_selector(&mut self) {
         log::info!("Showing starter selector");
 
-        // Scan for potential starters if candidates list is empty
-        if self.starter_candidates.is_empty() {
-            let tab = self.get_active_tab();
-            self.starter_candidates =
-                crate::features::starters::find_potential_starters(&tab.project_root);
-            log::debug!("Found {} potential starters", self.starter_candidates.len());
-        }
+        // Always refresh starters for the active tab (in case we switched tabs)
+        let tab = self.get_active_tab();
+        self.starter_candidates =
+            crate::features::starters::find_potential_starters(&tab.project_root);
+        log::debug!("Found {} potential starters for current tab", self.starter_candidates.len());
 
         self.show_starter_selector = true;
         self.starter_filter.clear();
