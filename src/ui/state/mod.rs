@@ -959,44 +959,47 @@ impl TuiState {
     }
 
     pub fn select_current_project(&mut self) {
-        if let Some(idx) = self.projects_list_state.selected()
-            && let Some(project) = self.recent_projects.get(idx)
-        {
-            log::info!("Selected project: {:?}", project);
-            match self.create_tab(project.clone()) {
-                Ok(tab_idx) => {
-                    log::info!("Opened project in tab {}", tab_idx);
-                }
-                Err(e) => {
-                    log::error!("Failed to create tab: {}", e);
-                    if let Some(tab) = self.tabs.get_mut(self.active_tab_index) {
-                        tab.command_output = vec![format!("❌ {}", e)];
+        if let Some(idx) = self.projects_list_state.selected() {
+            let filtered_projects = self.get_filtered_projects();
+            if let Some(project) = filtered_projects.get(idx) {
+                log::info!("Selected project: {:?}", project);
+                match self.create_tab(project.clone()) {
+                    Ok(tab_idx) => {
+                        log::info!("Opened project in tab {}", tab_idx);
+                    }
+                    Err(e) => {
+                        log::error!("Failed to create tab: {}", e);
+                        if let Some(tab) = self.tabs.get_mut(self.active_tab_index) {
+                            tab.command_output = vec![format!("❌ {}", e)];
+                        }
                     }
                 }
+                self.hide_recent_projects();
             }
-            self.hide_recent_projects();
         }
     }
 
     pub fn next_project(&mut self) {
-        if self.recent_projects.is_empty() {
+        let filtered = self.get_filtered_projects();
+        if filtered.is_empty() {
             return;
         }
         let i = match self.projects_list_state.selected() {
-            Some(i) => (i + 1) % self.recent_projects.len(),
+            Some(i) => (i + 1) % filtered.len(),
             None => 0,
         };
         self.projects_list_state.select(Some(i));
     }
 
     pub fn previous_project(&mut self) {
-        if self.recent_projects.is_empty() {
+        let filtered = self.get_filtered_projects();
+        if filtered.is_empty() {
             return;
         }
         let i = match self.projects_list_state.selected() {
             Some(i) => {
                 if i == 0 {
-                    self.recent_projects.len() - 1
+                    filtered.len() - 1
                 } else {
                     i - 1
                 }
