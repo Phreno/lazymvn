@@ -10,7 +10,19 @@ use ratatui::{
     style::{Color, Style},
     text::{Line, Span},
 };
+use regex::Regex;
 use std::collections::HashSet;
+use std::sync::LazyLock;
+
+/// Regex pattern for detecting Java package names
+/// Matches packages starting with common TLDs (com, org, net, io, fr, etc.) 
+/// or well-known Java namespaces (java, javax, sun, spring, etc.)
+/// followed by at least one more segment: word.word(.word)*
+static PACKAGE_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"\b(?:com|org|net|io|fr|de|uk|nl|eu|gov|edu|mil|int|co|me|info|biz|mobi|name|pro|aero|asia|cat|coop|jobs|museum|tel|travel|xxx|ac|ad|ae|af|ag|ai|al|am|ao|aq|ar|as|at|au|aw|ax|az|ba|bb|bd|be|bf|bg|bh|bi|bj|bm|bn|bo|br|bs|bt|bv|bw|by|bz|ca|cc|cd|cf|cg|ch|ci|ck|cl|cm|cn|cr|cu|cv|cw|cx|cy|cz|dj|dk|dm|do|dz|ec|ee|eg|er|es|et|fi|fj|fk|fm|fo|ga|gb|gd|ge|gf|gg|gh|gi|gl|gm|gn|gp|gq|gr|gs|gt|gu|gw|gy|hk|hm|hn|hr|ht|hu|id|ie|il|im|in|iq|ir|is|it|je|jm|jo|jp|ke|kg|kh|ki|km|kn|kp|kr|kw|ky|kz|la|lb|lc|li|lk|lr|ls|lt|lu|lv|ly|ma|mc|md|mg|mh|mk|ml|mm|mn|mo|mp|mq|mr|ms|mt|mu|mv|mw|mx|my|mz|na|nc|ne|nf|ng|ni|no|np|nr|nu|nz|om|pa|pe|pf|pg|ph|pk|pl|pm|pn|pr|ps|pt|pw|py|qa|re|ro|rs|ru|rw|sa|sb|sc|sd|se|sg|sh|si|sj|sk|sl|sm|sn|so|sr|st|su|sv|sy|sz|tc|td|tf|tg|th|tj|tk|tl|tm|tn|to|tp|tr|tt|tv|tw|tz|ua|ug|uk|us|uy|uz|va|vc|ve|vg|vi|vn|vu|wf|ws|ye|yt|za|zm|zw|java|javax|jakarta|sun|oracle|ibm|spring|springframework|apache|hibernate|jboss|wildfly|tomcat|jetty|eclipse|maven|gradle|junit|mockito|slf4j|logback|log4j|guava|gson|jackson|akka|scala|kotlin|groovy|clojure)(?:\.[a-zA-Z_][a-zA-Z0-9_]*)+\b"
+    ).expect("Invalid package regex pattern")
+});
 
 /// Clean a log line by removing ANSI escape sequences and carriage returns
 /// Returns None if the line is empty after cleaning
@@ -44,72 +56,24 @@ pub fn clean_log_line(raw: &str) -> Option<String> {
     Some(trimmed.to_string())
 }
 
-/// Parse a log format pattern to extract marker positions
-/// Returns information about where %p (level) and %c (logger/package) appear in the format
-fn parse_log_format_pattern(log_format: &str) -> Option<(usize, usize)> {
-    // Find positions of %p (level) and %c (logger/package) in the format string
-    // This helps us locate them in actual log lines
-    
-    let level_marker_pos = log_format.find("%p")?;
-    
-    // Support %c, %c{1}, %c{2}, etc.
-    let logger_marker_pos = log_format.find("%c")?;
-    
-    // Calculate relative order: which comes first in the format?
-    Some((level_marker_pos, logger_marker_pos))
-}
-
-/// Extract package name from a log line based on the log format pattern
+/// Extract package name from a log line using regex pattern matching
+/// This approach is more robust and independent of log format
 /// Returns (start_pos, end_pos, package_name) if found
-fn extract_package_from_log_line<'a>(text: &'a str, log_format: &str) -> Option<(usize, usize, &'a str)> {
-    let (_level_pos, _logger_pos) = parse_log_format_pattern(log_format)?;
+fn extract_package_from_log_line<'a>(text: &'a str, _log_format: &str) -> Option<(usize, usize, &'a str)> {
+    // Use regex to find Java package pattern in the line
+    // This is much more robust than trying to parse the log format
+    let captures = PACKAGE_PATTERN.find(text)?;
     
-    // Strategy: Find the log level marker first ([DEBUG], [INFO], etc.)
-    // Then look for the package name after it
+    let start = captures.start();
+    let end = captures.end();
+    let package_name = captures.as_str();
     
-    let level_end = if let Some(pos) = text.find("[DEBUG]") {
-        Some(pos + 7)
-    } else if let Some(pos) = text.find("[INFO]") {
-        Some(pos + 6)
-    } else if let Some(pos) = text.find("[WARNING]").or_else(|| text.find("[WARN]")) {
-        if text[pos..].starts_with("[WARNING]") {
-            Some(pos + 9)
-        } else {
-            Some(pos + 6)
-        }
-    } else if let Some(pos) = text.find("[ERROR]").or_else(|| text.find("[ERR]")) {
-        if text[pos..].starts_with("[ERROR]") {
-            Some(pos + 7)
-        } else {
-            Some(pos + 5)
-        }
-    } else {
-        None
-    }?;
-    
-    // Skip whitespace and opening bracket after level
-    let search_start = text[level_end..].chars()
-        .position(|c| !c.is_whitespace() && c != '[')
-        .map(|p| level_end + p)?;
-    
-    // Extract package name (stop at whitespace, dash, or other separator)
-    let package_start = search_start;
-    let package_text = &text[package_start..];
-    
-    // Find end of package name - stop at common separators
-    let package_end = package_text.chars()
-        .position(|c| c.is_whitespace() || c == '-' || c == ':' || c == ']')
-        .map(|p| package_start + p)
-        .unwrap_or(text.len());
-    
-    let package_name = &text[package_start..package_end];
-    
-    // Validate it looks like a package name (contains dots or is a simple word)
-    if package_name.is_empty() || package_name.len() > 100 {
+    // Additional validation: reasonable length
+    if package_name.len() > 100 {
         return None;
     }
     
-    Some((package_start, package_end, package_name))
+    Some((start, end, package_name))
 }
 
 /// Create a line with keyword-based coloring (simple approach)
@@ -515,13 +479,16 @@ mod tests {
     #[test]
     fn test_colorize_log_line_with_short_logger() {
         // Test with shortened logger format %c{1}
+        // Note: with the new regex-based extraction, single-word class names
+        // without a package prefix are not detected (which is correct behavior)
         let log_format = "[%p] %c{1} - %m%n";
-        let log_line = "[DEBUG] MyClass - Debug message";
+        let log_line = "[DEBUG] com.example.MyClass - Debug message";
         let line = colorize_log_line_with_format(log_line, Some(log_format));
         
+        // Should have at least: level + package + message
         assert!(line.spans.len() >= 3);
-        let has_logger = line.spans.iter().any(|span| span.content.contains("MyClass"));
-        assert!(has_logger, "Short logger name should be present in spans");
+        let has_package = line.spans.iter().any(|span| span.content.contains("com.example.MyClass"));
+        assert!(has_package, "Package name should be present in spans");
     }
 
     #[test]
@@ -537,30 +504,72 @@ mod tests {
     #[test]
     fn test_extract_package_from_various_formats() {
         let test_cases = vec![
+            // Standard format with full package names
             ("[INFO] com.example.service.UserService - User created", Some("com.example.service.UserService")),
-            ("[DEBUG] MyClass - Debug info", Some("MyClass")),
             ("[ERROR] org.springframework.boot.SpringApplication - Failed to start", Some("org.springframework.boot.SpringApplication")),
-            ("[WARN] test.package - Warning message", Some("test.package")),
+            // Custom packages with known TLDs
+            ("[WARN] test.package.Something - Warning message", None), // 'test' is not a recognized TLD
+            ("[WARN] fr.laposte.disf.uid - Warning message", Some("fr.laposte.disf.uid")),
             // Test case with consecutive brackets (common format)
             ("[INFO][fr.foo.bar] Message", Some("fr.foo.bar")),
             ("[DEBUG][com.example.MyClass] Debug", Some("com.example.MyClass")),
+            // Java standard packages
+            ("[INFO] java.util.ArrayList - Message", Some("java.util.ArrayList")),
+            ("[DEBUG] javax.servlet.http.HttpServlet - Message", Some("javax.servlet.http.HttpServlet")),
+            // Spring framework
+            ("[INFO] org.springframework.context.annotation.AnnotationConfigApplicationContext - Message", Some("org.springframework.context.annotation.AnnotationConfigApplicationContext")),
+            // Simple class name without package (should NOT match)
+            ("[DEBUG] MyClass - Debug info", None),
         ];
         
         let log_format = "[%p] %c - %m%n";
         
         for (log_line, expected_package) in test_cases {
+            let result = extract_package_from_log_line(log_line, log_format);
+            
+            match expected_package {
+                Some(expected) => {
+                    assert!(result.is_some(), "Should extract package from: {}", log_line);
+                    let (_start, _end, pkg) = result.unwrap();
+                    assert_eq!(pkg, expected, "Package mismatch for line: {}", log_line);
+                    
+                    // Verify that the package name doesn't start with '[' (common mistake)
+                    assert!(
+                        !pkg.starts_with('['),
+                        "Package name should not start with '[': {}",
+                        pkg
+                    );
+                }
+                None => {
+                    assert!(result.is_none(), "Should NOT extract package from: {}", log_line);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_extract_package_format_independent() {
+        // Test that extraction works regardless of log format
+        let test_cases = vec![
+            // No brackets
+            ("INFO com.example.Service message", Some("com.example.Service")),
+            // Different separators
+            ("2024-10-30 10:00:00 [INFO] org.apache.kafka.Consumer - Started", Some("org.apache.kafka.Consumer")),
+            // Timestamp first
+            ("10:00:00.123 DEBUG fr.laposte.Service Processing", Some("fr.laposte.Service")),
+            // Package in middle of line
+            ("Some text com.google.common.collect.ImmutableList more text", Some("com.google.common.collect.ImmutableList")),
+            // Jakarta EE
+            ("INFO jakarta.persistence.EntityManager transaction", Some("jakarta.persistence.EntityManager")),
+        ];
+        
+        for (log_line, expected_package) in test_cases {
+            let result = extract_package_from_log_line(log_line, "[%p] %c - %m%n");
+            
             if let Some(expected) = expected_package {
-                let result = extract_package_from_log_line(log_line, log_format);
                 assert!(result.is_some(), "Should extract package from: {}", log_line);
                 let (_start, _end, pkg) = result.unwrap();
                 assert_eq!(pkg, expected, "Package mismatch for line: {}", log_line);
-                
-                // Verify that the package name doesn't start with '[' (common mistake)
-                assert!(
-                    !pkg.starts_with('['),
-                    "Package name should not start with '[': {}",
-                    pkg
-                );
             }
         }
     }
