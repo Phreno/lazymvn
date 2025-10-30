@@ -1434,17 +1434,29 @@ impl TuiState {
 
     /// Delete the selected favorite
     pub fn delete_selected_favorite(&mut self) {
-        if let Some(selected) = self.favorites_list_state.selected()
-            && let Some(removed) = self.favorites.remove(selected)
-        {
-            log::info!("Deleted favorite: {}", removed.name);
+        if let Some(selected) = self.favorites_list_state.selected() {
+            let filtered_favorites = self.get_filtered_favorites();
+            
+            // Get the favorite from the filtered list
+            if let Some(favorite_to_delete) = filtered_favorites.get(selected) {
+                // Find its index in the complete list
+                if let Some(actual_index) = self.favorites.list().iter().position(|f| {
+                    f.name == favorite_to_delete.name
+                        && f.module == favorite_to_delete.module
+                        && f.goal == favorite_to_delete.goal
+                }) {
+                    if let Some(removed) = self.favorites.remove(actual_index) {
+                        log::info!("Deleted favorite: {}", removed.name);
 
-            // Adjust selection
-            let new_len = self.favorites.list().len();
-            if new_len == 0 {
-                self.favorites_list_state.select(None);
-            } else if selected >= new_len {
-                self.favorites_list_state.select(Some(new_len - 1));
+                        // Adjust selection in filtered list
+                        let new_filtered_len = self.get_filtered_favorites().len();
+                        if new_filtered_len == 0 {
+                            self.favorites_list_state.select(None);
+                        } else if selected >= new_filtered_len {
+                            self.favorites_list_state.select(Some(new_filtered_len - 1));
+                        }
+                    }
+                }
             }
         }
     }
