@@ -509,7 +509,7 @@ mod tests {
             ("[ERROR] org.springframework.boot.SpringApplication - Failed to start", Some("org.springframework.boot.SpringApplication")),
             // Custom packages with known TLDs
             ("[WARN] test.package.Something - Warning message", None), // 'test' is not a recognized TLD
-            ("[WARN] fr.laposte.disf.uid - Warning message", Some("fr.laposte.disf.uid")),
+            ("[WARN] fr.foo.bar.uid - Warning message", Some("fr.foo.bar.uid")),
             // Test case with consecutive brackets (common format)
             ("[INFO][fr.foo.bar] Message", Some("fr.foo.bar")),
             ("[DEBUG][com.example.MyClass] Debug", Some("com.example.MyClass")),
@@ -556,7 +556,7 @@ mod tests {
             // Different separators
             ("2024-10-30 10:00:00 [INFO] org.apache.kafka.Consumer - Started", Some("org.apache.kafka.Consumer")),
             // Timestamp first
-            ("10:00:00.123 DEBUG fr.laposte.Service Processing", Some("fr.laposte.Service")),
+            ("10:00:00.123 DEBUG fr.foo.Service Processing", Some("fr.foo.Service")),
             // Package in middle of line
             ("Some text com.google.common.collect.ImmutableList more text", Some("com.google.common.collect.ImmutableList")),
             // Jakarta EE
