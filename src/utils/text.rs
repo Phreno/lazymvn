@@ -45,6 +45,12 @@ static EXCEPTION_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\b[A-Z][a-zA-Z0-9]*Exception\b").expect("Invalid exception regex pattern")
 });
 
+/// Regex pattern for detecting Java stack trace lines
+/// Matches lines like: at com.example.MyClass.myMethod(MyClass.java:42)
+static STACKTRACE_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^\s*at\s+([a-zA-Z0-9_.$]+)\.([a-zA-Z0-9_<>]+)\(([^)]+)\)\s*$").expect("Invalid stacktrace regex pattern")
+});
+
 /// Clean a log line by removing ANSI escape sequences and carriage returns
 /// Returns None if the line is empty after cleaning
 pub fn clean_log_line(raw: &str) -> Option<String> {
@@ -196,6 +202,12 @@ pub fn colorize_log_line_with_format(text: &str, log_format: Option<&str>) -> Li
         return Line::from(spans);
     }
     
+    // Check if this is a stack trace line (starts with "at ")
+    if let Some(captures) = STACKTRACE_PATTERN.captures(text) {
+        colorize_stacktrace_line(text, captures, &mut spans);
+        return Line::from(spans);
+    }
+    
     // Try to extract package name if log_format is provided
     let package_info = log_format.and_then(|fmt| extract_package_from_log_line(text, fmt));
 
@@ -311,6 +323,66 @@ fn colorize_with_exceptions(text: &str, spans: &mut Vec<Span<'static>>) {
     if last_end < text.len() {
         spans.push(Span::raw(text[last_end..].to_string()));
     }
+}
+
+/// Helper function to colorize a Java stack trace line
+/// Format: "at com.example.MyClass.myMethod(MyClass.java:42)"
+/// Captures: (1) = full class path, (2) = method name, (3) = source location
+fn colorize_stacktrace_line(text: &str, captures: regex::Captures, spans: &mut Vec<Span<'static>>) {
+    let full_match = captures.get(0).unwrap();
+    let class_path = captures.get(1).map(|m| m.as_str()).unwrap_or("");
+    let method_name = captures.get(2).map(|m| m.as_str()).unwrap_or("");
+    let source_location = captures.get(3).map(|m| m.as_str()).unwrap_or("");
+    
+    // Calculate positions
+    let leading_whitespace = &text[..full_match.start()];
+    
+    // Add leading whitespace (indentation)
+    if !leading_whitespace.is_empty() {
+        spans.push(Span::raw(leading_whitespace.to_string()));
+    }
+    
+    // Add "at" keyword in dark gray
+    spans.push(Span::styled(
+        "at ".to_string(),
+        Style::default().fg(Color::DarkGray),
+    ));
+    
+    // Add class path in cyan (like packages)
+    spans.push(Span::styled(
+        class_path.to_string(),
+        Style::default().fg(Color::Cyan),
+    ));
+    
+    // Add dot separator
+    spans.push(Span::styled(
+        ".".to_string(),
+        Style::default().fg(Color::DarkGray),
+    ));
+    
+    // Add method name in light yellow
+    spans.push(Span::styled(
+        method_name.to_string(),
+        Style::default().fg(Color::LightYellow),
+    ));
+    
+    // Add opening parenthesis
+    spans.push(Span::styled(
+        "(".to_string(),
+        Style::default().fg(Color::DarkGray),
+    ));
+    
+    // Add source location in gray
+    spans.push(Span::styled(
+        source_location.to_string(),
+        Style::default().fg(Color::Gray),
+    ));
+    
+    // Add closing parenthesis
+    spans.push(Span::styled(
+        ")".to_string(),
+        Style::default().fg(Color::DarkGray),
+    ));
 }
 
 /// Create a line with keyword-based coloring (simple approach)
@@ -802,6 +874,62 @@ mod tests {
         
         assert!(has_package, "Should highlight package");
         assert!(has_exception, "Should highlight exception");
+    }
+
+    #[test]
+    fn test_colorize_stacktrace() {
+        // Test basic stack trace line
+        let stacktrace = "    at com.example.MyClass.myMethod(MyClass.java:42)";
+        let line = colorize_log_line_with_format(stacktrace, None);
+        
+        // Should have multiple spans for different parts
+        assert!(line.spans.len() >= 5, "Should have multiple spans for stacktrace parts");
+        
+        // Check that key parts are present
+        let has_at = line.spans.iter().any(|span| span.content == "at ");
+        let has_class = line.spans.iter().any(|span| span.content.contains("com.example.MyClass"));
+        let has_method = line.spans.iter().any(|span| span.content.contains("myMethod"));
+        let has_source = line.spans.iter().any(|span| span.content.contains("MyClass.java:42"));
+        
+        assert!(has_at, "Should contain 'at' keyword");
+        assert!(has_class, "Should contain class path");
+        assert!(has_method, "Should contain method name");
+        assert!(has_source, "Should contain source location");
+    }
+
+    #[test]
+    fn test_colorize_stacktrace_with_generics() {
+        // Test stack trace with generic method names (e.g., <init>, <clinit>)
+        let stacktrace = "    at org.springframework.boot.SpringApplication.<init>(SpringApplication.java:123)";
+        let line = colorize_log_line_with_format(stacktrace, None);
+        
+        assert!(line.spans.len() >= 5, "Should handle generic method names");
+        
+        let has_init = line.spans.iter().any(|span| span.content.contains("<init>"));
+        assert!(has_init, "Should detect <init> method");
+    }
+
+    #[test]
+    fn test_colorize_stacktrace_with_inner_class() {
+        // Test stack trace with inner classes (using $)
+        let stacktrace = "    at com.example.OuterClass$InnerClass.method(OuterClass.java:99)";
+        let line = colorize_log_line_with_format(stacktrace, None);
+        
+        assert!(line.spans.len() >= 5, "Should handle inner class notation");
+        
+        let has_inner = line.spans.iter().any(|span| span.content.contains("OuterClass$InnerClass"));
+        assert!(has_inner, "Should detect inner class");
+    }
+
+    #[test]
+    fn test_normal_line_vs_stacktrace() {
+        // Ensure normal lines starting with "at" but not stack traces aren't misidentified
+        let normal_line = "[INFO] Starting application at port 8080";
+        let line = colorize_log_line_with_format(normal_line, Some("[%p] %m%n"));
+        
+        // Should be colored as log level, not as stacktrace
+        let has_info = line.spans.iter().any(|span| span.content == "[INFO]");
+        assert!(has_info, "Should recognize as normal log line, not stacktrace");
     }
 }
 
