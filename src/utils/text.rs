@@ -39,6 +39,12 @@ static PACKAGE_PATTERN_PERMISSIVE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\b[a-z][a-z0-9_]{2,}\.(?:[a-z][a-z0-9_]{2,}|[A-Z][a-zA-Z0-9_]{2,})(?:\.(?:[a-z][a-z0-9_]{2,}|[A-Z][a-zA-Z0-9_]{2,}))*\b").unwrap()
 });
 
+/// Regex pattern for detecting Java exceptions
+/// Matches class names ending with "Exception" (e.g., NullPointerException, IOException)
+static EXCEPTION_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\b[A-Z][a-zA-Z0-9]*Exception\b").expect("Invalid exception regex pattern")
+});
+
 /// Clean a log line by removing ANSI escape sequences and carriage returns
 /// Returns None if the line is empty after cleaning
 pub fn clean_log_line(raw: &str) -> Option<String> {
@@ -248,7 +254,7 @@ fn colorize_with_level_and_package(
         if pkg_start >= remaining_start && pkg_start < text.len() {
             // Add text between level and package
             if pkg_start > remaining_start {
-                spans.push(Span::raw(text[remaining_start..pkg_start].to_string()));
+                colorize_with_exceptions(&text[remaining_start..pkg_start], spans);
             }
             
             // Add colored package name
@@ -257,21 +263,53 @@ fn colorize_with_level_and_package(
                 Style::default().fg(Color::Cyan),
             ));
             
-            // Add remaining text after package
+            // Add remaining text after package (with exception highlighting)
             if pkg_end < text.len() {
-                spans.push(Span::raw(text[pkg_end..].to_string()));
+                colorize_with_exceptions(&text[pkg_end..], spans);
             }
         } else {
-            // Package position is invalid, just add remaining text
+            // Package position is invalid, just add remaining text with exception highlighting
             if remaining_start < text.len() {
-                spans.push(Span::raw(text[remaining_start..].to_string()));
+                colorize_with_exceptions(&text[remaining_start..], spans);
             }
         }
     } else {
-        // No package info, just add remaining text
+        // No package info, just add remaining text with exception highlighting
         if remaining_start < text.len() {
-            spans.push(Span::raw(text[remaining_start..].to_string()));
+            colorize_with_exceptions(&text[remaining_start..], spans);
         }
+    }
+}
+
+/// Helper function to colorize text with exception highlighting
+/// Searches for Java exception names and highlights them in red
+fn colorize_with_exceptions(text: &str, spans: &mut Vec<Span<'static>>) {
+    let mut last_end = 0;
+    
+    // Find all exceptions in the text
+    for exception_match in EXCEPTION_PATTERN.find_iter(text) {
+        let start = exception_match.start();
+        let end = exception_match.end();
+        
+        // Add text before exception (if any)
+        if start > last_end {
+            spans.push(Span::raw(text[last_end..start].to_string()));
+        }
+        
+        // Add colored exception name
+        spans.push(Span::styled(
+            exception_match.as_str().to_string(),
+            Style::default()
+                .fg(Color::LightRed)
+                .add_modifier(ratatui::style::Modifier::BOLD),
+        ));
+        
+        last_end = end;
+    }
+    
+    // Add remaining text (if any)
+    if last_end < text.len() {
+        spans.push(Span::raw(text[last_end..].to_string()));
     }
 }
 
@@ -704,6 +742,66 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn test_colorize_exceptions() {
+        // Test that exception names are highlighted
+        let test_cases = vec![
+            "[ERROR] com.example.Service - NullPointerException occurred",
+            "[WARN] java.io.FileReader - IOException: file not found",
+            "[ERROR] Failed with IllegalArgumentException and RuntimeException",
+            "[DEBUG] Caught SQLException while processing",
+        ];
+        
+        let log_format = "[%p] %c - %m%n";
+        
+        for log_line in test_cases {
+            let line = colorize_log_line_with_format(log_line, Some(log_format));
+            
+            // Should have multiple spans (level + exception(s) + other text)
+            assert!(line.spans.len() >= 3, "Line should have multiple spans for: {}", log_line);
+            
+            // Check that at least one span is styled (for the exception)
+            let has_styled_exception = line.spans.iter().any(|span| {
+                span.content.contains("Exception") && !span.style.fg.is_none()
+            });
+            
+            assert!(has_styled_exception, "Should highlight exception in: {}", log_line);
+        }
+    }
+
+    #[test]
+    fn test_colorize_multiple_exceptions() {
+        // Test line with multiple exceptions
+        let log_line = "[ERROR] Caught IOException then RuntimeException";
+        let line = colorize_log_line_with_format(log_line, Some("[%p] %m%n"));
+        
+        // Count how many exception spans we have
+        let exception_spans: Vec<_> = line.spans.iter()
+            .filter(|span| span.content.contains("Exception"))
+            .collect();
+        
+        assert_eq!(exception_spans.len(), 2, "Should find both exceptions");
+    }
+
+    #[test]
+    fn test_exception_with_package_colorization() {
+        // Test that both package and exception are colored
+        let log_line = "[ERROR] com.example.MyService - NullPointerException in method";
+        let line = colorize_log_line_with_format(log_line, Some("[%p] %c - %m%n"));
+        
+        // Should have: level, package (cyan), exception (red), and other text
+        let has_package = line.spans.iter().any(|span| {
+            span.content.contains("com.example.MyService")
+        });
+        
+        let has_exception = line.spans.iter().any(|span| {
+            span.content.contains("NullPointerException")
+        });
+        
+        assert!(has_package, "Should highlight package");
+        assert!(has_exception, "Should highlight exception");
     }
 }
 
