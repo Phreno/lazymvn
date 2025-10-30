@@ -158,9 +158,12 @@ pub fn build_launch_command(
             // Add cleanup daemon threads flag for better shutdown behavior
             command_parts.push("-Dexec.cleanupDaemonThreads=false".to_string());
 
-            // Add JVM args as system properties
-            for arg in jvm_args {
-                command_parts.push(arg.clone());
+            // Add JVM args via -Dexec.args (not directly as Maven args)
+            // exec:java expects JVM arguments to be passed through -Dexec.args, not as Maven options
+            if !jvm_args.is_empty() {
+                let exec_args = jvm_args.join(" ");
+                command_parts.push(format!("-Dexec.args={}", exec_args));
+                log::debug!("Adding JVM args via -Dexec.args: {}", exec_args);
             }
 
             command_parts.push("exec:java".to_string());
@@ -740,7 +743,11 @@ mod tests {
 
     #[test]
     fn test_build_launch_command_exec_java_with_jvm_args() {
-        let jvm_args = vec!["-Xmx1g".to_string()];
+        let jvm_args = vec![
+            "-Xmx1g".to_string(),
+            "-javaagent:/path/to/agent.jar".to_string(),
+            "-Dlog4j.configuration=file:///config.properties".to_string(),
+        ];
         let cmd = build_launch_command(
             LaunchStrategy::ExecJava,
             Some("com.example.Main"),
@@ -749,8 +756,31 @@ mod tests {
             Some("jar"),
             None,
         );
-        // JVM args are passed directly for exec:java
-        assert!(cmd.iter().any(|arg| arg.contains("-Xmx1g")));
+
+        // JVM args should be passed via -Dexec.args, NOT directly as Maven arguments
+        let exec_args_param = cmd.iter().find(|arg| arg.starts_with("-Dexec.args="));
+        assert!(
+            exec_args_param.is_some(),
+            "Should have -Dexec.args parameter containing JVM arguments"
+        );
+
+        // Verify all JVM args are in -Dexec.args
+        let exec_args_value = exec_args_param.unwrap();
+        assert!(exec_args_value.contains("-Xmx1g"));
+        assert!(exec_args_value.contains("-javaagent:/path/to/agent.jar"));
+        assert!(exec_args_value.contains("-Dlog4j.configuration="));
+
+        // Verify JVM args are NOT passed as separate Maven arguments
+        assert!(
+            !cmd.iter().any(|arg| arg == "-Xmx1g"),
+            "-Xmx1g should not be a separate Maven argument"
+        );
+        assert!(
+            !cmd.iter().any(|arg| arg == "-javaagent:/path/to/agent.jar"),
+            "javaagent should not be a separate Maven argument"
+        );
+
+        // Verify mainClass is set correctly
         assert!(
             cmd.iter()
                 .any(|arg| arg.contains("exec.mainClass=com.example.Main"))
@@ -846,5 +876,66 @@ mod tests {
         let arg = "-Dmy.property=value with spaces";
         let quoted = quote_arg_for_platform(arg);
         assert_eq!(quoted, arg);
+    }
+
+    #[test]
+    fn test_build_launch_command_spring_boot_run_with_jvm_args() {
+        // Test that JVM args are passed via -Dspring-boot.run.jvmArguments for Spring Boot 2.x+
+        let jvm_args = vec![
+            "-javaagent:/path/to/agent.jar".to_string(),
+            "-Xmx512m".to_string(),
+        ];
+
+        let command = build_launch_command(
+            LaunchStrategy::SpringBootRun,
+            Some("com.example.Main"),
+            &[],
+            &jvm_args,
+            None,
+            Some("2.7.0"),
+        );
+
+        // Check that JVM args are in -Dspring-boot.run.jvmArguments
+        let jvm_args_param = command
+            .iter()
+            .find(|arg| arg.starts_with("-Dspring-boot.run.jvmArguments="));
+        assert!(
+            jvm_args_param.is_some(),
+            "Should have -Dspring-boot.run.jvmArguments parameter"
+        );
+
+        let jvm_args_value = jvm_args_param.unwrap();
+        assert!(jvm_args_value.contains("-javaagent:/path/to/agent.jar"));
+        assert!(jvm_args_value.contains("-Xmx512m"));
+
+        // Verify spring-boot:run goal is present
+        assert!(command.contains(&"spring-boot:run".to_string()));
+    }
+
+    #[test]
+    fn test_build_launch_command_spring_boot_1x_with_jvm_args() {
+        // Test that JVM args are passed via -Drun.jvmArguments for Spring Boot 1.x
+        let jvm_args = vec!["-Xmx512m".to_string()];
+
+        let command = build_launch_command(
+            LaunchStrategy::SpringBootRun,
+            Some("com.example.Main"),
+            &[],
+            &jvm_args,
+            None,
+            Some("1.5.10.RELEASE"),
+        );
+
+        // Check that JVM args are in -Drun.jvmArguments (Spring Boot 1.x format)
+        let jvm_args_param = command
+            .iter()
+            .find(|arg| arg.starts_with("-Drun.jvmArguments="));
+        assert!(
+            jvm_args_param.is_some(),
+            "Should have -Drun.jvmArguments parameter for Spring Boot 1.x"
+        );
+
+        // Verify correct plugin coordinates for 1.x
+        assert!(command.iter().any(|arg| arg.contains("org.springframework.boot:spring-boot-maven-plugin:1.5.10.RELEASE:run")));
     }
 }
