@@ -87,9 +87,9 @@ fn extract_package_from_log_line<'a>(text: &'a str, log_format: &str) -> Option<
         None
     }?;
     
-    // Skip whitespace after level
+    // Skip whitespace and opening bracket after level
     let search_start = text[level_end..].chars()
-        .position(|c| !c.is_whitespace())
+        .position(|c| !c.is_whitespace() && c != '[')
         .map(|p| level_end + p)?;
     
     // Extract package name (stop at whitespace, dash, or other separator)
@@ -541,6 +541,9 @@ mod tests {
             ("[DEBUG] MyClass - Debug info", Some("MyClass")),
             ("[ERROR] org.springframework.boot.SpringApplication - Failed to start", Some("org.springframework.boot.SpringApplication")),
             ("[WARN] test.package - Warning message", Some("test.package")),
+            // Test case with consecutive brackets (common format)
+            ("[INFO][fr.foo.bar] Message", Some("fr.foo.bar")),
+            ("[DEBUG][com.example.MyClass] Debug", Some("com.example.MyClass")),
         ];
         
         let log_format = "[%p] %c - %m%n";
@@ -551,6 +554,13 @@ mod tests {
                 assert!(result.is_some(), "Should extract package from: {}", log_line);
                 let (_start, _end, pkg) = result.unwrap();
                 assert_eq!(pkg, expected, "Package mismatch for line: {}", log_line);
+                
+                // Verify that the package name doesn't start with '[' (common mistake)
+                assert!(
+                    !pkg.starts_with('['),
+                    "Package name should not start with '[': {}",
+                    pkg
+                );
             }
         }
     }
