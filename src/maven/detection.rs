@@ -159,17 +159,29 @@ pub fn build_launch_command(
             command_parts.push("-Dexec.cleanupDaemonThreads=false".to_string());
 
             // Add JVM args as system properties
+            // Filter out -javaagent arguments as they cannot be passed via Maven properties
+            // exec:java runs in a separate JVM and doesn't support -javaagent via -D properties
+            let mut filtered_count = 0;
             for arg in jvm_args {
+                if arg.starts_with("-javaagent:") {
+                    log::warn!(
+                        "Skipping -javaagent argument for exec:java (not supported): {}",
+                        arg
+                    );
+                    filtered_count += 1;
+                    continue;
+                }
                 command_parts.push(arg.clone());
             }
 
             command_parts.push("exec:java".to_string());
 
             log::info!(
-                "Built exec:java command with mainClass={:?}, packaging={:?}, and {} JVM arg(s)",
+                "Built exec:java command with mainClass={:?}, packaging={:?}, {} JVM arg(s) ({} filtered)",
                 main_class,
                 packaging,
-                jvm_args.len()
+                jvm_args.len() - filtered_count,
+                filtered_count
             );
         }
         LaunchStrategy::VSCodeJava => {
@@ -751,6 +763,38 @@ mod tests {
         );
         // JVM args are passed directly for exec:java
         assert!(cmd.iter().any(|arg| arg.contains("-Xmx1g")));
+        assert!(
+            cmd.iter()
+                .any(|arg| arg.contains("exec.mainClass=com.example.Main"))
+        );
+    }
+
+    #[test]
+    fn test_build_launch_command_exec_java_filters_javaagent() {
+        // Test that -javaagent arguments are filtered out for exec:java
+        let jvm_args = vec![
+            "-javaagent:/path/to/agent.jar".to_string(),
+            "-Xmx1g".to_string(),
+            "-Dfoo=bar".to_string(),
+        ];
+        let cmd = build_launch_command(
+            LaunchStrategy::ExecJava,
+            Some("com.example.Main"),
+            &[],
+            &jvm_args,
+            Some("jar"),
+            None,
+        );
+        
+        // -javaagent should be filtered out (not supported by exec:java via -D properties)
+        assert!(
+            !cmd.iter().any(|arg| arg.contains("-javaagent:")),
+            "exec:java should not include -javaagent arguments"
+        );
+        
+        // But other JVM args should still be present
+        assert!(cmd.iter().any(|arg| arg.contains("-Xmx1g")));
+        assert!(cmd.iter().any(|arg| arg.contains("-Dfoo=bar")));
         assert!(
             cmd.iter()
                 .any(|arg| arg.contains("exec.mainClass=com.example.Main"))
