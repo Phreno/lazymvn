@@ -14,14 +14,29 @@ use regex::Regex;
 use std::collections::HashSet;
 use std::sync::LazyLock;
 
-/// Regex pattern for detecting Java package names
-/// Matches packages starting with common TLDs (com, org, net, io, fr, etc.) 
-/// or well-known Java namespaces (java, javax, sun, spring, etc.)
-/// followed by at least one more segment: word.word(.word)*
-static PACKAGE_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+/// Regex pattern for detecting Java package names with known prefixes
+/// Matches packages starting with common TLDs or well-known Java namespaces
+static PACKAGE_PATTERN_WITH_PREFIX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r"\b(?:com|org|net|io|fr|de|uk|nl|eu|gov|edu|mil|int|co|me|info|biz|mobi|name|pro|aero|asia|cat|coop|jobs|museum|tel|travel|xxx|ac|ad|ae|af|ag|ai|al|am|ao|aq|ar|as|at|au|aw|ax|az|ba|bb|bd|be|bf|bg|bh|bi|bj|bm|bn|bo|br|bs|bt|bv|bw|by|bz|ca|cc|cd|cf|cg|ch|ci|ck|cl|cm|cn|cr|cu|cv|cw|cx|cy|cz|dj|dk|dm|do|dz|ec|ee|eg|er|es|et|fi|fj|fk|fm|fo|ga|gb|gd|ge|gf|gg|gh|gi|gl|gm|gn|gp|gq|gr|gs|gt|gu|gw|gy|hk|hm|hn|hr|ht|hu|id|ie|il|im|in|iq|ir|is|it|je|jm|jo|jp|ke|kg|kh|ki|km|kn|kp|kr|kw|ky|kz|la|lb|lc|li|lk|lr|ls|lt|lu|lv|ly|ma|mc|md|mg|mh|mk|ml|mm|mn|mo|mp|mq|mr|ms|mt|mu|mv|mw|mx|my|mz|na|nc|ne|nf|ng|ni|no|np|nr|nu|nz|om|pa|pe|pf|pg|ph|pk|pl|pm|pn|pr|ps|pt|pw|py|qa|re|ro|rs|ru|rw|sa|sb|sc|sd|se|sg|sh|si|sj|sk|sl|sm|sn|so|sr|st|su|sv|sy|sz|tc|td|tf|tg|th|tj|tk|tl|tm|tn|to|tp|tr|tt|tv|tw|tz|ua|ug|uk|us|uy|uz|va|vc|ve|vg|vi|vn|vu|wf|ws|ye|yt|za|zm|zw|java|javax|jakarta|sun|oracle|ibm|spring|springframework|apache|hibernate|jboss|wildfly|tomcat|jetty|eclipse|maven|gradle|junit|mockito|slf4j|logback|log4j|guava|gson|jackson|akka|scala|kotlin|groovy|clojure)(?:\.[a-zA-Z_][a-zA-Z0-9_]*)+\b"
     ).expect("Invalid package regex pattern")
+});
+
+/// Regex pattern for detecting Java package names without requiring specific prefix
+/// More permissive: matches any lowercase word followed by at least 2 more segments
+/// Pattern: word.word.word (minimum 3 segments to avoid false positives)
+static PACKAGE_PATTERN_GENERIC: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"\b[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*){2,}\b"
+    ).expect("Invalid generic package regex pattern")
+});
+
+// Permissive pattern for truncated packages (minimum 2 segments)
+// Use only when in log context to avoid false positives
+// Each segment must be at least 3 characters to avoid ambiguous matches like "my.Class"
+// Starts with lowercase word, followed by at least one more segment (can be capitalized class name)
+static PACKAGE_PATTERN_PERMISSIVE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\b[a-z][a-z0-9_]{2,}\.(?:[a-z][a-z0-9_]{2,}|[A-Z][a-zA-Z0-9_]{2,})(?:\.(?:[a-z][a-z0-9_]{2,}|[A-Z][a-zA-Z0-9_]{2,}))*\b").unwrap()
 });
 
 /// Clean a log line by removing ANSI escape sequences and carriage returns
@@ -57,23 +72,104 @@ pub fn clean_log_line(raw: &str) -> Option<String> {
 }
 
 /// Extract package name from a log line using regex pattern matching
-/// This approach is more robust and independent of log format
+/// Uses a three-pass approach for robustness:
+/// 1. First pass: Try to match packages with known prefixes (com, org, fr, etc.) - most precise
+/// 2. Second pass: Try generic 3+ segment packages (service.impl.Class)
+/// 3. Third pass: If in log context, try permissive 2+ segment pattern (service.Class)
+/// This handles complete, truncated, and heavily truncated package names
 /// Returns (start_pos, end_pos, package_name) if found
 fn extract_package_from_log_line<'a>(text: &'a str, _log_format: &str) -> Option<(usize, usize, &'a str)> {
-    // Use regex to find Java package pattern in the line
-    // This is much more robust than trying to parse the log format
-    let captures = PACKAGE_PATTERN.find(text)?;
-    
-    let start = captures.start();
-    let end = captures.end();
-    let package_name = captures.as_str();
-    
-    // Additional validation: reasonable length
-    if package_name.len() > 100 {
-        return None;
+    // First pass: Try with known prefix (most precise, preferred)
+    if let Some(captures) = PACKAGE_PATTERN_WITH_PREFIX.find(text) {
+        let start = captures.start();
+        let end = captures.end();
+        let package_name = captures.as_str();
+        
+        if package_name.len() <= 100 && !is_false_positive(package_name) {
+            return Some((start, end, package_name));
+        }
     }
     
-    Some((start, end, package_name))
+    // Second pass: Try generic pattern (3+ segments without prefix requirement)
+    if let Some(captures) = PACKAGE_PATTERN_GENERIC.find(text) {
+        let start = captures.start();
+        let end = captures.end();
+        let package_name = captures.as_str();
+        
+        if package_name.len() <= 100 && !is_false_positive(package_name) {
+            return Some((start, end, package_name));
+        }
+    }
+    
+    // Check if this looks like a log line (has log level marker)
+    let has_log_level = text.contains("[DEBUG]") 
+        || text.contains("[INFO]") 
+        || text.contains("[WARN")
+        || text.contains("[ERROR]")
+        || text.contains("[ERR]")
+        || text.contains("DEBUG")
+        || text.contains("INFO")
+        || text.contains("WARN")
+        || text.contains("ERROR");
+    
+    // Third pass: If in log context, try more permissive pattern (2+ segments)
+    // This catches heavily truncated logger names like "service.UserService"
+    if has_log_level {
+        if let Some(captures) = PACKAGE_PATTERN_PERMISSIVE.find(text) {
+            let start = captures.start();
+            let end = captures.end();
+            let package_name = captures.as_str();
+            
+            if package_name.len() <= 100 && !is_false_positive(package_name) {
+                return Some((start, end, package_name));
+            }
+        }
+    }
+    
+    None
+}
+
+/// Check if a potential package name is actually a false positive
+fn is_false_positive(package_name: &str) -> bool {
+    let lowercase = package_name.to_lowercase();
+    
+    // Ambiguous TLDs that are unlikely to be Java packages
+    // "my" is Malaysia TLD but commonly used in generic code (my.Class, my.Property, etc.)
+    if lowercase.starts_with("my.") {
+        // Allow known patterns like my.company.*, but reject short ones like my.Class
+        let parts: Vec<&str> = lowercase.split('.').collect();
+        if parts.len() <= 2 {
+            return true;
+        }
+    }
+    
+    // File extensions
+    if lowercase.ends_with(".xml")
+        || lowercase.ends_with(".json")
+        || lowercase.ends_with(".properties")
+        || lowercase.ends_with(".yml")
+        || lowercase.ends_with(".yaml")
+        || lowercase.ends_with(".txt")
+        || lowercase.ends_with(".log") {
+        return true;
+    }
+    
+    // URL-like patterns
+    if lowercase.starts_with("http.") 
+        || lowercase.starts_with("https.")
+        || lowercase.starts_with("www.") {
+        return true;
+    }
+    
+    // Common non-package patterns
+    if lowercase.starts_with("file.")
+        || lowercase.starts_with("path.")
+        || lowercase == "my.property"
+        || lowercase == "some.value" {
+        return true;
+    }
+    
+    false
 }
 
 /// Create a line with keyword-based coloring (simple approach)
@@ -508,7 +604,6 @@ mod tests {
             ("[INFO] com.example.service.UserService - User created", Some("com.example.service.UserService")),
             ("[ERROR] org.springframework.boot.SpringApplication - Failed to start", Some("org.springframework.boot.SpringApplication")),
             // Custom packages with known TLDs
-            ("[WARN] test.package.Something - Warning message", None), // 'test' is not a recognized TLD
             ("[WARN] fr.foo.bar.uid - Warning message", Some("fr.foo.bar.uid")),
             // Test case with consecutive brackets (common format)
             ("[INFO][fr.foo.bar] Message", Some("fr.foo.bar")),
@@ -516,8 +611,12 @@ mod tests {
             // Java standard packages
             ("[INFO] java.util.ArrayList - Message", Some("java.util.ArrayList")),
             ("[DEBUG] javax.servlet.http.HttpServlet - Message", Some("javax.servlet.http.HttpServlet")),
+            // UK domain
+            ("[INFO] uk.co.company.Service - UK company service", Some("uk.co.company.Service")),
             // Spring framework
             ("[INFO] org.springframework.context.annotation.AnnotationConfigApplicationContext - Message", Some("org.springframework.context.annotation.AnnotationConfigApplicationContext")),
+            // Test packages (common in unit tests, 3+ segments should be detected even without recognized TLD)
+            ("[WARN] test.package.Something - Warning message", Some("test.package.Something")),
             // Simple class name without package (should NOT match)
             ("[DEBUG] MyClass - Debug info", None),
         ];
@@ -570,6 +669,39 @@ mod tests {
                 assert!(result.is_some(), "Should extract package from: {}", log_line);
                 let (_start, _end, pkg) = result.unwrap();
                 assert_eq!(pkg, expected, "Package mismatch for line: {}", log_line);
+            }
+        }
+    }
+
+    #[test]
+    fn test_extract_truncated_packages() {
+        // Test extraction of packages that have been truncated (e.g., with %c{1} or %c{2})
+        // These don't start with known prefixes but should still be detected
+        let test_cases = vec![
+            // Truncated to last 2 segments
+            ("[INFO] service.UserService - Message", Some("service.UserService")),
+            // Truncated to last 3 segments  
+            ("[DEBUG] impl.service.MyService - Debug", Some("impl.service.MyService")),
+            // Common truncation patterns
+            ("[INFO] controller.api.RestController - Request", Some("controller.api.RestController")),
+            ("[ERROR] repository.data.UserRepository - Error", Some("repository.data.UserRepository")),
+            // Still requires minimum 3 segments to avoid false positives
+            ("[INFO] MyClass - Message", None),
+            ("[DEBUG] my.Class - Debug", None),
+        ];
+        
+        for (log_line, expected_package) in test_cases {
+            let result = extract_package_from_log_line(log_line, "[%p] %c - %m%n");
+            
+            match expected_package {
+                Some(expected) => {
+                    assert!(result.is_some(), "Should extract truncated package from: {}", log_line);
+                    let (_start, _end, pkg) = result.unwrap();
+                    assert_eq!(pkg, expected, "Package mismatch for line: {}", log_line);
+                }
+                None => {
+                    assert!(result.is_none(), "Should NOT extract from: {} (too few segments)", log_line);
+                }
             }
         }
     }
