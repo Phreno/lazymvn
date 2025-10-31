@@ -109,42 +109,42 @@ pub(super) fn create_single_column_layout(
             ],
         }
     } else {
-        // Normal single column - show all with focus expanded
+        // Normal single column - collapse non-focused panes (like two column mode)
         match focused_pane {
             Some(Focus::Projects) => vec![
-                Constraint::Percentage(40),
-                Constraint::Percentage(15),
-                Constraint::Percentage(15),
-                Constraint::Percentage(15),
-                Constraint::Percentage(15),
+                Constraint::Min(5),
+                Constraint::Length(3),
+                Constraint::Length(3),
+                Constraint::Length(3),
+                Constraint::Percentage(30),
             ],
             Some(Focus::Modules) => vec![
-                Constraint::Percentage(15),
-                Constraint::Percentage(40),
-                Constraint::Percentage(15),
-                Constraint::Percentage(15),
-                Constraint::Percentage(15),
+                Constraint::Length(3),
+                Constraint::Min(5),
+                Constraint::Length(3),
+                Constraint::Length(3),
+                Constraint::Percentage(30),
             ],
             Some(Focus::Profiles) => vec![
-                Constraint::Percentage(15),
-                Constraint::Percentage(15),
-                Constraint::Percentage(40),
-                Constraint::Percentage(15),
-                Constraint::Percentage(15),
+                Constraint::Length(3),
+                Constraint::Length(3),
+                Constraint::Min(5),
+                Constraint::Length(3),
+                Constraint::Percentage(30),
             ],
             Some(Focus::Flags) => vec![
-                Constraint::Percentage(15),
-                Constraint::Percentage(15),
-                Constraint::Percentage(15),
-                Constraint::Percentage(40),
-                Constraint::Percentage(15),
+                Constraint::Length(3),
+                Constraint::Length(3),
+                Constraint::Length(3),
+                Constraint::Min(5),
+                Constraint::Percentage(30),
             ],
             Some(Focus::Output) | None => vec![
-                Constraint::Percentage(15),
-                Constraint::Percentage(15),
-                Constraint::Percentage(15),
-                Constraint::Percentage(15),
-                Constraint::Percentage(40),
+                Constraint::Length(3),
+                Constraint::Length(3),
+                Constraint::Length(3),
+                Constraint::Length(3),
+                Constraint::Min(5),
             ],
         }
     };
