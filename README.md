@@ -25,7 +25,9 @@ I want to credit both the project and its author for the idea and for shaping ho
 - **Simultaneous display**: All views visible at once for better context
 - **Clean separation**: Output pane on the right, selection blocks on the left
 - **Adaptive layout**: Automatically adjusts to terminal size
-  - Single-column mode for narrow terminals (< 80 columns)
+  - **Output-priority design**: Ensures logs are always readable with at least 150 chars
+  - Single-column mode when output would be too narrow (< 150 chars in two-column)
+  - Two-column mode for wide terminals (>= 190 columns)
   - Focus-driven expansion for short terminals (< 30 rows)
   - Perfect for split-screen development
 

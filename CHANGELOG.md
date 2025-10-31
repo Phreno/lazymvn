@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Output-Priority Adaptive Layout** - Layout now prioritizes output readability:
+  - Switches to single-column when output would be < 150 chars (typical log line width)
+  - Two-column mode requires >= 190 terminal columns (left=40, output=150)
+  - Previously switched at 80 columns regardless of output comfort
+  - Non-focused panes now collapse in single-column mode (like two-column behavior)
+  - Ensures logs are always readable while maximizing output space
+
 ### Added
 - **Log Rotation System** - Automatic log file management to prevent unbounded growth:
   - Size-based rotation: Logs rotated when they exceed 5 MB

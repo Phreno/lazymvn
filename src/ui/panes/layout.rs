@@ -16,8 +16,18 @@ pub fn create_adaptive_layout(
     let tab_bar_height = 2;
     let footer_height = 10;
 
-    // Determine layout mode based on terminal size
-    let is_narrow = area.width < 80; // Narrow width threshold
+    // Determine layout mode based on output pane comfort
+    // In two-column mode, left pane takes min(30%, 40 chars)
+    // We want output to have at least 150 chars for readable logs
+    const MIN_OUTPUT_WIDTH: u16 = 150;
+    const MAX_LEFT_WIDTH: u16 = 40;
+    
+    // Calculate what the left width would be in two-column mode
+    let potential_left_width = ((area.width * 30) / 100).min(MAX_LEFT_WIDTH);
+    let potential_output_width = area.width.saturating_sub(potential_left_width);
+    
+    // Switch to single column if output would be too narrow
+    let is_narrow = potential_output_width < MIN_OUTPUT_WIDTH;
     let is_short = area.height < 30; // Short height threshold
 
     // Split vertically: tab bar, content, footer
@@ -170,6 +180,9 @@ pub(super) fn create_single_column_layout(
 /// are in one column, and output occupies the right column.
 /// The left column is limited to a maximum of 40 characters to avoid
 /// wasting space on large screens.
+///
+/// Note: This layout is only used when output width would be >= 150 chars.
+/// See create_adaptive_layout for the threshold logic.
 pub(super) fn create_two_column_layout(
     content_area: Rect,
     footer_area: Rect,
@@ -177,7 +190,9 @@ pub(super) fn create_two_column_layout(
     is_short: bool,
 ) -> (Rect, Rect, Rect, Rect, Rect, Rect) {
     // Calculate left column width: 30% of screen, but max 40 columns
-    let left_width = ((content_area.width * 30) / 100).min(40);
+    // This must match the calculation in create_adaptive_layout
+    const MAX_LEFT_WIDTH: u16 = 40;
+    let left_width = ((content_area.width * 30) / 100).min(MAX_LEFT_WIDTH);
     let right_width = content_area.width.saturating_sub(left_width);
 
     let content_chunks = Layout::default()
@@ -313,15 +328,29 @@ mod tests {
 
     #[test]
     fn test_adaptive_layout_normal_width_uses_percentage() {
-        // Normal terminal (100 columns)
+        // Wide enough terminal (200 columns) to use two-column layout
+        let area = Rect::new(0, 0, 200, 40);
+        let (_tab, proj, _mods, _profs, _flags, out, _foot) = create_adaptive_layout(area, None);
+
+        // Left column should be capped at 40 (max)
+        assert!(proj.width <= 40, "Left column should be capped at 40, got {}", proj.width);
+        
+        // Output should be ~160 (200 - 40)
+        assert!(out.width >= 150, "Output should have at least 150 chars, got {}", out.width);
+    }
+
+    #[test]
+    fn test_adaptive_layout_switches_to_single_column_for_narrow_output() {
+        // Terminal where output would be < 150 chars in two-column mode
+        // With 100 cols: left=30, output=70 → too narrow, switches to single column
         let area = Rect::new(0, 0, 100, 40);
         let (_tab, proj, _mods, _profs, _flags, out, _foot) = create_adaptive_layout(area, None);
 
-        // Left column should be ~30% (30 columns)
-        assert!(proj.width <= 35, "Left column should be around 30% for normal terminals, got {}", proj.width);
-        assert!(proj.width >= 25, "Left column should be around 30% for normal terminals, got {}", proj.width);
+        // Should use single column layout where all panes have full width
+        assert_eq!(proj.width, 100, "Should use single column (full width), got {}", proj.width);
+        assert_eq!(out.width, 100, "Output should use full width in single column, got {}", out.width);
         
-        // Output should be ~70%
-        assert!(out.width >= 65, "Output should be around 70% for normal terminals, got {}", out.width);
+        // In single column, output should be stacked below other panes
+        assert!(out.y > proj.y, "Output should be below projects in single column");
     }
 }

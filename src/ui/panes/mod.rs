@@ -36,11 +36,12 @@ mod tests {
 
     #[test]
     fn test_adaptive_layout_wide_terminal() {
-        // Wide terminal (>= 80 cols) should use two column layout
+        // Wide terminal (>= 190 cols) should use two column layout
+        // With 190 cols: left=40 (max), output=150 (meets minimum)
         let area = Rect {
             x: 0,
             y: 0,
-            width: 100,
+            width: 190,
             height: 40,
         };
 
@@ -49,15 +50,18 @@ mod tests {
 
         // In two column, output should be to the right of modules
         assert!(output_area.x > modules_area.x);
+        // Output should have at least 150 chars
+        assert!(output_area.width >= 150);
     }
 
     #[test]
     fn test_adaptive_layout_short_height_expands_focused() {
         // Short terminal (< 30 rows) should collapse non-focused panes
+        // Use 190 cols to ensure two-column mode (output gets 150 chars)
         let area = Rect {
             x: 0,
             y: 0,
-            width: 100,
+            width: 190,
             height: 20,
         };
 
@@ -73,10 +77,11 @@ mod tests {
     #[test]
     fn test_adaptive_layout_normal_height_standard_layout() {
         // Normal height terminal should use standard layout
+        // Use 190 cols to ensure two-column mode (output gets 150 chars)
         let area = Rect {
             x: 0,
             y: 0,
-            width: 100,
+            width: 190,
             height: 40,
         };
 
