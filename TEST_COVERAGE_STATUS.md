@@ -1,7 +1,7 @@
 # Test Coverage Status
 
 ## Summary
-- **Total Unit Tests**: 353 (up from 345, +8 tests)
+- **Total Unit Tests**: 371 (up from 345, +26 tests)
 - **Total Integration Tests**: 41 tests across 9 test files
 - **Doc Tests**: 3 tests
 - **All Tests Passing**: ✅ Yes
@@ -9,10 +9,16 @@
 
 ## Recent Improvements
 
-### Added Test Coverage (Session)
+### Added Test Coverage (Current Session)
 1. **maven/command/executor.rs** - Added 8 tests for `build_command_display()` helper function
    - Tests cover: basic command, modules, profiles, settings, flags, and combined scenarios
    - Extracted testable pure function from complex execution logic
+
+2. **ui/search.rs** - Added 18 comprehensive tests for search functionality
+   - SearchState tests: navigation (next/prev/jump), match tracking, edge cases
+   - Match collection tests: regex matching, case sensitivity, empty inputs
+   - Highlight styling tests: current match highlighting, multi-match lines
+   - Pure function tests with no dependencies on UI state
 
 ## Test Coverage by Module
 
@@ -39,7 +45,8 @@
 #### Medium Priority (UI Logic, No Tests)
 - 🟡 **ui/state/mod.rs** (554 lines) - Main state management (has 2 tests for profile loading)
 - 🟡 **ui/state/output.rs** (568 lines) - Output panel state (has 17 tests)
-- 🟡 **ui/state/search.rs** (534 lines) - Search functionality (has 21 tests)
+- ✅ **ui/search.rs** (183 lines) - NOW HAS 18 TESTS! Search functionality fully tested
+- 🟡 **ui/state/search.rs** (534 lines) - Search state integration (has 21 tests)
 - 🟡 **ui/state/navigation.rs** (503 lines) - Navigation state (has 18 tests)
 - 🟡 **ui/state/commands.rs** (467 lines) - Command state (has 7 tests)
 - 🟡 **ui/state/profiles.rs** (503 lines) - Profile state (has 14 tests)
