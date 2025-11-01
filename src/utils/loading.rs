@@ -201,3 +201,87 @@ macro_rules! loading_step {
         $progress.render($terminal)?;
     }};
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_loading_progress_new() {
+        let progress = LoadingProgress::new(5);
+        assert_eq!(progress.current_step, 0);
+        assert_eq!(progress.total_steps, 5);
+        assert_eq!(progress.current_message, "Initializing...");
+    }
+
+    #[test]
+    fn test_loading_progress_set_step() {
+        let mut progress = LoadingProgress::new(5);
+        progress.set_step(2, "Loading modules".to_string());
+        assert_eq!(progress.current_step, 2);
+        assert_eq!(progress.current_message, "Loading modules");
+    }
+
+    #[test]
+    fn test_loading_progress_calculation() {
+        let mut progress = LoadingProgress::new(4);
+        
+        assert_eq!(progress.progress(), 0.0);
+        
+        progress.set_step(1, "Step 1".to_string());
+        assert_eq!(progress.progress(), 25.0);
+        
+        progress.set_step(2, "Step 2".to_string());
+        assert_eq!(progress.progress(), 50.0);
+        
+        progress.set_step(4, "Complete".to_string());
+        assert_eq!(progress.progress(), 100.0);
+    }
+
+    #[test]
+    fn test_loading_progress_zero_steps() {
+        let progress = LoadingProgress::new(0);
+        assert_eq!(progress.progress(), 0.0);
+    }
+
+    #[test]
+    fn test_spinner_frame_cycles() {
+        let mut progress = LoadingProgress::new(10);
+        let initial_frame = progress.spinner_frame;
+        
+        progress.set_step(1, "Test".to_string());
+        assert_ne!(progress.spinner_frame, initial_frame);
+        
+        // Advance through all frames
+        for i in 0..SPINNER_FRAMES.len() * 2 {
+            progress.set_step(i % 10, format!("Step {}", i));
+        }
+        // Should have cycled back
+        assert!(progress.spinner_frame < SPINNER_FRAMES.len());
+    }
+
+    #[test]
+    fn test_logo_frame_cycles() {
+        let mut progress = LoadingProgress::new(10);
+        let initial_frame = progress.logo_frame;
+        
+        progress.set_step(1, "Test".to_string());
+        assert_ne!(progress.logo_frame, initial_frame);
+        
+        // Should cycle through logo frames
+        assert!(progress.logo_frame < LOGO_FRAMES.len());
+    }
+
+    #[test]
+    fn test_spinner_frames_constant() {
+        assert_eq!(SPINNER_FRAMES.len(), 10);
+        assert_eq!(SPINNER_FRAMES[0], "⠋");
+    }
+
+    #[test]
+    fn test_logo_frames_constant() {
+        assert_eq!(LOGO_FRAMES.len(), 2);
+        // Logo frames contain ASCII art, not plain text
+        assert!(LOGO_FRAMES[0].contains("██"));
+    }
+}

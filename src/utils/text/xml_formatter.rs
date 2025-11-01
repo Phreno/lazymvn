@@ -188,3 +188,115 @@ fn colorize_xml_attributes(attrs: &str, spans: &mut Vec<Span<'static>>) {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_colorize_plain_text() {
+        let line = colorize_xml_line("plain text");
+        assert_eq!(line.spans.len(), 1);
+    }
+
+    #[test]
+    fn test_colorize_simple_tag() {
+        let line = colorize_xml_line("<tag>");
+        assert!(!line.spans.is_empty());
+        // Should have bracket, tag name, bracket
+        assert!(line.spans.len() >= 3);
+    }
+
+    #[test]
+    fn test_colorize_closing_tag() {
+        let line = colorize_xml_line("</tag>");
+        assert!(!line.spans.is_empty());
+        assert!(line.spans.len() >= 3);
+    }
+
+    #[test]
+    fn test_colorize_tag_with_attributes() {
+        let line = colorize_xml_line("<tag attr=\"value\">");
+        assert!(!line.spans.is_empty());
+        // Should have multiple spans for tag, attr, value
+        assert!(line.spans.len() >= 5);
+    }
+
+    #[test]
+    fn test_colorize_xml_declaration() {
+        let line = colorize_xml_line("<?xml version=\"1.0\"?>");
+        assert!(!line.spans.is_empty());
+        // XML declarations are styled specially
+        assert_eq!(line.spans.len(), 1);
+    }
+
+    #[test]
+    fn test_colorize_xml_comment() {
+        let line = colorize_xml_line("<!-- comment -->");
+        assert!(!line.spans.is_empty());
+        // Comments should be styled as a single span
+        assert_eq!(line.spans.len(), 1);
+    }
+
+    #[test]
+    fn test_colorize_tag_with_text() {
+        let line = colorize_xml_line("<tag>text content</tag>");
+        assert!(!line.spans.is_empty());
+        // Should have opening tag, text, closing tag
+        assert!(line.spans.len() >= 5);
+    }
+
+    #[test]
+    fn test_colorize_multiple_attributes() {
+        let line = colorize_xml_line("<tag attr1=\"val1\" attr2=\"val2\">");
+        assert!(!line.spans.is_empty());
+        // Multiple attributes create multiple spans
+        assert!(line.spans.len() >= 7);
+    }
+
+    #[test]
+    fn test_colorize_self_closing_tag() {
+        let line = colorize_xml_line("<tag />");
+        assert!(!line.spans.is_empty());
+    }
+
+    #[test]
+    fn test_colorize_nested_quotes() {
+        let line = colorize_xml_line("<tag attr=\"value with 'quotes'\">");
+        assert!(!line.spans.is_empty());
+        // Should handle nested quotes correctly
+        assert!(line.spans.len() >= 4);
+    }
+
+    #[test]
+    fn test_colorize_empty_string() {
+        let line = colorize_xml_line("");
+        assert_eq!(line.spans.len(), 1);
+    }
+
+    #[test]
+    fn test_colorize_whitespace_only() {
+        let line = colorize_xml_line("   ");
+        assert_eq!(line.spans.len(), 1);
+    }
+
+    #[test]
+    fn test_colorize_tag_with_single_quotes() {
+        let line = colorize_xml_line("<tag attr='value'>");
+        assert!(!line.spans.is_empty());
+        assert!(line.spans.len() >= 4);
+    }
+
+    #[test]
+    fn test_colorize_incomplete_tag() {
+        let line = colorize_xml_line("<tag");
+        assert!(!line.spans.is_empty());
+    }
+
+    #[test]
+    fn test_colorize_text_with_multiple_tags() {
+        let line = colorize_xml_line("<a>text</a><b>more</b>");
+        assert!(!line.spans.is_empty());
+        // Multiple tags should create many spans
+        assert!(line.spans.len() >= 8);
+    }
+}

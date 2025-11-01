@@ -91,3 +91,52 @@ pub fn kill_process(pid: u32) -> Result<(), String> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_command_update_variants() {
+        let started = CommandUpdate::Started(1234);
+        let output = CommandUpdate::OutputLine("test output".to_string());
+        let completed = CommandUpdate::Completed;
+        let error = CommandUpdate::Error("test error".to_string());
+
+        match started {
+            CommandUpdate::Started(pid) => assert_eq!(pid, 1234),
+            _ => panic!("Expected Started variant"),
+        }
+
+        match output {
+            CommandUpdate::OutputLine(line) => assert_eq!(line, "test output"),
+            _ => panic!("Expected OutputLine variant"),
+        }
+
+        matches!(completed, CommandUpdate::Completed);
+
+        match error {
+            CommandUpdate::Error(msg) => assert_eq!(msg, "test error"),
+            _ => panic!("Expected Error variant"),
+        }
+    }
+
+    #[test]
+    fn test_command_update_clone() {
+        let original = CommandUpdate::Started(5678);
+        let cloned = original.clone();
+
+        match cloned {
+            CommandUpdate::Started(pid) => assert_eq!(pid, 5678),
+            _ => panic!("Expected Started variant"),
+        }
+    }
+
+    #[test]
+    fn test_command_update_debug() {
+        let update = CommandUpdate::OutputLine("debug test".to_string());
+        let debug_str = format!("{:?}", update);
+        assert!(debug_str.contains("OutputLine"));
+        assert!(debug_str.contains("debug test"));
+    }
+}

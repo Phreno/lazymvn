@@ -260,4 +260,75 @@ mod tests {
         assert_eq!(favorites.list().len(), 1);
         assert_eq!(favorites.list()[0].name, "Test 2");
     }
+
+    #[test]
+    fn favorites_remove_invalid_index() {
+        let mut favorites = Favorites::default();
+        favorites.add(Favorite::new(
+            "Test".to_string(),
+            "module".to_string(),
+            "test".to_string(),
+            vec![],
+            vec![],
+        ));
+
+        let removed = favorites.remove(10);
+        assert!(removed.is_none());
+        assert_eq!(favorites.list().len(), 1);
+    }
+
+    #[test]
+    fn favorites_is_empty() {
+        let favorites = Favorites::default();
+        assert!(favorites.is_empty());
+
+        let mut favorites = Favorites::default();
+        favorites.add(Favorite::new(
+            "Test".to_string(),
+            "module".to_string(),
+            "test".to_string(),
+            vec![],
+            vec![],
+        ));
+        assert!(!favorites.is_empty());
+    }
+
+    #[test]
+    fn favorites_clear() {
+        let mut favorites = Favorites::default();
+        favorites.add(Favorite::new(
+            "Test 1".to_string(),
+            "module1".to_string(),
+            "test".to_string(),
+            vec![],
+            vec![],
+        ));
+        favorites.add(Favorite::new(
+            "Test 2".to_string(),
+            "module2".to_string(),
+            "package".to_string(),
+            vec![],
+            vec![],
+        ));
+
+        assert_eq!(favorites.list().len(), 2);
+        favorites.clear();
+        assert!(favorites.is_empty());
+    }
+
+    #[test]
+    fn favorite_with_profiles_and_flags() {
+        let fav = Favorite::new(
+            "Complex Build".to_string(),
+            "api".to_string(),
+            "clean install".to_string(),
+            vec!["prod".to_string(), "secure".to_string()],
+            vec!["-DskipTests".to_string(), "-U".to_string()],
+        );
+
+        assert_eq!(fav.profiles.len(), 2);
+        assert_eq!(fav.flags.len(), 2);
+        assert!(fav.profiles.contains(&"prod".to_string()));
+        assert!(fav.flags.contains(&"-DskipTests".to_string()));
+    }
 }
