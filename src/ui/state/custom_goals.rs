@@ -43,14 +43,16 @@ mod tests {
 
     #[test]
     fn test_show_custom_goals_popup_with_goals() {
-        let mut config = Config::default();
-        config.maven = Some(MavenConfig {
-            custom_goals: vec![CustomGoal {
-                name: "Format".to_string(),
-                goal: "formatter:format".to_string(),
-            }],
-            custom_flags: vec![],
-        });
+        let config = Config {
+            maven: Some(MavenConfig {
+                custom_goals: vec![CustomGoal {
+                    name: "Format".to_string(),
+                    goal: "formatter:format".to_string(),
+                }],
+                custom_flags: vec![],
+            }),
+            ..Default::default()
+        };
         
         let mut state = TuiState::new(vec![], PathBuf::from("/tmp"), config);
         
