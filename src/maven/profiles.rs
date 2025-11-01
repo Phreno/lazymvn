@@ -31,24 +31,9 @@ pub fn get_profiles(project_root: &Path) -> Result<Vec<String>, std::io::Error> 
 
     // Get profiles from Maven command output (POM files)
     for line in output.iter() {
-        if line.contains("Profile Id:") {
-            let parts: Vec<&str> = line.split("Profile Id:").collect();
-            if parts.len() > 1 {
-                // Extract just the profile name, stop at first space or parenthesis
-                let profile_part = parts[1].trim();
-                let profile_name = profile_part
-                    .split_whitespace()
-                    .next()
-                    .unwrap_or("")
-                    .split('(')
-                    .next()
-                    .unwrap_or("")
-                    .trim();
-                if !profile_name.is_empty() {
-                    log::debug!("Found profile from POM: {}", profile_name);
-                    profile_set.insert(profile_name.to_string());
-                }
-            }
+        if let Some(profile_name) = super::command::parse_profile_id_from_line(line) {
+            log::debug!("Found profile from POM: {}", profile_name);
+            profile_set.insert(profile_name);
         }
     }
 
@@ -96,14 +81,9 @@ pub fn get_active_profiles(project_root: &Path) -> Result<Vec<String>, std::io::
 
     // Parse output looking for profile names after "- " lines
     for line in output.iter() {
-        let trimmed = line.trim();
-        // Lines with active profiles look like: " - dev (source: ...)"
-        if let Some(stripped) = trimmed.strip_prefix("- ") {
-            let parts: Vec<&str> = stripped.split_whitespace().collect();
-            if let Some(profile_name) = parts.first() {
-                log::debug!("Found active profile: {}", profile_name);
-                active_profiles.insert(profile_name.to_string());
-            }
+        if let Some(profile_name) = super::command::parse_active_profile_from_line(line) {
+            log::debug!("Found active profile: {}", profile_name);
+            active_profiles.insert(profile_name);
         }
     }
 
@@ -313,5 +293,213 @@ fn prettify_xml(xml: &str) -> Option<String> {
             }
         }
         Err(_) => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_profiles_from_settings_xml_single() {
+        let xml = r#"
+<settings>
+    <profiles>
+        <profile>
+            <id>dev</id>
+            <properties>
+                <env>development</env>
+            </properties>
+        </profile>
+    </profiles>
+</settings>
+"#;
+        let profiles = extract_profiles_from_settings_xml(xml).unwrap();
+        assert_eq!(profiles, vec!["dev"]);
+    }
+
+    #[test]
+    fn test_extract_profiles_from_settings_xml_multiple() {
+        let xml = r#"
+<settings>
+    <profiles>
+        <profile>
+            <id>dev</id>
+        </profile>
+        <profile>
+            <id>prod</id>
+        </profile>
+        <profile>
+            <id>test</id>
+        </profile>
+    </profiles>
+</settings>
+"#;
+        let profiles = extract_profiles_from_settings_xml(xml).unwrap();
+        assert_eq!(profiles, vec!["dev", "prod", "test"]);
+    }
+
+    #[test]
+    fn test_extract_profiles_from_settings_xml_empty() {
+        let xml = r#"
+<settings>
+    <profiles>
+    </profiles>
+</settings>
+"#;
+        let profiles = extract_profiles_from_settings_xml(xml).unwrap();
+        assert!(profiles.is_empty());
+    }
+
+    #[test]
+    fn test_extract_profiles_from_settings_xml_no_profiles_section() {
+        let xml = r#"
+<settings>
+    <servers>
+        <server>
+            <id>server1</id>
+        </server>
+    </servers>
+</settings>
+"#;
+        let profiles = extract_profiles_from_settings_xml(xml).unwrap();
+        assert!(profiles.is_empty());
+    }
+
+    #[test]
+    fn test_extract_profiles_from_settings_xml_with_whitespace() {
+        let xml = r#"
+<settings>
+    <profiles>
+        <profile>
+            <id>  dev  </id>
+        </profile>
+    </profiles>
+</settings>
+"#;
+        let profiles = extract_profiles_from_settings_xml(xml).unwrap();
+        assert_eq!(profiles, vec!["  dev  "]);
+    }
+
+    #[test]
+    fn test_extract_profile_from_xml_simple() {
+        let xml = r#"
+<project>
+    <profiles>
+        <profile>
+            <id>dev</id>
+            <properties>
+                <env>development</env>
+            </properties>
+        </profile>
+    </profiles>
+</project>
+"#;
+        let result = extract_profile_from_xml(xml, "dev");
+        assert!(result.is_some());
+        let profile_xml = result.unwrap();
+        assert!(profile_xml.contains("<id>dev</id>"));
+        assert!(profile_xml.contains("<env>development</env>"));
+    }
+
+    #[test]
+    fn test_extract_profile_from_xml_not_found() {
+        let xml = r#"
+<project>
+    <profiles>
+        <profile>
+            <id>dev</id>
+        </profile>
+    </profiles>
+</project>
+"#;
+        let result = extract_profile_from_xml(xml, "prod");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_extract_profile_from_xml_multiple_profiles() {
+        let xml = r#"
+<project>
+    <profiles>
+        <profile>
+            <id>dev</id>
+            <properties>
+                <env>dev</env>
+            </properties>
+        </profile>
+        <profile>
+            <id>prod</id>
+            <properties>
+                <env>production</env>
+            </properties>
+        </profile>
+    </profiles>
+</project>
+"#;
+        let result = extract_profile_from_xml(xml, "prod");
+        assert!(result.is_some());
+        let profile_xml = result.unwrap();
+        assert!(profile_xml.contains("<id>prod</id>"));
+        assert!(profile_xml.contains("<env>production</env>"));
+        assert!(!profile_xml.contains("<env>dev</env>"));
+    }
+
+    #[test]
+    fn test_extract_profile_from_xml_with_nested_tags() {
+        let xml = r#"
+<project>
+    <profiles>
+        <profile>
+            <id>dev</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <configuration>
+                            <someConfig>value</someConfig>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+</project>
+"#;
+        let result = extract_profile_from_xml(xml, "dev");
+        assert!(result.is_some());
+        let profile_xml = result.unwrap();
+        assert!(profile_xml.contains("<id>dev</id>"));
+        assert!(profile_xml.contains("someConfig"));
+    }
+
+    #[test]
+    fn test_extract_profile_from_xml_empty() {
+        let xml = r#"<project></project>"#;
+        let result = extract_profile_from_xml(xml, "dev");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_prettify_xml_valid() {
+        let xml = r#"<profile><id>dev</id><properties><env>development</env></properties></profile>"#;
+        let result = prettify_xml(xml);
+        assert!(result.is_some());
+        let prettified = result.unwrap();
+        assert!(prettified.contains("<id>dev</id>"));
+        assert!(prettified.contains("<env>development</env>"));
+    }
+
+    #[test]
+    fn test_prettify_xml_invalid() {
+        let xml = r#"<profile><id>dev</id><notclosed>"#;
+        let result = prettify_xml(xml);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_prettify_xml_empty() {
+        let xml = "";
+        let result = prettify_xml(xml);
+        assert!(result.is_none());
     }
 }

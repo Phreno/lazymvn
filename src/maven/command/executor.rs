@@ -11,6 +11,7 @@ use std::{
 };
 
 use super::builder::get_maven_command;
+use super::helpers::{filter_spring_boot_incompatible_flags, is_spring_boot_run_command, parse_flag_parts};
 use super::log4j_config::{extract_log4j_config_url, get_logging_overrides};
 
 /// Execute Maven command synchronously
@@ -119,18 +120,11 @@ pub fn execute_maven_command_with_options(
     // Filter incompatible flags for spring-boot:run
     // --also-make and --also-make-dependents cause spring-boot:run to execute on ALL modules
     // in the reactor (including parent POMs), which fails with "Unable to find main class"
-    let is_spring_boot_run = args.iter().any(|arg| {
-        arg.contains("spring-boot:run") || arg.contains("spring-boot-maven-plugin") && arg.contains(":run")
-    });
+    let is_spring_boot = is_spring_boot_run_command(args);
     
-    let filtered_flags: Vec<&String> = if is_spring_boot_run {
+    let filtered_flags_vec = if is_spring_boot {
         let original_count = flags.len();
-        let filtered: Vec<&String> = flags.iter()
-            .filter(|flag| {
-                let flag_lower = flag.to_lowercase();
-                !flag_lower.contains("also-make")
-            })
-            .collect();
+        let filtered = filter_spring_boot_incompatible_flags(flags);
         
         if filtered.len() < original_count {
             log::warn!(
@@ -141,25 +135,18 @@ pub fn execute_maven_command_with_options(
         }
         filtered
     } else {
-        flags.iter().collect()
+        flags.to_vec()
     };
     
     // Add build flags (split on spaces if needed, skip commas and aliases)
-    for flag in &filtered_flags {
+    for flag in &filtered_flags_vec {
         // Split flags like "-U, --update-snapshots" into individual flags
         // Take only the first part before comma to skip aliases
-        let flag_parts: Vec<&str> = flag
-            .split(',')
-            .next()
-            .unwrap_or(flag)
-            .split_whitespace()
-            .collect();
+        let flag_parts = parse_flag_parts(flag);
         
-        for part in flag_parts {
-            if !part.is_empty() {
-                command.arg(part);
-                log::debug!("Added flag: {}", part);
-            }
+        for part in &flag_parts {
+            command.arg(part);
+            log::debug!("Added flag: {}", part);
         }
     }
 
@@ -209,7 +196,7 @@ pub fn execute_maven_command_with_options(
     if let Some(s) = settings_path {
         command_display.push_str(&format!(" -s {}", s));
     }
-    for flag in filtered_flags {
+    for flag in &filtered_flags_vec {
         command_display.push_str(&format!(" {}", flag));
     }
     for arg in args {
@@ -351,20 +338,12 @@ pub fn execute_maven_command_async_with_options(
         }
 
         // Filter incompatible flags for spring-boot:run
-        let is_spring_boot_run = args.iter().any(|arg| {
-            arg.contains("spring-boot:run")
-                || arg.contains("spring-boot-maven-plugin") && arg.contains(":run")
-        });
+        let args_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        let is_spring_boot = is_spring_boot_run_command(&args_refs);
 
-        let filtered_flags: Vec<&String> = if is_spring_boot_run {
+        let filtered_flags_vec = if is_spring_boot {
             let original_count = flags.len();
-            let filtered: Vec<&String> = flags
-                .iter()
-                .filter(|flag| {
-                    let flag_lower = flag.to_lowercase();
-                    !flag_lower.contains("also-make")
-                })
-                .collect();
+            let filtered = filter_spring_boot_incompatible_flags(&flags);
 
             if filtered.len() < original_count {
                 log::warn!(
@@ -373,22 +352,15 @@ pub fn execute_maven_command_async_with_options(
             }
             filtered
         } else {
-            flags.iter().collect()
+            flags.clone()
         };
 
         // Add build flags (split on spaces if needed, skip commas and aliases)
-        for flag in filtered_flags {
-            let flag_parts: Vec<&str> = flag
-                .split(',')
-                .next()
-                .unwrap_or(flag)
-                .split_whitespace()
-                .collect();
+        for flag in &filtered_flags_vec {
+            let flag_parts = parse_flag_parts(flag);
 
-            for part in flag_parts {
-                if !part.is_empty() {
-                    command.arg(part);
-                }
+            for part in &flag_parts {
+                command.arg(part);
             }
         }
 
