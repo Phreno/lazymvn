@@ -2,38 +2,32 @@
 
 ## Current Status ✅
 
-**Phase 1 Complete**: Extracted testable helpers and added unit tests
+**Phase 1.5 In Progress**: Adding targeted unit tests for utility modules
 
-- **Test Coverage**: 35.8% (34/95 files with tests)
-- **Total Tests**: 357 passing
-- **New Tests Added**: +12 unit tests
+- **Test Coverage**: ~8% code coverage (improving)
+- **Total Tests**: 820 passing (+463 from baseline)
+- **New Test Files**: logger_tests.rs (+17 unit tests)
 - **Quality**: All clippy checks passing
 
 ## Immediate Priorities
 
-### 1. Logger Module Testing (High Value)
+### 1. Logger Module Testing (High Value) ✅ COMPLETE
 
-**File**: `src/utils/logger.rs` (452 lines, 0 tests)
+**File**: `src/utils/logger.rs` (452 lines)  
+**Status**: ✅ **17 tests added** in `tests/logger_tests.rs`
 
-**Target Functions** (extract and test):
-```rust
-// Log parsing
-fn parse_log_level(line: &str) -> Option<LogLevel>
-fn extract_timestamp(line: &str) -> Option<DateTime>
-fn extract_logger_name(line: &str) -> Option<String>
+**Tests Added**:
+- Session extraction (4 tests)
+- Last lines reading (4 tests)
+- Log level parsing (3 tests)
+- Session marker extraction (4 tests)  
+- Trace log filtering (2 tests)
 
-// Log formatting
-fn format_log_entry(level: &str, msg: &str) -> String
-fn format_timestamp(dt: &DateTime) -> String
-
-// Log analysis (if exists)
-fn detect_error_patterns(lines: &[String]) -> Vec<ErrorInfo>
-```
-
-**Expected Impact**:
-- +10-15 unit tests
-- Better log parsing reliability
-- Foundation for log analysis features
+**Impact**:
+- ✅ +17 unit tests passing
+- ✅ Better log parsing reliability
+- ✅ Foundation for log analysis features
+- ✅ Easier refactoring with test safety net
 
 ### 2. State Utilities Testing
 
