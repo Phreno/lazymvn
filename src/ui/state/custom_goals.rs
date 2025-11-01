@@ -34,3 +34,53 @@ impl TuiState {
         self.show_custom_goals_popup = false;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::config::{Config, MavenConfig, CustomGoal};
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_show_custom_goals_popup_with_goals() {
+        let mut config = Config::default();
+        config.maven = Some(MavenConfig {
+            custom_goals: vec![CustomGoal {
+                name: "Format".to_string(),
+                goal: "formatter:format".to_string(),
+            }],
+            custom_flags: vec![],
+        });
+        
+        let mut state = TuiState::new(vec![], PathBuf::from("/tmp"), config);
+        
+        assert!(!state.show_custom_goals_popup);
+        state.show_custom_goals_popup();
+        assert!(state.show_custom_goals_popup);
+        
+        let tab = state.get_active_tab();
+        assert_eq!(tab.custom_goals_list_state.selected(), Some(0));
+    }
+
+    #[test]
+    fn test_show_custom_goals_popup_no_goals() {
+        let config = Config::default();
+        let mut state = TuiState::new(vec![], PathBuf::from("/tmp"), config);
+        
+        state.show_custom_goals_popup();
+        assert!(!state.show_custom_goals_popup);
+        
+        let tab = state.get_active_tab();
+        assert!(tab.command_output.iter().any(|line| line.contains("No custom goals")));
+    }
+
+    #[test]
+    fn test_close_custom_goals_popup() {
+        let config = Config::default();
+        let mut state = TuiState::new(vec![], PathBuf::from("/tmp"), config);
+        
+        state.show_custom_goals_popup = true;
+        state.close_custom_goals_popup();
+        assert!(!state.show_custom_goals_popup);
+    }
+}
