@@ -10,6 +10,7 @@ use super::TuiState;
 
 impl TuiState {
     /// Build JVM arguments from logging and Spring configurations
+    #[allow(dead_code)]
     pub(super) fn build_jvm_args_for_launcher(&self) -> Vec<String> {
         let mut jvm_args = Vec::new();
 
@@ -66,6 +67,7 @@ impl TuiState {
     }
 
     /// Generate Log4j configuration JVM argument
+    #[allow(dead_code)]
     pub(super) fn generate_log4j_jvm_arg(&self) -> Option<String> {
         let tab = self.get_active_tab();
         let logging_config = tab.config.logging.as_ref()?;
@@ -101,6 +103,7 @@ impl TuiState {
 
     /// Add Logback/Spring Boot logging level arguments
     /// Also adds Log4j 1.x logger arguments for compatibility
+    #[allow(dead_code)]
     pub(super) fn add_logback_logging_args(&self, jvm_args: &mut Vec<String>) {
         let tab = self.get_active_tab();
         if let Some(ref logging_config) = tab.config.logging {
@@ -114,6 +117,7 @@ impl TuiState {
     }
 
     /// Generate Spring Boot properties JVM argument
+    #[allow(dead_code)]
     pub(super) fn generate_spring_properties_jvm_arg(&self) -> Option<String> {
         let tab = self.get_active_tab();
 
@@ -192,6 +196,7 @@ impl TuiState {
 
     /// Get or copy the Log4j Reconfiguration Java Agent to config directory
     /// Returns path to agent JAR if successful
+    #[allow(dead_code)]
     fn get_or_copy_log4j_agent() -> Option<PathBuf> {
         // Agent JAR is embedded in the binary at build time
         const AGENT_JAR_BYTES: &[u8] = include_bytes!("../../../agent/target/log4j-reconfig-agent-0.1.0.jar");

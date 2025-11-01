@@ -153,7 +153,7 @@ mod tests {
             
             // Check that at least one span is styled (for the exception)
             let has_styled_exception = line.spans.iter().any(|span| {
-                span.content.contains("Exception") && !span.style.fg.is_none()
+                span.content.contains("Exception") && span.style.fg.is_some()
             });
             
             assert!(has_styled_exception, "Should highlight exception in: {}", log_line);

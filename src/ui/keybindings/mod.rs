@@ -638,9 +638,5 @@ mod tests {
         
         // The test passing means Ctrl+K didn't trigger the 'k' package command
         // due to the modifier check, which is the key point
-        assert!(
-            true, // If we got here, the disambiguation worked
-            "Ctrl+K should not trigger package command"
-        );
     }
 }

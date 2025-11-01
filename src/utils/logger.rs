@@ -408,6 +408,7 @@ pub fn get_all_logs() -> String {
 /// - Only includes current session logs (across all rotated files)
 /// - Filters out TRACE level logs (keeps DEBUG, INFO, WARN, ERROR)
 /// - Limits to last 300 lines to keep report manageable
+#[allow(dead_code)]
 pub fn get_logs_for_debug_report() -> String {
     // Get current session logs (already handles rotation)
     match get_current_session_logs() {

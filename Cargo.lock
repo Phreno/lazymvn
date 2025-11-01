@@ -1064,6 +1064,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "lazy_static"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
+
+[[package]]
 name = "lazymvn"
 version = "0.4.0-nightly"
 dependencies = [
@@ -1078,6 +1084,9 @@ dependencies = [
  "glob",
  "globset",
  "log",
+ "maven-command-builder",
+ "maven-log-analyzer",
+ "maven-log-colorizer",
  "md5",
  "notify",
  "notify-rust",
@@ -1160,6 +1169,27 @@ dependencies = [
  "objc2",
  "objc2-foundation",
  "time",
+]
+
+[[package]]
+name = "maven-command-builder"
+version = "0.1.0"
+
+[[package]]
+name = "maven-log-analyzer"
+version = "0.1.0"
+dependencies = [
+ "regex",
+]
+
+[[package]]
+name = "maven-log-colorizer"
+version = "0.1.0"
+dependencies = [
+ "lazy_static",
+ "maven-log-analyzer",
+ "ratatui",
+ "regex",
 ]
 
 [[package]]

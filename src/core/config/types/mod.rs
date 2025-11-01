@@ -5,8 +5,7 @@ mod preferences;
 
 pub use main::{
     Config, MavenConfig, CustomFlag, CustomGoal,
-    SpringConfig, SpringProperty,
-    OutputConfig, WatchConfig, LaunchMode,
+    WatchConfig, LaunchMode,
 };
 pub use preferences::{
     RecentProjects, ModulePreferences,

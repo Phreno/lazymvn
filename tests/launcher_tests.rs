@@ -1,5 +1,5 @@
 // Launch command building tests
-use lazymvn::maven::{LaunchStrategy, build_launch_command, quote_arg_for_platform};
+use lazymvn::maven::{LaunchStrategy, build_launch_command};
 
 mod common;
 
@@ -61,10 +61,10 @@ fn test_build_launch_command_exec_java() {
         command
     );
 
-    // Should contain JVM args
+    // Should contain JVM args via -Dexec.args
     assert!(
-        command.contains(&quote_arg_for_platform("-Dfoo=bar")),
-        "Should include JVM args: {:?}",
+        command.iter().any(|arg| arg.starts_with("-Dexec.args=") && arg.contains("-Dfoo=bar")),
+        "Should include JVM args via -Dexec.args: {:?}",
         command
     );
 

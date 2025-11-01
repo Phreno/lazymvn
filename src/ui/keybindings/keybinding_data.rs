@@ -9,6 +9,7 @@ pub struct Keybinding {
 
 /// Action that can be executed from a keybinding
 #[derive(Clone, Debug)]
+#[allow(dead_code)]
 pub enum KeybindingAction {
     // Navigation
     FocusPreviousPane,

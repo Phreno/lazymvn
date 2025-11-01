@@ -1,7 +1,7 @@
 // Spring Boot detection and launch strategy tests
 use lazymvn::core::config::LaunchMode;
 use lazymvn::maven::{
-    LaunchStrategy, SpringBootDetection, decide_launch_strategy, extract_tag_content,
+    LaunchStrategy, SpringBootDetection, decide_launch_strategy,
 };
 
 mod common;
@@ -144,19 +144,4 @@ fn test_launch_strategy_force_exec() {
         LaunchStrategy::ExecJava,
         "ForceExec should always use exec:java"
     );
-}
-
-#[test]
-fn test_extract_tag_content() {
-    let line = "<mainClass>com.example.Application</mainClass>";
-    let content = extract_tag_content(line, "mainClass");
-    assert_eq!(content, Some("com.example.Application".to_string()));
-
-    let line_with_spaces = "  <packaging>jar</packaging>  ";
-    let content = extract_tag_content(line_with_spaces, "packaging");
-    assert_eq!(content, Some("jar".to_string()));
-
-    let invalid_line = "<mainClass>incomplete";
-    let content = extract_tag_content(invalid_line, "mainClass");
-    assert_eq!(content, None);
 }

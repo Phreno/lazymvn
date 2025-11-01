@@ -1,7 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::fs;
-use std::path::{Path, PathBuf};
-
 use crate::core::config::logging::LoggingConfig;
 
 #[derive(Deserialize, Serialize, Default, Clone)]

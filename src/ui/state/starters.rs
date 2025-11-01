@@ -63,7 +63,7 @@ impl TuiState {
         
         if !already_cached {
             // Add to cache
-            let label = fqcn.split('.').last().unwrap_or(fqcn).to_string();
+            let label = fqcn.split('.').next_back().unwrap_or(fqcn).to_string();
             tab.starters_cache.add_starter(crate::features::starters::Starter {
                 fully_qualified_class_name: fqcn.to_string(),
                 label,
@@ -78,7 +78,7 @@ impl TuiState {
         // Find the main class name from FQCN
         let main_class = fqcn
             .split('.')
-            .last()
+            .next_back()
             .unwrap_or(fqcn);
 
         // Build command: mvn spring-boot:run -Dspring-boot.run.main-class=<FQCN>

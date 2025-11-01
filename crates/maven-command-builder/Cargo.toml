@@ -1,0 +1,18 @@
+[package]
+name = "maven-command-builder"
+version = "0.1.0"
+edition = "2021"
+authors = ["LazyMvn Contributors"]
+license = "MIT OR Apache-2.0"
+description = "A fluent API for building and executing Maven commands"
+repository = "https://github.com/phreno/lazymvn"
+keywords = ["maven", "build", "command", "cli"]
+categories = ["command-line-utilities", "development-tools"]
+
+[dependencies]
+
+[dev-dependencies]
+
+[[example]]
+name = "basic_usage"
+path = "examples/basic_usage.rs"

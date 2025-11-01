@@ -1,32 +1,7 @@
-// Platform-specific argument quoting tests
-use lazymvn::maven::{extract_profiles_from_settings_xml, quote_arg_for_platform};
+// Platform-specific tests
+use lazymvn::maven::extract_profiles_from_settings_xml;
 
 mod common;
-
-#[test]
-#[cfg(windows)]
-fn test_quote_arg_for_platform_windows() {
-    assert_eq!(
-        quote_arg_for_platform("-Dfoo=bar"),
-        "\"-Dfoo=bar\"",
-        "Should quote -D args on Windows"
-    );
-    assert_eq!(
-        quote_arg_for_platform("spring-boot:run"),
-        "spring-boot:run",
-        "Should not quote goals"
-    );
-}
-
-#[test]
-#[cfg(not(windows))]
-fn test_quote_arg_for_platform_unix() {
-    assert_eq!(
-        quote_arg_for_platform("-Dfoo=bar"),
-        "-Dfoo=bar",
-        "Should not quote on Unix"
-    );
-}
 
 #[test]
 fn test_extract_profiles_from_settings_xml() {

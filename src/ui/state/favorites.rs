@@ -166,8 +166,8 @@ impl TuiState {
                     f.name == favorite_to_delete.name
                         && f.module == favorite_to_delete.module
                         && f.goal == favorite_to_delete.goal
-                }) {
-                    if let Some(removed) = self.favorites.remove(actual_index) {
+                })
+                    && let Some(removed) = self.favorites.remove(actual_index) {
                         log::info!("Deleted favorite: {}", removed.name);
 
                         // Adjust selection in filtered list
@@ -178,7 +178,6 @@ impl TuiState {
                             self.favorites_list_state.select(Some(new_filtered_len - 1));
                         }
                     }
-                }
             }
         }
     }

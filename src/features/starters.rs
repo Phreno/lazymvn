@@ -204,6 +204,7 @@ impl StartersCache {
     }
 
     /// Update last used starter
+    #[allow(dead_code)]
     pub fn set_last_used(&mut self, fqcn: String) {
         self.last_used = Some(fqcn);
     }

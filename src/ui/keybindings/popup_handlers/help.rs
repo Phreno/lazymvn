@@ -1,5 +1,5 @@
 use crossterm::event::{KeyCode, KeyEvent};
-use crate::ui::keybindings::{KeybindingAction, CurrentView, Focus, get_all_keybindings};
+use crate::ui::keybindings::{KeybindingAction, get_all_keybindings};
 use crate::ui::state::TuiState;
 
 pub fn handle_help_popup(key: KeyEvent, state: &mut TuiState) -> bool {

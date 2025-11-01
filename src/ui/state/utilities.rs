@@ -125,11 +125,11 @@ impl TuiState {
 
     /// Collect recent log entries
     fn collect_logs() -> Vec<String> {
-        let mut info = Vec::new();
-        info.push("=== Recent Logs ===".to_string());
-        info.push("(Check ~/.local/share/lazymvn/logs/ for full logs)".to_string());
-        info.push(String::new());
-        info
+        vec![
+            "=== Recent Logs ===".to_string(),
+            "(Check ~/.local/share/lazymvn/logs/ for full logs)".to_string(),
+            String::new(),
+        ]
     }
 
     /// Add debug report footer

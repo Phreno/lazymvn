@@ -28,7 +28,6 @@ pub use project_tab::ProjectTab;
 // Re-export types
 
 use crate::maven;
-use crate::maven::detection::SpringBootDetection;
 use crate::ui::keybindings::{CurrentView, Focus, SearchMode};
 use crate::ui::search::{SearchMatch, SearchState};
 use ratatui::widgets::ListState;

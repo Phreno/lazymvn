@@ -1,7 +1,7 @@
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout, Rect},
-    style::{Modifier, Style},
+    style::Style,
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
 };
@@ -9,6 +9,7 @@ use ratatui::{
 use crate::ui::theme::Theme;
 
 /// Create a centered popup area with the given width and height percentages.
+#[allow(dead_code)]
 pub(super) fn centered_popup_area(area: Rect, width_percent: u16, height_percent: u16) -> Rect {
     let popup_width = (area.width * width_percent) / 100;
     let popup_height = (area.height * height_percent) / 100;

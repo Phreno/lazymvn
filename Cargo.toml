@@ -1,3 +1,10 @@
+[workspace]
+members = [".", "crates/maven-log-analyzer", "crates/maven-log-colorizer", "crates/maven-command-builder"]
+resolver = "2"
+
+[workspace.dependencies]
+regex = "1.11"
+
 [package]
 name = "lazymvn"
 version = "0.4.0-nightly"
@@ -21,12 +28,15 @@ fuzzy-matcher = "0.3"
 glob = "0.3"
 globset = "0.4"
 log = "0.4"
+maven-command-builder = { path = "crates/maven-command-builder" }
+maven-log-analyzer = { path = "crates/maven-log-analyzer" }
+maven-log-colorizer = { path = "crates/maven-log-colorizer" }
 md5 = "0.7"
 notify = "8.2.0"
 notify-rust = "4.11"
 quick-xml = { version = "0.38", features = ["serialize"] }
 ratatui = "0.29"
-regex = "1.11"
+regex = { workspace = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 toml = "0.9"

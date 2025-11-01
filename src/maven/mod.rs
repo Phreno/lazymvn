@@ -17,7 +17,7 @@ pub use command::{
 };
 pub use detection::{
     LaunchStrategy, SpringBootDetection, build_launch_command, decide_launch_strategy,
-    detect_spring_boot_capabilities, extract_tag_content, quote_arg_for_platform,
+    detect_spring_boot_capabilities,
 };
 pub use log4j::generate_log4j_config;
 pub use process::{CommandUpdate, kill_process};

@@ -1,5 +1,4 @@
 use crossterm::event::{KeyCode, KeyEvent};
-use crate::ui::keybindings::{KeybindingAction, CurrentView, Focus};
 use crate::ui::state::TuiState;
 
 pub fn handle_starter_selector(key: KeyEvent, state: &mut TuiState) -> bool {

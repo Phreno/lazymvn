@@ -1,0 +1,18 @@
+[package]
+name = "maven-log-colorizer"
+version = "0.1.0"
+edition = "2021"
+authors = ["LazyMvn Contributors"]
+description = "Maven log colorization library with syntax highlighting for log levels, packages, exceptions, and stack traces"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/phreno/lazymvn"
+keywords = ["maven", "log", "colorization", "syntax-highlighting", "terminal"]
+categories = ["development-tools", "command-line-utilities"]
+
+[dependencies]
+ratatui = "0.29"
+regex = "1.11"
+lazy_static = "1.5"
+maven-log-analyzer = { path = "../maven-log-analyzer" }
+
+[dev-dependencies]

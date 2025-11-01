@@ -1,0 +1,15 @@
+[package]
+name = "maven-log-analyzer"
+version = "0.1.0"
+edition = "2024"
+authors = ["Phreno"]
+description = "A library for analyzing Maven build logs - extract packages, exceptions, and build metrics"
+license = "MIT"
+repository = "https://github.com/Phreno/lazymvn"
+keywords = ["maven", "log", "analysis", "java", "parser"]
+categories = ["parsing", "development-tools"]
+
+[dependencies]
+regex = { workspace = true }
+
+[dev-dependencies]
