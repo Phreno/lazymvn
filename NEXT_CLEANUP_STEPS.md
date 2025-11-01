@@ -3,11 +3,11 @@
 ## 📊 Current Status
 
 ### Files Over 600 Lines (Target Threshold)
-| File | Lines | Priority | Complexity |
-|------|-------|----------|-----------|
-| `src/ui/state/mod.rs` | 835 | **HIGH** | Medium |
-| `src/ui/keybindings/mod.rs` | 642 | **HIGH** | Medium |
-| `src/tui/mod.rs` | 619 | **MEDIUM** | High |
+| File | Lines | Priority | Status |
+|------|-------|----------|--------|
+| ~~`src/ui/state/mod.rs`~~ | ~~835~~ → **620** | ✅ REDUCED | Extracted types module |
+| `src/ui/keybindings/mod.rs` | 642 | **MEDIUM** | Well-organized w/ submodules |
+| `src/tui/mod.rs` | 619 | **LOW** | Well-organized, mostly tests |
 
 ### Files Close to Threshold (500-600 lines)
 | File | Lines | Action Needed |

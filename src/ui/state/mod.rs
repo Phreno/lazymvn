@@ -15,6 +15,7 @@ mod launcher_config;
 mod navigation;
 mod output;
 mod packages;
+mod preferences_io;
 mod profiles;
 mod project_tab;
 mod projects;
@@ -477,81 +478,14 @@ impl TuiState {
         let module = self.selected_module().map(|m| m.to_string());
         let enabled_flags = self.enabled_flag_names();
         let tab = self.get_active_tab_mut();
-        if let Some(module) = module.as_deref() {
-            // Save only explicitly set profiles (not Default state)
-            let explicit_profiles: Vec<String> = tab
-                .profiles
-                .iter()
-                .filter_map(|p| match p.state {
-                    ProfileState::ExplicitlyEnabled => Some(p.name.clone()),
-                    ProfileState::ExplicitlyDisabled => Some(format!("!{}", p.name)),
-                    ProfileState::Default => None,
-                })
-                .collect();
-
-            let prefs = crate::core::config::ModulePreferences {
-                active_profiles: explicit_profiles.clone(),
-                enabled_flags,
-            };
-
-            log::info!(
-                "Saving preferences for module '{}': profiles={:?}, flags={:?}",
-                module,
-                prefs.active_profiles,
-                prefs.enabled_flags
-            );
-
-            tab.module_preferences
-                .set_module_prefs(module.to_string(), prefs);
-
-            if let Err(e) = tab.module_preferences.save(&tab.project_root) {
-                log::error!("Failed to save module preferences: {}", e);
-            }
-        }
+        preferences_io::save_module_preferences(tab, module.as_deref(), enabled_flags);
     }
 
     /// Load preferences for the selected module
     pub fn load_module_preferences(&mut self) {
         let module = self.selected_module().map(|m| m.to_string());
         let tab = self.get_active_tab_mut();
-        if let Some(module) = module.as_deref() {
-            if let Some(prefs) = tab.module_preferences.get_module_prefs(module) {
-                log::info!(
-                    "Loading preferences for module '{}': profiles={:?}, flags={:?}",
-                    module,
-                    prefs.active_profiles,
-                    prefs.enabled_flags
-                );
-
-                // Restore profile states
-                for profile in &mut tab.profiles {
-                    // Check if profile is explicitly enabled or disabled
-                    let disabled_name = format!("!{}", profile.name);
-
-                    if prefs.active_profiles.contains(&profile.name) {
-                        profile.state = ProfileState::ExplicitlyEnabled;
-                        log::debug!("Restored profile '{}' as ExplicitlyEnabled", profile.name);
-                    } else if prefs.active_profiles.contains(&disabled_name) {
-                        profile.state = ProfileState::ExplicitlyDisabled;
-                        log::debug!("Restored profile '{}' as ExplicitlyDisabled", profile.name);
-                    } else {
-                        profile.state = ProfileState::Default;
-                        log::debug!("Profile '{}' in Default state", profile.name);
-                    }
-                }
-
-                // Restore enabled flags
-                for flag in &mut tab.flags {
-                    flag.enabled = prefs.enabled_flags.contains(&flag.flag);
-                }
-            } else {
-                log::debug!("No saved preferences for module '{}'", module);
-                // Reset all profiles to Default state
-                for profile in &mut tab.profiles {
-                    profile.state = ProfileState::Default;
-                }
-            }
-        }
+        preferences_io::load_module_preferences(tab, module.as_deref());
     }
 }
 
