@@ -7,7 +7,7 @@ mod helpers;
 mod keybinding_data;
 mod navigation_keys;
 mod output_keys;
-mod popup_keys;
+mod popup_handlers;
 mod search_keys;
 mod types;
 mod ui_builders;
@@ -32,22 +32,22 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
     log::debug!("Key event: {:?}", key);
 
     // Handle save favorite popup separately
-    if state.show_save_favorite_popup && popup_keys::handle_save_favorite_popup(key, state) {
+    if state.show_save_favorite_popup && popup_handlers::handle_save_favorite_popup(key, state) {
         return;
     }
 
     // Handle favorites popup separately
-    if state.show_favorites_popup && popup_keys::handle_favorites_popup(key, state) {
+    if state.show_favorites_popup && popup_handlers::handle_favorites_popup(key, state) {
         return;
     }
 
     // Handle command history popup separately
-    if state.show_history_popup && popup_keys::handle_history_popup(key, state) {
+    if state.show_history_popup && popup_handlers::handle_history_popup(key, state) {
         return;
     }
 
     // Handle projects popup separately
-    if state.show_projects_popup && popup_keys::handle_projects_popup(key, state) {
+    if state.show_projects_popup && popup_handlers::handle_projects_popup(key, state) {
         return;
     }
 
@@ -71,27 +71,27 @@ pub fn handle_key_event(key: KeyEvent, state: &mut crate::ui::state::TuiState) {
     }
 
     // Handle starter selector popup
-    if state.show_starter_selector && popup_keys::handle_starter_selector(key, state) {
+    if state.show_starter_selector && popup_handlers::handle_starter_selector(key, state) {
         return;
     }
 
     // Handle package selector popup
-    if state.show_package_selector && popup_keys::handle_package_selector(key, state) {
+    if state.show_package_selector && popup_handlers::handle_package_selector(key, state) {
         return;
     }
 
     // Handle starter manager popup
-    if state.show_starter_manager && popup_keys::handle_starter_manager(key, state) {
+    if state.show_starter_manager && popup_handlers::handle_starter_manager(key, state) {
         return;
     }
 
     // Handle custom goals popup
-    if state.show_custom_goals_popup && popup_keys::handle_custom_goals_popup(key, state) {
+    if state.show_custom_goals_popup && popup_handlers::handle_custom_goals_popup(key, state) {
         return;
     }
 
     // Handle help popup
-    if state.show_help_popup && popup_keys::handle_help_popup(key, state) {
+    if state.show_help_popup && popup_handlers::handle_help_popup(key, state) {
         return;
     }
 
