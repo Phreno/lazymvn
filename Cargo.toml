@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "crates/maven-log-analyzer", "crates/maven-log-colorizer", "crates/maven-command-builder"]
+members = [".", "crates/maven-log-analyzer", "crates/maven-log-colorizer", "crates/maven-command-builder", "crates/maven-java-agent"]
 resolver = "2"
 
 [workspace.dependencies]
@@ -29,6 +29,7 @@ glob = "0.3"
 globset = "0.4"
 log = "0.4"
 maven-command-builder = { path = "crates/maven-command-builder" }
+maven-java-agent = { path = "crates/maven-java-agent" }
 maven-log-analyzer = { path = "crates/maven-log-analyzer" }
 maven-log-colorizer = { path = "crates/maven-log-colorizer" }
 md5 = "0.7"

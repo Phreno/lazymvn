@@ -3,8 +3,9 @@
 //! Helper functions for building JVM arguments and Spring Boot configuration
 //! for launching applications with custom logging and properties.
 
-use std::path::{Path, PathBuf};
-use std::fs;
+use std::path::Path;
+
+use maven_java_agent::AgentBuilder;
 
 use super::TuiState;
 
@@ -18,11 +19,22 @@ impl TuiState {
         // The agent will force reconfiguration 2 seconds after application start
         // to override any custom Log4j initialization (like Log4jJbossLoggerFactory)
         if let Some(_log4j_arg) = self.generate_log4j_jvm_arg() {
-            if let Some(agent_path) = Self::get_or_copy_log4j_agent() {
-                jvm_args.push(format!("-javaagent:{}", agent_path.display()));
-                log::info!("Injecting Log4j Reconfiguration Agent: {}", agent_path.display());
-            } else {
-                log::warn!("Failed to locate Log4j Reconfiguration Agent, proceeding without it");
+            // Use the new maven-java-agent library
+            match AgentBuilder::new()
+                .enable_reconfig(true)
+                .build()
+            {
+                Ok(deployment) => {
+                    // Add the -javaagent argument
+                    for arg in deployment.jvm_args {
+                        let arg_str = arg.clone();
+                        jvm_args.push(arg);
+                        log::info!("Injecting Log4j Reconfiguration Agent arg: {}", arg_str);
+                    }
+                }
+                Err(e) => {
+                    log::warn!("Failed to configure Java agent: {}, proceeding without it", e);
+                }
             }
         }
 
@@ -192,47 +204,6 @@ impl TuiState {
         } else {
             format!("file://{}", path.display())
         }
-    }
-
-    /// Get or copy the Log4j Reconfiguration Java Agent to config directory
-    /// Returns path to agent JAR if successful
-    #[allow(dead_code)]
-    fn get_or_copy_log4j_agent() -> Option<PathBuf> {
-        // Agent JAR is embedded in the binary at build time
-        const AGENT_JAR_BYTES: &[u8] = include_bytes!("../../../agent/target/log4j-reconfig-agent-0.1.0.jar");
-        
-        // Target path: ~/.config/lazymvn/agents/log4j-reconfig-agent.jar
-        let config_dir = dirs::config_dir()?;
-        let agent_dir = config_dir.join("lazymvn").join("agents");
-        let agent_path = agent_dir.join("log4j-reconfig-agent.jar");
-
-        // Create directory if it doesn't exist
-        if !agent_dir.exists() && let Err(e) = fs::create_dir_all(&agent_dir) {
-            log::error!("Failed to create agent directory {}: {}", agent_dir.display(), e);
-            return None;
-        }
-
-        // Copy agent JAR if not present or if size differs (version update)
-        let needs_copy = if agent_path.exists() {
-            match fs::metadata(&agent_path) {
-                Ok(meta) => meta.len() != AGENT_JAR_BYTES.len() as u64,
-                Err(_) => true,
-            }
-        } else {
-            true
-        };
-
-        if needs_copy {
-            if let Err(e) = fs::write(&agent_path, AGENT_JAR_BYTES) {
-                log::error!("Failed to copy agent JAR to {}: {}", agent_path.display(), e);
-                return None;
-            }
-            log::debug!("Copied Log4j agent JAR to {}", agent_path.display());
-        } else {
-            log::debug!("Log4j agent JAR already present at {}", agent_path.display());
-        }
-
-        Some(agent_path)
     }
 }
 

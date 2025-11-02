@@ -1,0 +1,18 @@
+[package]
+name = "maven-java-agent"
+version = "0.1.0"
+edition = "2021"
+authors = ["LazyMVN Contributors"]
+description = "Java agent management library for Maven-based applications"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/phreno/lazymvn"
+keywords = ["maven", "java", "agent", "log4j", "jvm"]
+categories = ["development-tools"]
+
+[dependencies]
+dirs = "5.0"
+
+[build-dependencies]
+# Will be used for building Java agent JAR
+
+[dev-dependencies]

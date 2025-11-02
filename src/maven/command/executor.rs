@@ -2,6 +2,7 @@
 
 use crate::core::config::LoggingConfig;
 use crate::maven::process::CommandUpdate;
+use maven_java_agent::AgentBuilder;
 use std::{
     io::{BufRead, BufReader},
     path::Path,
@@ -69,13 +70,30 @@ pub fn execute_maven_command_with_options(
     // (including custom factories like Log4jJbossLoggerFactory that initialize in constructors)
     // Check for Log4j config URL in args (always present for Spring Boot, regardless of logging_config)
     if let Some(log4j_config_url) = extract_log4j_config_url(args) {
-        let opts_str = format!(
-            "-Dlog4j.ignoreTCL=true -Dlog4j.defaultInitOverride=true -Dlog4j.configuration={}",
-            log4j_config_url
-        );
-        log::info!("Setting JAVA_TOOL_OPTIONS with Log4j configuration: {}", log4j_config_url);
-        log::info!("JAVA_TOOL_OPTIONS={}", opts_str);
-        command.env("JAVA_TOOL_OPTIONS", &opts_str);
+        // Use the new maven-java-agent library to configure environment
+        match AgentBuilder::new()
+            .with_log4j_config(&log4j_config_url)
+            .build()
+        {
+            Ok(deployment) => {
+                // Set environment variables from the deployment
+                for (key, value) in deployment.env_vars {
+                    log::info!("Setting {}: {}", key, value);
+                    command.env(key, value);
+                }
+            }
+            Err(e) => {
+                // Fallback to manual configuration if agent setup fails
+                log::warn!("Failed to use maven-java-agent library: {}, using fallback", e);
+                let opts_str = format!(
+                    "-Dlog4j.ignoreTCL=true -Dlog4j.defaultInitOverride=true -Dlog4j.configuration={}",
+                    log4j_config_url
+                );
+                log::info!("Setting JAVA_TOOL_OPTIONS with Log4j configuration: {}", log4j_config_url);
+                log::info!("JAVA_TOOL_OPTIONS={}", opts_str);
+                command.env("JAVA_TOOL_OPTIONS", &opts_str);
+            }
+        }
     } else {
         log::debug!("No Log4j configuration URL found in args");
     }
