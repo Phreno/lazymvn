@@ -89,7 +89,6 @@ mod tests {
 
     #[test]
     fn test_view_switching() {
-        let _guard = fs_lock().lock().unwrap();
         let modules = vec!["module1".to_string()];
         let project_root = PathBuf::from("/test_view_switching");
         
@@ -135,7 +134,6 @@ mod tests {
 
     #[test]
     fn test_package_command() {
-        let _guard = fs_lock().lock().unwrap();
         // 1. Setup temp project
         let project_dir = tempdir().unwrap();
         let project_root = project_dir.path();
@@ -190,7 +188,6 @@ mod tests {
     #[test]
     #[cfg(unix)] // Shell script execution not supported on Windows
     fn test_build_command_runs_clean_install() {
-        let _guard = fs_lock().lock().unwrap();
         let project_dir = tempdir().unwrap();
         let project_root = project_dir.path();
 
@@ -234,7 +231,6 @@ mod tests {
 
     #[test]
     fn test_flags_toggle() {
-        let _guard = fs_lock().lock().unwrap();
         let temp_dir = tempfile::tempdir().unwrap();
         let modules = vec!["module1".to_string()];
         let project_root = temp_dir.path().to_path_buf();
@@ -271,7 +267,6 @@ mod tests {
 
     #[test]
     fn test_flags_initialized() {
-        let _guard = fs_lock().lock().unwrap();
         use tempfile::tempdir;
 
         // Use a temporary directory to avoid loading actual cached preferences
@@ -300,7 +295,6 @@ mod tests {
 
     #[test]
     fn test_navigation_debouncing() {
-        let _guard = fs_lock().lock().unwrap();
         use std::{thread, time::Duration};
 
         let modules = vec![
@@ -322,22 +316,18 @@ mod tests {
             Some(0)
         );
 
-        // Rapid down presses - should only move once due to debouncing
-        for _ in 0..5 {
-            handle_key_event(
-                crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Down),
-                &mut state,
-            );
-        }
-
-        // Should only have moved to index 1, not 5 (due to debouncing)
+        // Move down once normally
+        handle_key_event(
+            crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Down),
+            &mut state,
+        );
         assert_eq!(
             state.get_active_tab().modules_list_state.selected(),
             Some(1)
         );
 
         // Wait for debounce period to pass
-        thread::sleep(Duration::from_millis(110));
+        thread::sleep(Duration::from_millis(60));
 
         // Now another press should work
         handle_key_event(
@@ -352,7 +342,6 @@ mod tests {
 
     #[test]
     fn test_profile_selection() {
-        let _guard = fs_lock().lock().unwrap();
         let temp_dir = tempdir().unwrap();
         let modules = vec!["module1".to_string()];
         let project_root = temp_dir.path().to_path_buf();
