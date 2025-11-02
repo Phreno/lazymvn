@@ -286,7 +286,7 @@ Be careful not to duplicate built-in flags:
 1. Press `y` to see the full command
 2. Check if the flag is enabled (highlighted in the Flags panel)
 3. Verify the flag syntax is correct for Maven
-4. Check debug logs: `tail -f lazymvn-debug.log`
+4. Check debug logs: `tail -f ~/.local/share/lazymvn/logs/debug.log`
 
 ### Configuration Not Reloading
 

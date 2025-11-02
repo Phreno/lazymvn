@@ -284,7 +284,7 @@ If `JAVA_TOOL_OPTIONS` doesn't work, remaining options:
 - [ ] Rebuild LazyMVN: `cargo build --release`
 - [ ] Restart LazyMVN with debug: `lazymvn --debug`
 - [ ] Launch Spring Boot app: Press `s`
-- [ ] Check debug logs: `tail -f lazymvn-debug.log | grep JAVA_TOOL_OPTIONS`
+- [ ] Check debug logs: `tail -f ~/.local/share/lazymvn/logs/debug.log | grep JAVA_TOOL_OPTIONS`
 - [ ] Verify startup message: "Picked up JAVA_TOOL_OPTIONS: ..."
 - [ ] Verify log format: `[INFO][package] message` (not `[timestamp][level] package - message`)
 - [ ] Verify log levels: INFO suppressed for WARN packages, DEBUG shown for DEBUG packages

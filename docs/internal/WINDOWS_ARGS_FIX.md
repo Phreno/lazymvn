@@ -153,7 +153,7 @@ lazymvn --debug
 
 4. Lancer une commande Maven
 
-5. Vérifier dans `lazymvn-debug.log` :
+5. Vérifier dans `~/.local/share/lazymvn/logs/debug.log` :
 ```
 INFO - Executing: mvn.cmd ... -U -DskipTests ...
                               ^^

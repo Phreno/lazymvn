@@ -166,7 +166,7 @@ DEBUG: Removed duplicate history entry at index 3 (moving to top)
 
 Can be monitored with:
 ```bash
-tail -f lazymvn-debug.log | grep -E '(Removed duplicate|history entry)'
+tail -f ~/.local/share/lazymvn/logs/debug.log | grep -E '(Removed duplicate|history entry)'
 ```
 
 ## Usage

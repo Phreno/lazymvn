@@ -189,7 +189,7 @@ if logging_config.is_some() {
 
 3. **Check debug logs** for confirmation:
    ```bash
-   tail -f lazymvn-debug.log | grep JAVA_TOOL_OPTIONS
+   tail -f ~/.local/share/lazymvn/logs/debug.log | grep JAVA_TOOL_OPTIONS
    ```
 
    Expected output:

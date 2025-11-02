@@ -221,7 +221,7 @@ Si on utilisait `splitn(3, '=')` ou plus, on casserait encore la valeur.
 
 ## Validation
 
-Pour valider que le fix fonctionne, cherchez ces lignes dans `lazymvn-debug.log` :
+Pour valider que le fix fonctionne, cherchez ces lignes dans `~/.local/share/lazymvn/logs/debug.log` :
 
 ```
 INFO - Setting JAVA_TOOL_OPTIONS with Log4j configuration: file:///C:/Users/.../log4j-override-ec936686.properties

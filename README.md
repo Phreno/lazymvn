@@ -208,7 +208,7 @@ lazymvn
 lazymvn [OPTIONS]
 
 Options:
-  -d, --debug              Enable debug logging to lazymvn-debug.log
+  -d, --debug              Enable debug logging to ~/.local/share/lazymvn/logs/debug.log
   -p, --project <PROJECT>  Path to the Maven project
       --force-run          Force spring-boot:run for launching (overrides auto)
       --force-exec         Force exec:java for launching (overrides auto)
@@ -305,7 +305,7 @@ When you have multiple tabs open, a tab bar appears at the top:
 lazymvn [OPTIONS]
 
 Options:
-  -d, --debug              Enable debug logging to lazymvn-debug.log
+  -d, --debug              Enable debug logging to ~/.local/share/lazymvn/logs/debug.log
   -p, --project <PATH>     Path to Maven project (defaults to current directory)
   -h, --help               Print help information
 ```
@@ -381,10 +381,10 @@ When troubleshooting issues, enable detailed debug logging:
 lazymvn --debug
 ```
 
-This creates a `lazymvn-debug.log` file in the current directory with timestamped entries at INFO, DEBUG, and ERROR levels. The log file doesn't interfere with the TUI and can be monitored in a separate terminal:
+This creates a `debug.log` file in `~/.local/share/lazymvn/logs/` with timestamped entries at INFO, DEBUG, and ERROR levels. The log file doesn't interfere with the TUI and can be monitored in a separate terminal:
 
 ```bash
-tail -f lazymvn-debug.log
+tail -f ~/.local/share/lazymvn/logs/debug.log
 ```
 
 **Debug logs include:**
@@ -528,6 +528,26 @@ cargo clippy -- -D warnings
 ## License
 
 MIT License
+
+## 📚 Documentation
+
+Comprehensive documentation is available in the `docs/` directory:
+
+### For Users
+- **[Getting Started](docs/user/README.md)** - User guide and features
+- **[Architecture](docs/user/ARCHITECTURE.md)** - How LazyMVN works
+- **[Libraries](docs/user/LIBRARIES.md)** - Reusable components
+- **[Troubleshooting](docs/user/TROUBLESHOOTING.md)** - Common issues and solutions
+
+### For Developers
+- **[Contributing](CONTRIBUTING.md)** - How to contribute
+- **[Internal Docs](docs/internal/README.md)** - Technical details
+- **[Roadmap](docs/ROADMAP_INDEX.md)** - Future plans
+
+### Quick Links
+- **Configuration**: [Custom Flags](docs/user/CUSTOM_FLAGS.md), [Profiles](docs/user/PROFILE_ACTIVATION.md)
+- **Logging**: [Log Config](docs/user/LOGGING_CONFIG.md), [Log Formatting](docs/user/LOG_FORMATTING.md)
+- **Spring Boot**: [Launcher](docs/user/SPRING_BOOT_LAUNCHER.md), [Properties](docs/user/SPRING_PROPERTIES_OVERRIDE.md)
 
 ## Logging Configuration
 

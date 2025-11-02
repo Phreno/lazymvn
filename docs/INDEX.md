@@ -236,3 +236,8 @@ Located in **[.devcontainer/](.devcontainer/)**
 ---
 
 *Last updated: 2025-11-02*
+
+### Architecture & Libraries
+- **[ARCHITECTURE.md](./user/ARCHITECTURE.md)** - System architecture and design
+- **[LIBRARIES.md](./user/LIBRARIES.md)** - Reusable library documentation
+

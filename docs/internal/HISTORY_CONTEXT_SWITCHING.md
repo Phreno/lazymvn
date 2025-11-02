@@ -217,7 +217,7 @@ cargo run -- --project demo/multi-module --debug
 ### Debug Logging
 ```bash
 # Monitor tab switching in real-time
-tail -f lazymvn-debug.log | grep -E '(Applying history|Switching to|project_root)'
+tail -f ~/.local/share/lazymvn/logs/debug.log | grep -E '(Applying history|Switching to|project_root)'
 ```
 
 ## Performance Considerations

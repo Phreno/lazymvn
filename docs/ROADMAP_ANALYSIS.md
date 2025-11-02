@@ -299,7 +299,7 @@ src/
 ## 📋 Incohérences Détectées
 
 ### 1. **Documentation `--debug` Flag** ⚠️
-**Problème:** Plusieurs docs mentionnent "lazymvn-debug.log" dans le répertoire courant
+**Problème:** Plusieurs docs mentionnent "~/.local/share/lazymvn/logs/debug.log" dans le répertoire courant
 
 **Réalité:** Logs sont maintenant dans `~/.local/share/lazymvn/logs/debug.log`
 

@@ -534,7 +534,7 @@ Include:
 ```bash
 lazymvn --debug
 # In another terminal:
-tail -f lazymvn-debug.log
+tail -f ~/.local/share/lazymvn/logs/debug.log
 ```
 
 ### Common Issues
@@ -561,7 +561,7 @@ cargo run -- --project . --debug
 
 - No secrets in code or logs
 - Configuration files may contain sensitive paths
-- Don't commit `lazymvn-debug.log`
+- Don't commit `~/.local/share/lazymvn/logs/debug.log`
 - Sanitize user input in search patterns
 
 ## Resources

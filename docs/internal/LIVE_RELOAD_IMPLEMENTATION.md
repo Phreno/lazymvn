@@ -123,7 +123,7 @@ Script de test : `scripts/test-live-reload.sh`
 2. `Ctrl+E` pour ouvrir l'éditeur
 3. Modifier une valeur (ex: `launch_mode = "force-exec"`)
 4. Sauvegarder et fermer
-5. Vérifier les logs : `tail -f lazymvn-debug.log`
+5. Vérifier les logs : `tail -f ~/.local/share/lazymvn/logs/debug.log`
 
 **Logs attendus** :
 ```

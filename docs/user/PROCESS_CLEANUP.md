@@ -175,7 +175,7 @@ The `/T` flag ensures all child processes are terminated.
 
 6. **Check debug logs:**
    ```bash
-   tail -f lazymvn-debug.log
+   tail -f ~/.local/share/lazymvn/logs/debug.log
    ```
    
    Look for:
@@ -194,7 +194,7 @@ Use `scripts/test-process-cleanup.sh` for guided testing.
 
 **Check logs:**
 ```bash
-grep -i "kill" lazymvn-debug.log
+grep -i "kill" ~/.local/share/lazymvn/logs/debug.log
 ```
 
 **Possible causes:**

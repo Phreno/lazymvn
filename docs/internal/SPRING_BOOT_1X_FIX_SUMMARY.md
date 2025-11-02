@@ -55,7 +55,7 @@ cargo run --release -- --project /path/to/your/spring-boot-app --debug
 
 ### 3. Verify the Fix
 
-Check the debug log (`lazymvn-debug.log`) for these indicators:
+Check the debug log (`~/.local/share/lazymvn/logs/debug.log`) for these indicators:
 
 ✅ **Version detected**:
 ```

@@ -120,7 +120,7 @@ Picked up JAVA_TOOL_OPTIONS: -Dlog4j.ignoreTCL=true -Dlog4j.defaultInitOverride=
 
 3. **Look for JAVA_TOOL_OPTIONS in debug logs**:
    ```bash
-   tail -f lazymvn-debug.log | grep JAVA_TOOL_OPTIONS
+   tail -f ~/.local/share/lazymvn/logs/debug.log | grep JAVA_TOOL_OPTIONS
    ```
 
 4. **Verify log format** changed to LazyMVN format:

@@ -221,7 +221,7 @@ lazymvn
    ```bash
    lazymvn --debug
    # In another terminal:
-   tail -f lazymvn-debug.log
+   tail -f ~/.local/share/lazymvn/logs/debug.log
    ```
 
 2. **Verify file path**: Config must be named `lazymvn.toml` in project root

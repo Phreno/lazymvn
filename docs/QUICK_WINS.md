@@ -175,7 +175,7 @@ pub fn render_cache_stats_popup(f: &mut Frame, state: &TuiState) {
 **Incohérences identifiées:**
 
 1. **Debug log path incorrect**
-   - **Docs disent:** `lazymvn-debug.log` (répertoire courant)
+   - **Docs disent:** `~/.local/share/lazymvn/logs/debug.log` (répertoire courant)
    - **Réalité:** `~/.local/share/lazymvn/logs/debug.log`
    - **Fichiers à corriger:**
      - `README.md` (lignes 380, 383, 508)
