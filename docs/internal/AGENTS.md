@@ -302,8 +302,12 @@ Only essential files remain in the root:
 - `CONTRIBUTING.md` - Contribution process
 - `README.md` - User-facing documentation
 - `CHANGELOG.md` - Version history
-- `REFACTORING_SUMMARY.md` - Architecture refactoring details
 - `Cargo.toml` / `Cargo.lock` - Rust project files
+
+All internal documentation has been organized in `docs/internal/`:
+- `docs/internal/refactoring/REFACTORING_SUMMARY.md` - Architecture refactoring details
+- `docs/internal/phases/` - Phase completion reports
+- `docs/internal/test-coverage/` - Test coverage documentation
 
 ## Coding Style
 

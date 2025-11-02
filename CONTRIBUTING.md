@@ -445,7 +445,7 @@ use crate::features::favorites::Favorites;
 use crate::utils::logger;
 ```
 
-See [REFACTORING_SUMMARY.md](REFACTORING_SUMMARY.md) for complete migration details.
+See [REFACTORING_SUMMARY.md](docs/internal/refactoring/REFACTORING_SUMMARY.md) for complete migration details.
 
 ### Key Concepts
 

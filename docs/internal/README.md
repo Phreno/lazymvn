@@ -4,9 +4,10 @@ This section contains technical documentation for developers and contributors of
 
 ## 📚 Developer Guidelines
 
-- **[AGENTS.md](./AGENTS.md)** - Guidelines for AI agents working on this codebase
+- **[AGENTS.md](./AGENTS.md)** - Guidelines for AI agents and coding standards
 - **[VERSIONING.md](./VERSIONING.md)** - Versioning strategy and release process
 - **[CONTRIBUTING.md](../../CONTRIBUTING.md)** - How to contribute (see root)
+- **[LOGGING_BEST_PRACTICES.md](./LOGGING_BEST_PRACTICES.md)** - Logging guidelines and levels
 
 ## 🚀 Feature Implementation Guides
 
@@ -58,23 +59,54 @@ This section contains technical documentation for developers and contributors of
 - **[Test Agent Fix](./TEST_AGENT_FIX.md)** - Java agent testing
 - **[Fix Profile Loading New Tab](./FIX_PROFILE_LOADING_NEW_TAB.md)** - Per-tab profile loading
 - **[Fix Shared Starter](./FIX_SHARED_STARTER.md)** - Spring Boot starters isolation
+- **[Fix Package Coloring](./FIX_PACKAGE_COLORING.md)** - Package colorization improvements
 
-## 🔧 Refactoring Documentation
+## 🔧 Refactoring & Architecture
 
+### Refactoring History
+See **[refactoring/](./refactoring/)** directory for detailed refactoring documentation:
+- Complete refactoring summaries
+- Phase 3 completion reports
+- Package coloring fixes
+- Architectural improvements
+
+### Current Planning
 - **[Implementation Summary](./IMPLEMENTATION_SUMMARY.md)** - Launch strategy refactoring
 - **[Refactoring](./REFACTORING.md)** - General refactoring guidelines
 - **[Refactoring Priorities](./REFACTORING_PRIORITIES.md)** - Priority matrix
-- **[Refactoring Summary](./REFACTORING_SUMMARY.md)** - Completed refactorings
 - **[Phase 6 - Micro-Refactoring](./PHASE6_MICRO_REFACTORING.md)** - Small improvements
 - **[Phase 7.1 - Plan](./PHASE_7.1_PLAN.md)** - Future planning
 
-## 🧪 Testing
+## 📊 Project Phases
 
+See **[phases/](./phases/)** directory for phase completion reports:
+- Phase 1-5 completion documentation
+- Library extraction plans
+- Detection split implementations
+- Refactoring plans
+
+## 🧪 Testing & Quality
+
+### Test Coverage
+See **[test-coverage/](./test-coverage/)** directory for comprehensive test documentation:
+- Coverage analysis and reports
+- Progress tracking
+- Session summaries
+- Improvement plans
+
+### Current Testing Docs
 - **[Test Coverage Analysis](./TEST_COVERAGE_ANALYSIS.md)** - Coverage reports
 - **[Test Coverage Progress](./TEST_COVERAGE_PROGRESS.md)** - Testing progress
 - **[Test Coverage Checklist](./test-coverage-checklist.md)** - Testing checklist
 
-## 📜 Historical
+## 🏗️ Library Extraction
+
+- **[Library Extraction Plan](./LIBRARY_EXTRACTION_PLAN.md)** - Crate extraction strategy
+- **[Library Status](./LIBRARY_STATUS.md)** - Current extraction status
+- **[Cleanup Status Report](./CLEANUP_STATUS_REPORT.md)** - Code cleanup progress
+- **[Next Cleanup Steps](./NEXT_CLEANUP_STEPS.md)** - Future cleanup tasks
+
+## 📜 Historical Documentation
 
 - **[Old README](./OLD_README.md)** - Previous README before restructuring
 

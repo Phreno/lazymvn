@@ -1,21 +1,58 @@
 # Lazymvn Documentation
 
-This directory contains all documentation for the Lazymvn project.
+Welcome to the Lazymvn documentation hub. This directory contains comprehensive documentation for users, developers, and contributors.
 
-The documentation is split into two main sections:
+## 📚 Documentation Structure
 
-*   [**User Documentation**](./user/README.md): Guides and reference material for end-users of Lazymvn. This includes feature explanations, configuration options, and troubleshooting.
+### For Users
 
-*   [**Internal Documentation**](./internal/README.md): Technical documentation for developers and contributors. This includes implementation details, refactoring notes, and architectural decisions.
+*   **[User Documentation](./user/README.md)** - Feature guides, configuration, and tutorials
+    - Getting started guides
+    - Feature documentation (caching, logging, Spring Boot support, etc.)
+    - Configuration examples
+    - Troubleshooting and best practices
 
-## Planning & Roadmap
+### For Developers & Contributors
 
-*   [**Roadmap Executive Summary**](./ROADMAP_EXECUTIVE_SUMMARY.md): High-level vision and 3-phase plan (Q1-Q3 2025). Perfect for stakeholders and quick overview.
+*   **[Internal Documentation](./internal/README.md)** - Architecture, implementation details, and development history
+    - Coding guidelines and patterns
+    - Implementation notes for key features
+    - Phase-based refactoring history
+    - Test coverage reports
+    - Library extraction status
 
-*   [**Roadmap Analysis**](./ROADMAP_ANALYSIS.md): Comprehensive analysis of the project with improvement suggestions, prioritization, and long-term vision (Q1-Q4 2025 and beyond).
+### Project Planning
 
-*   [**Quick Wins**](./QUICK_WINS.md): High-impact, low-effort improvements that can be implemented in 1-2 weeks. Perfect starting point for contributors.
+*   **[Roadmap Executive Summary](./ROADMAP_EXECUTIVE_SUMMARY.md)** - High-level vision and 3-phase plan (Q1-Q3 2025)
+*   **[Roadmap Analysis](./ROADMAP_ANALYSIS.md)** - Comprehensive project analysis with improvement suggestions
+*   **[Quick Wins](./QUICK_WINS.md)** - High-impact, low-effort improvements for contributors
+*   **[Roadmap Index](./ROADMAP_INDEX.md)** - Complete roadmap navigation
 
-## Ideas & Future Work
+### Future Work
 
-*   [**Ideas Directory**](./ideas/): Contains proposals for future features and enhancements, including the Legacy Insights Dashboard concept.
+*   **[Ideas Directory](./ideas/)** - Proposals for future features and enhancements
+
+## 🚀 Quick Links
+
+### New Users
+- Start with the [main README](../README.md) for installation and basic usage
+- Check [User Documentation](./user/README.md) for detailed features
+- Explore [Configuration Examples](../examples/README.md)
+
+### Contributors
+- Read [CONTRIBUTING.md](../CONTRIBUTING.md) for contribution guidelines
+- Review [Internal Documentation](./internal/README.md) for architecture
+- Check [Quick Wins](./QUICK_WINS.md) for easy starting tasks
+
+### Developers
+- See [Internal/AGENTS.md](./internal/AGENTS.md) for coding guidelines
+- Review [Internal/VERSIONING.md](./internal/VERSIONING.md) for release process
+- Check refactoring history in [internal/refactoring/](./internal/refactoring/)
+
+## 📖 Documentation Standards
+
+All documentation follows these principles:
+- **Up-to-date**: Reflects current codebase state
+- **Organized**: Clear hierarchy and cross-references
+- **Accessible**: Written for target audience (users vs developers)
+- **Maintained**: Updated with code changes
