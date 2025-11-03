@@ -95,7 +95,8 @@ impl TuiState {
         );
 
         // Use the existing command execution method with 's' key for visual feedback
-        self.run_selected_module_command_with_key_and_options(&args, true, Some('s'));
+        // Note: use_file_flag=false because -pl works better for spring-boot:run in all scenarios
+        self.run_selected_module_command_with_key_and_options(&args, false, Some('s'));
     }
 
     pub fn run_preferred_starter(&mut self) {
