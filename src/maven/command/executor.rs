@@ -471,7 +471,16 @@ pub fn execute_maven_command_async_with_options(
         match child.wait() {
             Ok(status) => {
                 log::info!("Maven process exited with status: {}", status);
-                let _ = tx.send(CommandUpdate::Completed);
+                if status.success() {
+                    let _ = tx.send(CommandUpdate::Completed);
+                } else {
+                    let error_msg = if let Some(code) = status.code() {
+                        format!("Build failed with exit code {}", code)
+                    } else {
+                        "Build failed (terminated by signal)".to_string()
+                    };
+                    let _ = tx.send(CommandUpdate::Error(error_msg));
+                }
             }
             Err(e) => {
                 log::error!("Error waiting for Maven process: {}", e);
