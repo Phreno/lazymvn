@@ -124,21 +124,17 @@ impl TuiState {
     }
 
     /// Collect recent log entries from current session
+    /// Note: Uses get_logs_for_debug_report() which filters out TRACE level logs
+    /// to keep the debug report manageable and focused on relevant information.
     fn collect_logs() -> Vec<String> {
         let mut info = Vec::new();
         info.push("=== Recent Logs ===".to_string());
+        info.push("(Showing DEBUG, INFO, WARN, ERROR - TRACE logs excluded)".to_string());
+        info.push(String::new());
         
-        // Get logs from current session
-        match crate::utils::logger::get_current_session_logs() {
-            Ok(logs) => {
-                // Session logs already include headers, just add them
-                info.push(logs);
-            }
-            Err(e) => {
-                info.push(format!("Error retrieving session logs: {}", e));
-                info.push("(Check ~/.local/share/lazymvn/logs/ for full logs)".to_string());
-            }
-        }
+        // Get logs from current session, with TRACE filtering
+        let logs = crate::utils::logger::get_logs_for_debug_report();
+        info.push(logs);
         
         info.push(String::new());
         info
