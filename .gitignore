@@ -1,6 +1,9 @@
 /target
 lazymvn-*.log
 
+# Crates build artifacts
+crates/**/target/
+
 # Development environment
 .devcontainer/cargo-cache/
 .vscode/settings.json
