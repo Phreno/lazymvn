@@ -207,6 +207,12 @@ fn extract_session_logs(
 pub fn get_current_session_logs() -> Result<String, String> {
     let session_id = get_session_id().ok_or("No session ID available")?;
 
+    // Force flush all pending logs before reading
+    log::logger().flush();
+    
+    // Give a tiny moment for filesystem to sync
+    std::thread::sleep(std::time::Duration::from_millis(10));
+
     let mut all_logs = Vec::new();
 
     // Add header

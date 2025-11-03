@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "crates/maven-log-analyzer", "crates/maven-log-colorizer", "crates/maven-command-builder", "crates/maven-java-agent"]
+members = [".", "crates/maven-log-analyzer", "crates/maven-log-colorizer", "crates/maven-command-builder", "crates/maven-java-agent", "crates/lazymvn-test-harness"]
 resolver = "2"
 
 [workspace.dependencies]

@@ -123,13 +123,25 @@ impl TuiState {
         info
     }
 
-    /// Collect recent log entries
+    /// Collect recent log entries from current session
     fn collect_logs() -> Vec<String> {
-        vec![
-            "=== Recent Logs ===".to_string(),
-            "(Check ~/.local/share/lazymvn/logs/ for full logs)".to_string(),
-            String::new(),
-        ]
+        let mut info = Vec::new();
+        info.push("=== Recent Logs ===".to_string());
+        
+        // Get logs from current session
+        match crate::utils::logger::get_current_session_logs() {
+            Ok(logs) => {
+                // Session logs already include headers, just add them
+                info.push(logs);
+            }
+            Err(e) => {
+                info.push(format!("Error retrieving session logs: {}", e));
+                info.push("(Check ~/.local/share/lazymvn/logs/ for full logs)".to_string());
+            }
+        }
+        
+        info.push(String::new());
+        info
     }
 
     /// Add debug report footer

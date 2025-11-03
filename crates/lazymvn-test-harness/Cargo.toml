@@ -1,0 +1,21 @@
+[package]
+name = "lazymvn-test-harness"
+version = "0.1.0"
+edition = "2021"
+description = "Test harness for lazymvn - exposes TUI operations without the UI"
+
+[dependencies]
+# Use local lazymvn as library
+lazymvn = { path = "../.." }
+
+# Core dependencies
+log = "0.4"
+env_logger = "0.11"
+chrono = "0.4"
+
+[dev-dependencies]
+tempfile = "3.8"
+
+[lib]
+name = "lazymvn_test_harness"
+path = "src/lib.rs"
