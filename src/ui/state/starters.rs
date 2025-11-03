@@ -103,30 +103,36 @@ impl TuiState {
             detection.can_use_exec_java()
         );
 
-        // Find the main class name from FQCN
-        let main_class = fqcn
-            .split('.')
-            .next_back()
-            .unwrap_or(fqcn);
-
-        // Choose the appropriate command based on detection
-        let (goal, arg) = if detection.can_use_spring_boot_run() {
-            log::info!("Using spring-boot:run for starter {}", main_class);
-            let spring_boot_arg = format!("-Dspring-boot.run.main-class={}", fqcn);
-            ("spring-boot:run", spring_boot_arg)
+        // Determine launch strategy
+        let strategy = if detection.can_use_spring_boot_run() {
+            log::info!("Using spring-boot:run for starter {}", fqcn);
+            crate::maven::LaunchStrategy::SpringBootRun
         } else {
-            log::info!("Using exec:java fallback for starter {} (no spring-boot plugin detected)", main_class);
-            let exec_arg = format!("-Dexec.mainClass={}", fqcn);
-            ("exec:java", exec_arg)
+            log::info!("Using exec:java fallback for starter {} (no spring-boot plugin detected)", fqcn);
+            crate::maven::LaunchStrategy::ExecJava
         };
 
-        let args = vec![goal, &arg];
+        // Build JVM args (logging, Spring properties, etc.)
+        let jvm_args = self.build_jvm_args_for_launcher();
+        
+        // Build complete launch command with proper parameters
+        let command_parts = crate::maven::detection::build_launch_command(
+            strategy,
+            Some(fqcn),
+            &[],  // profiles (empty for starters)
+            &jvm_args,
+            detection.packaging.as_deref(),
+            detection.spring_boot_version.as_deref(),
+        );
 
         log::info!(
             "Launching starter {} with command: mvn {}",
-            main_class,
-            args.join(" ")
+            fqcn,
+            command_parts.join(" ")
         );
+
+        // Convert to &str for execute_maven_command
+        let args: Vec<&str> = command_parts.iter().map(|s| s.as_str()).collect();
 
         // Use the existing command execution method with 's' key for visual feedback
         // Note: use_file_flag=false because -pl works better in all scenarios
