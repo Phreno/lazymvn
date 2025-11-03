@@ -157,7 +157,11 @@ pub fn simplified_footer_title(
 /// Build the simplified footer body with module commands
 ///
 /// Shows all available module commands like [b]uild, [c]ompile, [t]est, etc.
-pub fn simplified_footer_body(_view: CurrentView) -> Line<'static> {
+/// Highlights the current/last command based on its execution state.
+pub fn simplified_footer_body(
+    _view: CurrentView,
+    last_command_status: Option<&crate::ui::state::LastCommandStatus>,
+) -> Line<'static> {
     let mut spans: Vec<Span<'static>> = Vec::new();
     spans.push(Span::raw(" "));
 
@@ -166,7 +170,47 @@ pub fn simplified_footer_body(_view: CurrentView) -> Line<'static> {
         if idx > 0 {
             spans.push(Span::raw(" "));
         }
-        append_bracketed_word(&mut spans, action.prefix, action.key_display, action.suffix);
+
+        // Check if this is the active/last command
+        let is_active_command = last_command_status
+            .map(|status| {
+                // Match command key with action key
+                status.command_key.to_string() == action.key_display
+            })
+            .unwrap_or(false);
+
+        if is_active_command {
+            // Apply colored style based on command state
+            let style = if let Some(status) = last_command_status {
+                use crate::ui::state::CommandExecutionState;
+                match status.state {
+                    CommandExecutionState::Running => ratatui::style::Style::default()
+                        .fg(ratatui::style::Color::Cyan)
+                        .add_modifier(ratatui::style::Modifier::BOLD),
+                    CommandExecutionState::Success => ratatui::style::Style::default()
+                        .fg(ratatui::style::Color::Green)
+                        .add_modifier(ratatui::style::Modifier::BOLD),
+                    CommandExecutionState::Failure => ratatui::style::Style::default()
+                        .fg(ratatui::style::Color::Red)
+                        .add_modifier(ratatui::style::Modifier::BOLD),
+                }
+            } else {
+                ratatui::style::Style::default()
+            };
+
+            // Add styled command with brackets
+            if !action.prefix.is_empty() {
+                spans.push(Span::styled(action.prefix.to_string(), style));
+            }
+            spans.push(Span::styled(
+                format!("[{}]", action.key_display),
+                style,
+            ));
+            spans.push(Span::styled(action.suffix.to_string(), style));
+        } else {
+            // Normal rendering without highlight
+            append_bracketed_word(&mut spans, action.prefix, action.key_display, action.suffix);
+        }
     }
 
     Line::from(spans)
@@ -235,7 +279,7 @@ mod tests {
 
     #[test]
     fn test_simplified_footer_body_contains_all_actions() {
-        let line = simplified_footer_body(CurrentView::Modules);
+        let line = simplified_footer_body(CurrentView::Modules, None);
         let text: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
 
         // Check all actions are present (check substrings because brackets split spans)

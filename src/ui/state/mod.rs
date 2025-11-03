@@ -25,7 +25,7 @@ mod tabs;
 mod types;
 mod utilities;
 
-pub use project_tab::ProjectTab;
+pub use project_tab::{CommandExecutionState, LastCommandStatus, ProjectTab};
 
 // Re-export types
 pub use types::{

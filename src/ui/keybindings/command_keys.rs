@@ -15,37 +15,37 @@ pub fn handle_maven_command(key: KeyEvent, state: &mut TuiState) -> bool {
     match key.code {
         KeyCode::Char('b') if !has_modifiers => {
             log::info!("Execute: clean install");
-            state.run_selected_module_command(&["clean", "install"]);
+            state.run_selected_module_command_with_key(&["clean", "install"], Some('b'));
             true
         }
         KeyCode::Char('C') if !has_modifiers => {
             log::info!("Execute: clean");
-            state.run_selected_module_command(&["clean"]);
+            state.run_selected_module_command_with_key(&["clean"], Some('C'));
             true
         }
         KeyCode::Char('c') if !has_modifiers => {
             log::info!("Execute: compile");
-            state.run_selected_module_command(&["compile"]);
+            state.run_selected_module_command_with_key(&["compile"], Some('c'));
             true
         }
         KeyCode::Char('k') if !has_modifiers => {
             log::info!("Execute: package");
-            state.run_selected_module_command(&["package"]);
+            state.run_selected_module_command_with_key(&["package"], Some('k'));
             true
         }
         KeyCode::Char('t') if !has_modifiers => {
             log::info!("Execute: test");
-            state.run_selected_module_command(&["test"]);
+            state.run_selected_module_command_with_key(&["test"], Some('t'));
             true
         }
         KeyCode::Char('i') if !has_modifiers => {
             log::info!("Execute: install");
-            state.run_selected_module_command(&["install"]);
+            state.run_selected_module_command_with_key(&["install"], Some('i'));
             true
         }
         KeyCode::Char('d') if !has_modifiers => {
             log::info!("Execute: dependency:tree");
-            state.run_selected_module_command(&["dependency:tree"]);
+            state.run_selected_module_command_with_key(&["dependency:tree"], Some('d'));
             true
         }
         KeyCode::Char('s') if !has_modifiers => {

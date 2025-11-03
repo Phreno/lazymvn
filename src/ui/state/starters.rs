@@ -94,8 +94,8 @@ impl TuiState {
             args.join(" ")
         );
 
-        // Use the existing command execution method
-        self.run_selected_module_command_with_options(&args, true);
+        // Use the existing command execution method with 's' key for visual feedback
+        self.run_selected_module_command_with_key_and_options(&args, true, Some('s'));
     }
 
     pub fn run_preferred_starter(&mut self) {

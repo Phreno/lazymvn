@@ -14,6 +14,26 @@ use crate::maven;
 use crate::ui::state::{BuildFlag, MavenProfile, ModuleOutput, OutputMetrics};
 use crate::utils::watcher::FileWatcher;
 
+/// Status of a command execution
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CommandExecutionState {
+    /// Command is currently running
+    Running,
+    /// Command completed successfully
+    Success,
+    /// Command failed
+    Failure,
+}
+
+/// Information about the last executed command
+#[derive(Clone, Debug)]
+pub struct LastCommandStatus {
+    /// The key that triggered the command (b, c, t, etc.)
+    pub command_key: char,
+    /// The execution state
+    pub state: CommandExecutionState,
+}
+
 /// A project tab representing a complete Maven project
 pub struct ProjectTab {
     pub id: usize,
@@ -38,6 +58,7 @@ pub struct ProjectTab {
     pub command_start_time: Option<Instant>,
     pub running_process_pid: Option<u32>,
     pub command_receiver: Option<mpsc::Receiver<maven::CommandUpdate>>,
+    pub last_command_status: Option<LastCommandStatus>,
 
     // Module outputs cache
     pub module_outputs: HashMap<String, ModuleOutput>,
@@ -197,6 +218,7 @@ impl ProjectTab {
             command_start_time: None,
             running_process_pid: None,
             command_receiver: None,
+            last_command_status: None,
             module_outputs: HashMap::new(),
             config,
             module_preferences,

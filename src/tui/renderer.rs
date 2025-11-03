@@ -155,6 +155,7 @@ pub fn draw<B: Backend>(
         );
 
         // Render footer
+        let last_command_status = state.get_active_tab().last_command_status.as_ref();
         render_footer(
             f,
             footer_area,
@@ -164,6 +165,7 @@ pub fn draw<B: Backend>(
             &state.active_profile_names(),
             &state.enabled_flag_names(),
             state.search_status_line(),
+            last_command_status,
         );
 
         // Render projects popup on top if shown

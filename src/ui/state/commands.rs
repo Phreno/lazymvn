@@ -82,15 +82,26 @@ impl TuiState {
 
     /// Run Maven command for the selected module
     pub fn run_selected_module_command(&mut self, args: &[&str]) {
-        self.run_selected_module_command_with_options(args, false);
+        self.run_selected_module_command_with_key(args, None);
+    }
+
+    /// Run Maven command for the selected module with command key for UI feedback
+    pub fn run_selected_module_command_with_key(&mut self, args: &[&str], command_key: Option<char>) {
+        self.run_selected_module_command_with_key_and_options(args, false, command_key);
     }
 
     /// Run Maven command with option to use -f instead of -pl
     pub fn run_selected_module_command_with_options(&mut self, args: &[&str], use_file_flag: bool) {
+        self.run_selected_module_command_with_key_and_options(args, use_file_flag, None);
+    }
+
+    /// Run Maven command with all options including command key for UI feedback
+    pub fn run_selected_module_command_with_key_and_options(&mut self, args: &[&str], use_file_flag: bool, command_key: Option<char>) {
         log::debug!(
-            "run_selected_module_command called with args: {:?}, use_file_flag: {}",
+            "run_selected_module_command called with args: {:?}, use_file_flag: {}, command_key: {:?}",
             args,
-            use_file_flag
+            use_file_flag,
+            command_key
         );
 
         let tab = self.get_active_tab_mut();
@@ -99,6 +110,14 @@ impl TuiState {
         if tab.is_command_running {
             log::warn!("Command already running, ignoring new command request");
             return;
+        }
+
+        // Mark command as running if we have a command key
+        if let Some(key) = command_key {
+            tab.last_command_status = Some(crate::ui::state::LastCommandStatus {
+                command_key: key,
+                state: crate::ui::state::CommandExecutionState::Running,
+            });
         }
 
         let module = self.selected_module().map(|m| m.to_string());
@@ -300,6 +319,11 @@ impl TuiState {
                     tab.running_process_pid = None;
                     tab.output_metrics = None;
 
+                    // Update command status to success
+                    if let Some(status) = &mut tab.last_command_status {
+                        status.state = crate::ui::state::CommandExecutionState::Success;
+                    }
+
                     need_notification = Some((
                         "LazyMVN - Build Complete".to_string(),
                         "Maven command completed successfully ✓".to_string(),
@@ -314,6 +338,11 @@ impl TuiState {
                     tab.command_receiver = None;
                     tab.running_process_pid = None;
                     tab.output_metrics = None;
+
+                    // Update command status to failure
+                    if let Some(status) = &mut tab.last_command_status {
+                        status.state = crate::ui::state::CommandExecutionState::Failure;
+                    }
 
                     need_notification = Some((
                         "LazyMVN - Build Failed".to_string(),

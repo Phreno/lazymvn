@@ -86,6 +86,7 @@ pub fn render_footer(
     active_profiles: &[String],
     enabled_flags: &[String],
     search_status_line: Option<Line<'static>>,
+    last_command_status: Option<&crate::ui::state::LastCommandStatus>,
 ) {
     let _ = focus; // Not needed in simplified footer
 
@@ -127,7 +128,7 @@ pub fn render_footer(
         .border_type(ratatui::widgets::BorderType::Rounded)
         .border_style(Theme::FOOTER_BOX_BORDER_STYLE);
     let commands_paragraph =
-        Paragraph::new(crate::ui::keybindings::simplified_footer_body(view)).block(commands_block);
+        Paragraph::new(crate::ui::keybindings::simplified_footer_body(view, last_command_status)).block(commands_block);
     f.render_widget(commands_paragraph, chunks[2]);
 
     // Optional search status line
