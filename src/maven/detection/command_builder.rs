@@ -58,14 +58,9 @@ fn build_spring_boot_command(
         command_parts.push(jvm_arg);
     }
 
-    let goal = if is_spring_boot_1x && spring_boot_version.is_some() {
-        format!(
-            "org.springframework.boot:spring-boot-maven-plugin:{}:run",
-            spring_boot_version.unwrap()
-        )
-    } else {
-        "spring-boot:run".to_string()
-    };
+    // For Spring Boot 1.x and 2.x, use the same goal
+    // The plugin version must be defined in the POM, not in the command line
+    let goal = "spring-boot:run".to_string();
 
     command_parts.push(goal.clone());
 
@@ -215,9 +210,10 @@ mod tests {
         );
         assert!(cmd.iter().any(|arg| arg.contains("-Xmx512m")));
         assert!(cmd.iter().any(|arg| arg.contains("-Ddebug=true")));
+        // Spring Boot 1.x now uses the same goal as 2.x (plugin version from POM)
         assert_eq!(
             cmd.last().unwrap(),
-            "org.springframework.boot:spring-boot-maven-plugin:1.2.2.RELEASE:run"
+            "spring-boot:run"
         );
     }
 
@@ -339,6 +335,36 @@ mod tests {
             "Should have -Drun.jvmArguments parameter for Spring Boot 1.x"
         );
 
-        assert!(command.iter().any(|arg| arg.contains("org.springframework.boot:spring-boot-maven-plugin:1.5.10.RELEASE:run")));
+        // Spring Boot 1.x now uses the same goal as 2.x (plugin version from POM)
+        assert!(command.iter().any(|arg| arg == "spring-boot:run"));
+    }
+
+    #[test]
+    fn test_spring_boot_1x_version_1_4_13_fix() {
+        // Regression test for Spring Boot 1.4.13 plugin resolution issue
+        // Bug: LazyMVN was generating "org.springframework.boot:spring-boot-maven-plugin:1.4.13:run"
+        // which caused Maven to try downloading the plugin as a JAR
+        // Fix: Now uses "spring-boot:run" for all versions (plugin version must be in POM)
+        
+        let command = build_launch_command(
+            LaunchStrategy::SpringBootRun,
+            None,
+            &[],
+            &[],
+            Some("jar"),
+            Some("1.4.13"),
+        );
+
+        // Should NOT contain the invalid fully-qualified plugin syntax
+        assert!(
+            !command.iter().any(|arg| arg.contains("org.springframework.boot:spring-boot-maven-plugin:1.4.13")),
+            "Should NOT use fully-qualified plugin syntax with version"
+        );
+
+        // Should use the simple goal that relies on POM configuration
+        assert!(
+            command.iter().any(|arg| arg == "spring-boot:run"),
+            "Should use 'spring-boot:run' goal"
+        );
     }
 }

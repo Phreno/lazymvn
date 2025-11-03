@@ -124,7 +124,7 @@ fn test_starters_spring_boot_run_includes_main_class() {
     );
 }
 
-/// Test that Spring Boot 1.x uses correct version-specific goal
+/// Test that Spring Boot 1.x now uses simple goal (fix for plugin resolution issue)
 #[test]
 fn test_starters_spring_boot_1x_uses_full_gav() {
     let command = build_launch_command(
@@ -136,12 +136,19 @@ fn test_starters_spring_boot_1x_uses_full_gav() {
         Some("1.2.2"),
     );
 
-    // Spring Boot 1.x should use full GAV
+    // After fix: Spring Boot 1.x uses the same simple goal as 2.x
+    // The plugin version must be defined in the POM
     assert!(
-        command.iter().any(|arg| 
-            arg.contains("org.springframework.boot:spring-boot-maven-plugin:1.2.2:run")
-        ),
-        "Spring Boot 1.x should use full GAV: {:?}",
+        command.iter().any(|arg| arg == "spring-boot:run"),
+        "Spring Boot 1.x should use 'spring-boot:run' goal (fix for plugin resolution): {:?}",
         command
+    );
+
+    // Should NOT use the old buggy fully-qualified syntax
+    assert!(
+        !command.iter().any(|arg| 
+            arg.contains("org.springframework.boot:spring-boot-maven-plugin:1.2.2")
+        ),
+        "Spring Boot 1.x should NOT use fully-qualified syntax with version (causes plugin JAR error)"
     );
 }
