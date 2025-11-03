@@ -29,10 +29,10 @@ log4j: Finished configuring.
 
 ... (code de l'application démarre)
 
-log4j: Parsing for [fr.company.branch.fwmc] with value=[INFO, CONSOLE].  ← RE-CONFIGURATION ❌
+log4j: Parsing for [fr.company.branch.foo] with value=[INFO, CONSOLE].  ← RE-CONFIGURATION ❌
 log4j: Parsing for [org.springframework] with value=[INFO, CONSOLE].   ← RE-CONFIGURATION ❌
 ...
-[28/10/2025 09:38:52:180][INFO ] fr.company.branch.fwmc...  ← ANCIEN FORMAT ❌
+[28/10/2025 09:38:52:180][INFO ] fr.company.branch.foo...  ← ANCIEN FORMAT ❌
 ```
 
 **Entre "Finished configuring" et la première ligne de log applicatif, l'application a RE-CONFIGURÉ Log4j avec son propre fichier !**
@@ -186,11 +186,11 @@ log4j: Finished configuring.
 
 ... (application démarre, re-configure Log4j)
 
-log4j: Parsing for [fr.company.branch.fwmc] with value=[INFO, CONSOLE].
-[28/10/2025 09:38:52:180][INFO ] fr.company.branch.fwmc...  ← ANCIEN FORMAT
+log4j: Parsing for [fr.company.branch.foo] with value=[INFO, CONSOLE].
+[28/10/2025 09:38:52:180][INFO ] fr.company.branch.foo...  ← ANCIEN FORMAT
 
 [LazyMVN Agent] Log4j reconfigured with: C:/Users/.../log4j-override-ec936686.properties
-[INFO][fr.company.branch.fwmc] Constructeur : initialisation du logger : OK  ← NOUVEAU FORMAT ✅
+[INFO][fr.company.branch.foo] Constructeur : initialisation du logger : OK  ← NOUVEAU FORMAT ✅
 [DEBUG][fr.company.branch.assemblage] Starting ApplicationStarter...  ← DEBUG LEVEL ✅
 ```
 
@@ -215,7 +215,7 @@ log4j: Parsing for [fr.company.branch.fwmc] with value=[INFO, CONSOLE].
 
 1. Lancer avec LazyMVN
 2. Observer les logs : format `[INFO][package]` ✅
-3. Vérifier les niveaux : WARN pour fwmc, DEBUG pour assemblage ✅
+3. Vérifier les niveaux : WARN pour foo, DEBUG pour assemblage ✅
 
 ### **Phase 4 : Finaliser** (30 min)
 

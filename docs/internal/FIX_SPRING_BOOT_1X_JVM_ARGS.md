@@ -6,7 +6,7 @@
 
 ## Problem Description
 
-When running a Spring Boot 1.2.2.RELEASE application, the log filtering and formatting configured in `lazymvn.toml` were completely ignored. Neither the custom log format (`[%p][%c] %m%n`) nor the package-level filtering (`fwmc.internal.core=WARN`) were applied.
+When running a Spring Boot 1.2.2.RELEASE application, the log filtering and formatting configured in `lazymvn.toml` were completely ignored. Neither the custom log format (`[%p][%c] %m%n`) nor the package-level filtering (`foo.internal.core=WARN`) were applied.
 
 ### Root Cause
 
@@ -14,12 +14,12 @@ LazyMVN was using the Spring Boot 2.x+ property syntax (`-Dspring-boot.run.jvmAr
 
 **Example of incorrect command (Spring Boot 1.x)**:
 ```bash
-mvn spring-boot:run -Dspring-boot.run.jvmArguments="-Dlog4j.logger.fwmc.internal.core=WARN"
+mvn spring-boot:run -Dspring-boot.run.jvmArguments="-Dlog4j.logger.foo.internal.core=WARN"
 ```
 
 **Correct command for Spring Boot 1.x**:
 ```bash
-mvn spring-boot:run -Drun.jvmArguments="-Dlog4j.logger.fwmc.internal.core=WARN"
+mvn spring-boot:run -Drun.jvmArguments="-Dlog4j.logger.foo.internal.core=WARN"
 ```
 
 ### Impact
@@ -168,19 +168,19 @@ Added comprehensive test coverage:
 log_format = "[%p][%c] %m%n"
 
 [[packages]]
-name = "fwmc.internal.core"
+name = "foo.internal.core"
 level = "WARN"
 ```
 
 **Before fix**:
 - Command: `mvn spring-boot:run -Dspring-boot.run.jvmArguments="..."`
 - Result: ❌ Original format `[27/10/2025 10:58:56:190]` still shown
-- Result: ❌ DEBUG logs from `fwmc.internal.core` still appearing
+- Result: ❌ DEBUG logs from `foo.internal.core` still appearing
 
 **After fix**:
 - Command: `mvn spring-boot:run -Drun.jvmArguments="..."`
-- Expected: ✅ Format changed to `[DEBUG][fwmc.internal.core] message`
-- Expected: ✅ Only WARN+ logs from `fwmc.internal.core` shown
+- Expected: ✅ Format changed to `[DEBUG][foo.internal.core] message`
+- Expected: ✅ Only WARN+ logs from `foo.internal.core` shown
 
 ## Files Modified
 

@@ -53,10 +53,10 @@ cargo build --release
 # Dans lazymvn.toml:
 [logging]
 packages = [
-    { name = "fwmc.internal.core", level = "WARN" }
+    { name = "foo.internal.core", level = "WARN" }
 ]
 
-# Lancer l'application et vérifier que les logs fwmc.internal.core
+# Lancer l'application et vérifier que les logs foo.internal.core
 # sont filtrés au niveau WARN
 ```
 
@@ -65,14 +65,14 @@ Après le fix, les logs de debug montreront :
 ```
 [2025-10-27 10:05:43.813] DEBUG - Generated 3 JVM args total
 [2025-10-27 10:05:43.813] DEBUG -   JVM arg: -Dlog4j.configuration=file:///...
-[2025-10-27 10:05:43.813] DEBUG -   JVM arg: -Dlogging.level.fwmc.internal.core=WARN
-[2025-10-27 10:05:43.813] DEBUG -   JVM arg: -Dlog4j.logger.fwmc.internal.core=WARN  ← NOUVEAU
+[2025-10-27 10:05:43.813] DEBUG -   JVM arg: -Dlogging.level.foo.internal.core=WARN
+[2025-10-27 10:05:43.813] DEBUG -   JVM arg: -Dlog4j.logger.foo.internal.core=WARN  ← NOUVEAU
 [2025-10-27 10:05:43.813] DEBUG -   JVM arg: -Dspring.config.additional-location=file:///...
 ```
 
 Et la ligne de commande Maven :
 ```
-mvn.cmd ... "-Dspring-boot.run.jvmArguments=-Dlog4j.configuration=... -Dlogging.level.fwmc.internal.core=WARN -Dlog4j.logger.fwmc.internal.core=WARN ..." spring-boot:run
+mvn.cmd ... "-Dspring-boot.run.jvmArguments=-Dlog4j.configuration=... -Dlogging.level.foo.internal.core=WARN -Dlog4j.logger.foo.internal.core=WARN ..." spring-boot:run
 ```
 
 ## Résultat

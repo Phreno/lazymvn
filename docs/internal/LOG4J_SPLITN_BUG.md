@@ -232,7 +232,7 @@ Et dans la sortie de l'application :
 
 ```
 [INFO][fr.company.branch.assemblage] ...  ← Format LazyMVN appliqué ✅
-[WARN][fr.company.branch.fwmc] ...         ← Niveau WARN respecté ✅
+[WARN][fr.company.branch.foo] ...         ← Niveau WARN respecté ✅
 [DEBUG][fr.company.branch.assemblage] ...  ← Niveau DEBUG respecté ✅
 ```
 

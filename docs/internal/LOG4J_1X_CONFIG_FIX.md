@@ -95,7 +95,7 @@ pub(super) fn build_jvm_args_for_launcher(&self) -> Vec<String> {
    [logging]
    log_format = "[%p][%c] %m%n"
    packages = [
-     { name = "fr.company.branch.fwmc", level = "WARN" },
+     { name = "fr.company.branch.foo", level = "WARN" },
      { name = "org.springframework", level = "WARN" },
      { name = "com.couchbase", level = "WARN" },
    ]

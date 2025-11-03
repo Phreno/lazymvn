@@ -140,14 +140,14 @@ lazymvn --debug
 ```
 [INFO][fr.company.branch.assemblage] Starting ApplicationStarter...
 [DEBUG][fr.company.branch.assemblage] Loaded configuration from...
-[WARN][fr.company.branch.fwmc] Configuration warning...
+[WARN][fr.company.branch.foo] Configuration warning...
 [INFO][org.springframework.data.repository.config.RepositoryConfigurationDelegate] Bootstrapping Spring Data...
 ```
 
 **❌ ANCIEN FORMAT (si agent échoue) :**
 ```
-[28/10/2025 10:06:28:716][INFO ] fr.company.branch.fwmc...
-[28/10/2025 10:06:28:817][INFO ] fr.company.branch.fwmc...
+[28/10/2025 10:06:28:716][INFO ] fr.company.branch.foo...
+[28/10/2025 10:06:28:817][INFO ] fr.company.branch.foo...
 ```
 
 ### 5️⃣ Vérifier les niveaux de log
@@ -156,7 +156,7 @@ lazymvn --debug
 
 ```toml
 packages = [
- { name = "fr.company.branch.fwmc"      , level = "WARN" } ,  ← Seulement WARN et ERROR
+ { name = "fr.company.branch.foo"      , level = "WARN" } ,  ← Seulement WARN et ERROR
  { name = "org.springframework"       , level = "WARN" } ,  ← Seulement WARN et ERROR
  { name = "com.couchbase"             , level = "WARN" } ,  ← Seulement WARN et ERROR
  { name = "fr.company.branch.assemblage", level = "DEBUG" },  ← Tous les logs (DEBUG+)
@@ -165,7 +165,7 @@ packages = [
 
 **Vérifications :**
 - ✅ `fr.company.branch.assemblage` : Logs **DEBUG** et **INFO** visibles
-- ✅ `fr.company.branch.fwmc` : Seulement logs **WARN** et **ERROR** (pas de DEBUG/INFO)
+- ✅ `fr.company.branch.foo` : Seulement logs **WARN** et **ERROR** (pas de DEBUG/INFO)
 - ✅ `org.springframework` : Seulement logs **WARN** et **ERROR**
 - ✅ `com.couchbase` : Seulement logs **WARN** et **ERROR**
 
@@ -198,7 +198,7 @@ Cela me permettra de :
 (puis TOUS les logs au format LazyMVN)
 [INFO][fr.company.branch.assemblage] ...
 [DEBUG][fr.company.branch.assemblage] ...
-[WARN][fr.company.branch.fwmc] ...
+[WARN][fr.company.branch.foo] ...
 ```
 
 **Conclusion** : ✅ **FIX RÉUSSI !** L'agent force la reconfiguration suffisamment de fois pour persister.
@@ -297,7 +297,7 @@ public Log4jJbossLoggerFactory() {
 - [ ] Lancer Spring Boot (`s`)
 - [ ] Observer logs de l'agent (5 tentatives)
 - [ ] Vérifier format logs après 10 secondes
-- [ ] Vérifier niveaux de log (WARN pour fwmc, DEBUG pour assemblage)
+- [ ] Vérifier niveaux de log (WARN pour foo, DEBUG pour assemblage)
 - [ ] Copier debug report (`Shift+Y`)
 - [ ] Partager résultats
 

@@ -68,8 +68,8 @@ Maven command: ... -Drun.jvmArguments="..." org.springframework.boot:spring-boot
 ```
 
 ✅ **Application logs formatted correctly**:
-- Custom format applied: `[DEBUG][fwmc.internal.core] message`
-- Package filtering working: Only WARN+ logs from `fwmc.internal.core`
+- Custom format applied: `[DEBUG][foo.internal.core] message`
+- Package filtering working: Only WARN+ logs from `foo.internal.core`
 
 ## Configuration
 
@@ -79,7 +79,7 @@ Your existing `lazymvn.toml` configuration should now work correctly:
 log_format = "[%p][%c] %m%n"
 
 [[packages]]
-name = "fwmc.internal.core"
+name = "foo.internal.core"
 level = "WARN"
 ```
 

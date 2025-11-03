@@ -141,7 +141,7 @@ L'agent est automatiquement activé dès qu'une configuration Log4j est présent
 log_format = "[%p][%c] %m%n"
 
 [[logging.packages]]
-name = "fr.company.foo.fwmc"
+name = "fr.company.foo.foo"
 level = "WARN"
 
 [[logging.packages]]
@@ -197,7 +197,7 @@ java -javaagent:target/log4j-reconfig-agent-0.1.0.jar \
 ```
 [INFO][fr.company.foo.assemblage] Starting ApplicationStarter...
 [DEBUG][fr.company.foo.assemblage] Loaded configuration from...
-[WARN][fr.company.foo.fwmc] Configuration warning...
+[WARN][fr.company.foo.foo] Configuration warning...
 ```
 
 **Ancien format (si agent échoue):**
@@ -214,7 +214,7 @@ log4j.appender.CONSOLE=org.apache.log4j.ConsoleAppender
 log4j.appender.CONSOLE.layout=org.apache.log4j.PatternLayout
 log4j.appender.CONSOLE.layout.ConversionPattern=[%p][%c] %m%n
 
-log4j.logger.fr.company.foo.fwmc=WARN
+log4j.logger.fr.company.foo.foo=WARN
 log4j.logger.fr.company.foo.assemblage=DEBUG
 ```
 
@@ -232,7 +232,7 @@ log4j.logger.fr.company.foo.assemblage=DEBUG
    log4j: Setting property [conversionPattern] to [[%p][%c] %m%n]  ← LAZYMVN ✅
    log4j: Finished configuring.
    ... (application starts)
-   log4j: Parsing for [fr.company.foo.fwmc] with value=[INFO, CONSOLE]  ← RE-CONFIG ❌
+   log4j: Parsing for [fr.company.foo.foo] with value=[INFO, CONSOLE]  ← RE-CONFIG ❌
    [28/10/2025 09:38:52:180][INFO] ...  ← OLD FORMAT ❌
    ```
 
@@ -276,13 +276,13 @@ lazymvn --debug
 [LazyMVN Agent] ✓ Log4j successfully reconfigured with LazyMVN config
 [INFO][fr.company.foo.assemblage] Starting ApplicationStarter...
 [DEBUG][fr.company.foo.assemblage] Loaded configuration...
-[WARN][fr.company.foo.fwmc] Configuration warning...
+[WARN][fr.company.foo.foo] Configuration warning...
 ```
 
 ### Validation finale
 
 - ✅ Format `[INFO][package]` au lieu de `[27/10/2025 21:41:07:406][INFO]`
-- ✅ Niveau WARN pour `fr.company.foo.fwmc`
+- ✅ Niveau WARN pour `fr.company.foo.foo`
 - ✅ Niveau DEBUG pour `fr.company.foo.assemblage`
 - ✅ Pas d'impact sur le code de l'application
 - ✅ Fonctionne avec tous les projets Spring Boot + Log4j 1.x

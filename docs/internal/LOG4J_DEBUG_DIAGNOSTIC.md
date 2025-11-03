@@ -30,13 +30,13 @@ Et Maven confirme qu'il le reçoit :
 Les logs de l'application restent dans l'ancien format :
 
 ```
-[27/10/2025 21:41:07:406][INFO ] fr.company.branch.fwmc.internal.api.RoaWebMvcRegistrationsAdapter - Mapped ...
+[27/10/2025 21:41:07:406][INFO ] fr.company.branch.foo.internal.api.RoaWebMvcRegistrationsAdapter - Mapped ...
 ```
 
 Au lieu du format LazyMVN attendu :
 
 ```
-[INFO][fr.company.branch.fwmc] Mapped ...
+[INFO][fr.company.branch.foo] Mapped ...
 ```
 
 ## Hypothèse : `Log4jJbossLoggerFactory` ignore la configuration externe
@@ -44,7 +44,7 @@ Au lieu du format LazyMVN attendu :
 Votre application utilise une **usine de logger personnalisée JBoss** :
 
 ```
-log4j:WARN No appenders could be found for logger (fr.company.branch.fwmc.internal.jboss.Log4jJbossLoggerFactory).
+log4j:WARN No appenders could be found for logger (fr.company.branch.foo.internal.jboss.Log4jJbossLoggerFactory).
 ```
 
 Cette usine pourrait :

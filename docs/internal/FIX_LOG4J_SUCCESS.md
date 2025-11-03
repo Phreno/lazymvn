@@ -51,8 +51,8 @@ for (int attempt = 1; attempt <= 5; attempt++) {
 
 **Logs AVANT les reconfigurations** (ancien format):
 ```
-[28/10/2025 10:20:45:487][INFO ] fr.foo.foo.fwmc.internal.core...
-[28/10/2025 10:20:45:502][INFO ] fr.foo.foo.fwmc.internal.core...
+[28/10/2025 10:20:45:487][INFO ] fr.foo.foo.foo.internal.core...
+[28/10/2025 10:20:45:502][INFO ] fr.foo.foo.foo.internal.core...
 ```
 
 **Agent exécute les 5 reconfigurations**:
@@ -96,7 +96,7 @@ for (int attempt = 1; attempt <= 5; attempt++) {
 | **Configuration persiste** | Non (écrasée par factory) | **Oui** ✅ |
 | **Reconfigurations agent** | 1 fois (t=2s) | 5 fois (t=2-10s) |
 | **Logs LazyMVN visibles** | Partiels (premiers seulement) | **Complets** ✅ |
-| **Niveaux log respectés** | Non | **Oui** (WARN pour fwmc, DEBUG pour assemblage) ✅ |
+| **Niveaux log respectés** | Non | **Oui** (WARN pour foo, DEBUG pour assemblage) ✅ |
 
 ---
 
@@ -174,7 +174,7 @@ log_format = "[%p][%c] %m%n"
 
 # Niveaux de log par package
 packages = [
-    { name = "fr.foo.foo.fwmc", level = "WARN" },
+    { name = "fr.foo.foo.foo", level = "WARN" },
     { name = "fr.foo.foo.assemblage", level = "DEBUG" },
 ]
 ```

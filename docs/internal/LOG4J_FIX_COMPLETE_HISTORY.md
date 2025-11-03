@@ -244,8 +244,8 @@ User must test with real Spring Boot 1.x application and verify:
 -Dlog4j.defaultInitOverride=true
 -Dlog4j.configuratorClass=org.apache.log4j.PropertyConfigurator
 -Dlog4j.configuration=file:///C:/Users/.../lazymvn/log4j/log4j-override-ec936686.properties
--Dlogging.level.fr.company.branch.fwmc=WARN
--Dlog4j.logger.fr.company.branch.fwmc=WARN
+-Dlogging.level.fr.company.branch.foo=WARN
+-Dlog4j.logger.fr.company.branch.foo=WARN
 -Dlogging.level.org.springframework=WARN
 -Dlog4j.logger.org.springframework=WARN
 -Dlogging.level.com.couchbase=WARN

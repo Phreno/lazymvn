@@ -80,20 +80,20 @@ echo ""
 # Expected JVM args for a configuration like:
 # [logging]
 # packages = [
-#     { name = "fwmc.internal.core", level = "WARN" },
+#     { name = "foo.internal.core", level = "WARN" },
 #     { name = "org.springframework", level = "ERROR" }
 # ]
 
-SIMULATED_JVM_ARGS="-Dlog4j.configuration=file:///path/to/log4j-override.properties -Dlogging.level.fwmc.internal.core=WARN -Dlog4j.logger.fwmc.internal.core=WARN -Dlogging.level.org.springframework=ERROR -Dlog4j.logger.org.springframework=ERROR -Dspring.config.additional-location=file:///path/to/application-override.properties"
+SIMULATED_JVM_ARGS="-Dlog4j.configuration=file:///path/to/log4j-override.properties -Dlogging.level.foo.internal.core=WARN -Dlog4j.logger.foo.internal.core=WARN -Dlogging.level.org.springframework=ERROR -Dlog4j.logger.org.springframework=ERROR -Dspring.config.additional-location=file:///path/to/application-override.properties"
 
-test_jvm_args_contain_log4j_logger "Log4j logger argument for fwmc.internal.core" \
+test_jvm_args_contain_log4j_logger "Log4j logger argument for foo.internal.core" \
     "$SIMULATED_JVM_ARGS" \
-    "fwmc.internal.core" \
+    "foo.internal.core" \
     "WARN"
 
-test_jvm_args_contain_logback_logger "Logback logger argument for fwmc.internal.core" \
+test_jvm_args_contain_logback_logger "Logback logger argument for foo.internal.core" \
     "$SIMULATED_JVM_ARGS" \
-    "fwmc.internal.core" \
+    "foo.internal.core" \
     "WARN"
 
 test_jvm_args_contain_log4j_logger "Log4j logger argument for org.springframework" \

@@ -35,14 +35,14 @@ Now when launching a Spring Boot application with logging configuration:
 ```toml
 [logging]
 packages = [
-    { name = "fwmc.internal.core", level = "WARN" }
+    { name = "foo.internal.core", level = "WARN" }
 ]
 ```
 
 The JVM arguments passed to the application will include:
 ```
--Dlogging.level.fwmc.internal.core=WARN    # For Logback/Spring Boot Logging
--Dlog4j.logger.fwmc.internal.core=WARN     # For Log4j 1.x
+-Dlogging.level.foo.internal.core=WARN    # For Logback/Spring Boot Logging
+-Dlog4j.logger.foo.internal.core=WARN     # For Log4j 1.x
 ```
 
 These are injected into `-Dspring-boot.run.jvmArguments="..."` ensuring they are passed to the application's JVM.
