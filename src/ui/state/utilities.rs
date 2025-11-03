@@ -100,23 +100,48 @@ impl TuiState {
     }
 
     /// Collect output from all tabs
+    /// Active tab shows last 100 lines, other tabs show last 10 lines
     fn collect_all_tabs_output(&self) -> Vec<String> {
         let mut info = Vec::new();
         info.push("=== Tab Outputs ===".to_string());
         
         for (idx, tab) in self.tabs.iter().enumerate() {
-            info.push(format!("--- Tab {} ---", idx + 1));
+            let is_active = idx == self.active_tab_index;
+            let marker = if is_active { " [ACTIVE]" } else { "" };
+            
+            info.push(format!("--- Tab {}{} ---", idx + 1, marker));
             info.push(format!("Project: {:?}", tab.project_root));
+            info.push(format!(
+                "Selected module: {}", 
+                tab.get_selected_module().unwrap_or(&".".to_string())
+            ));
             info.push(format!("Modules: {}", tab.modules.len()));
             info.push(format!("Output lines: {}", tab.command_output.len()));
             
             if !tab.command_output.is_empty() {
-                info.push("Last 10 lines:".to_string());
-                let start = tab.command_output.len().saturating_sub(10);
+                // Active tab: show last 100 lines (or all if fewer)
+                // Other tabs: show last 10 lines for summary
+                let lines_to_show = if is_active { 100 } else { 10 };
+                let start = tab.command_output.len().saturating_sub(lines_to_show);
+                let actual_lines = tab.command_output.len() - start;
+                
+                if is_active && actual_lines < tab.command_output.len() {
+                    info.push(format!(
+                        "(Showing last {} of {} lines)",
+                        actual_lines,
+                        tab.command_output.len()
+                    ));
+                } else if !is_active {
+                    info.push(format!("Last {} lines:", actual_lines));
+                }
+                
                 for line in &tab.command_output[start..] {
                     info.push(format!("  {}", line));
                 }
+            } else {
+                info.push("(No output)".to_string());
             }
+            
             info.push(String::new());
         }
         
