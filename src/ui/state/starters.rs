@@ -55,6 +55,11 @@ impl TuiState {
 
     pub fn run_spring_boot_starter(&mut self, fqcn: &str) {
         log::info!("Running Spring Boot starter: {}", fqcn);
+        
+        // Get module and project root before borrowing tab mutably
+        let module = self.selected_module().map(|s| s.to_string());
+        let project_root = self.get_active_tab().project_root.clone();
+        
         let tab = self.get_active_tab_mut();
 
         // Check if already in cache by iterating through starters
@@ -75,18 +80,47 @@ impl TuiState {
             }
         }
 
+        // Detect Spring Boot capabilities for the selected module
+        let detection = crate::maven::detection::detect_spring_boot_capabilities(
+            &project_root, 
+            module.as_ref().map(|s| s.as_ref())
+        )
+            .unwrap_or_else(|e| {
+                log::warn!("Failed to detect Spring Boot capabilities: {}, using exec:java fallback", e);
+                crate::maven::detection::SpringBootDetection {
+                    has_spring_boot_plugin: false,
+                    has_exec_plugin: false,
+                    main_class: Some(fqcn.to_string()),
+                    packaging: None,
+                    spring_boot_version: None,
+                }
+            });
+
+        log::info!(
+            "Spring Boot detection: plugin={}, can_use_spring_boot_run={}, can_use_exec_java={}",
+            detection.has_spring_boot_plugin,
+            detection.can_use_spring_boot_run(),
+            detection.can_use_exec_java()
+        );
+
         // Find the main class name from FQCN
         let main_class = fqcn
             .split('.')
             .next_back()
             .unwrap_or(fqcn);
 
-        // Build command: mvn spring-boot:run -Dspring-boot.run.main-class=<FQCN>
-        let spring_boot_arg = format!("-Dspring-boot.run.main-class={}", fqcn);
-        let args = vec![
-            "spring-boot:run",
-            &spring_boot_arg,
-        ];
+        // Choose the appropriate command based on detection
+        let (goal, arg) = if detection.can_use_spring_boot_run() {
+            log::info!("Using spring-boot:run for starter {}", main_class);
+            let spring_boot_arg = format!("-Dspring-boot.run.main-class={}", fqcn);
+            ("spring-boot:run", spring_boot_arg)
+        } else {
+            log::info!("Using exec:java fallback for starter {} (no spring-boot plugin detected)", main_class);
+            let exec_arg = format!("-Dexec.mainClass={}", fqcn);
+            ("exec:java", exec_arg)
+        };
+
+        let args = vec![goal, &arg];
 
         log::info!(
             "Launching starter {} with command: mvn {}",
@@ -95,7 +129,7 @@ impl TuiState {
         );
 
         // Use the existing command execution method with 's' key for visual feedback
-        // Note: use_file_flag=false because -pl works better for spring-boot:run in all scenarios
+        // Note: use_file_flag=false because -pl works better in all scenarios
         self.run_selected_module_command_with_key_and_options(&args, false, Some('s'));
     }
 
