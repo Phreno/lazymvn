@@ -141,6 +141,9 @@ fn execute_keybinding_action(action: &KeybindingAction, state: &mut TuiState) {
         KeybindingAction::Dependencies => {
             state.run_selected_module_command(&["dependency:tree"]);
         }
+        KeybindingAction::PurgeLocalRepository => {
+            state.run_selected_module_command(&["dependency:purge-local-repository", "-DreResolve=false"]);
+        }
         
         // Spring Boot
         KeybindingAction::RunStarter => {

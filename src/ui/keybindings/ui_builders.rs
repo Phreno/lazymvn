@@ -15,7 +15,7 @@ pub(crate) struct ModuleAction {
 }
 
 /// Module action key bindings
-pub(crate) const MODULE_ACTIONS: [ModuleAction; 10] = [
+pub(crate) const MODULE_ACTIONS: [ModuleAction; 11] = [
     ModuleAction {
         key_display: "b",
         prefix: "",
@@ -55,6 +55,11 @@ pub(crate) const MODULE_ACTIONS: [ModuleAction; 10] = [
         key_display: "d",
         prefix: "",
         suffix: "eps",
+    },
+    ModuleAction {
+        key_display: "p",
+        prefix: "",
+        suffix: "urge",
     },
     ModuleAction {
         key_display: "y",
@@ -291,17 +296,18 @@ mod tests {
         assert!(text.contains("nstall")); // [i]nstall
         assert!(text.contains("tart")); // [s]tart
         assert!(text.contains("eps")); // [d]eps
+        assert!(text.contains("urge")); // [p]urge
         assert!(text.contains("ank")); // [y]ank output
     }
 
     #[test]
     fn test_module_actions_count() {
-        assert_eq!(MODULE_ACTIONS.len(), 10);
+        assert_eq!(MODULE_ACTIONS.len(), 11);
     }
 
     #[test]
     fn test_module_actions_keys() {
         let keys: Vec<&str> = MODULE_ACTIONS.iter().map(|a| a.key_display).collect();
-        assert_eq!(keys, vec!["b", "C", "c", "k", "t", "i", "s", "d", "y", "?"]);
+        assert_eq!(keys, vec!["b", "C", "c", "k", "t", "i", "s", "d", "p", "y", "?"]);
     }
 }

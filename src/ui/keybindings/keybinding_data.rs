@@ -24,6 +24,7 @@ pub enum KeybindingAction {
     Test,
     Install,
     Dependencies,
+    PurgeLocalRepository,
     
     // Spring Boot
     RunStarter,
@@ -182,6 +183,12 @@ pub fn get_all_keybindings() -> Vec<Keybinding> {
             keys: "d",
             description: "Dependencies (tree)",
             action: Some(KeybindingAction::Dependencies),
+        },
+        Keybinding {
+            category: "Maven Commands",
+            keys: "p",
+            description: "Purge local repository",
+            action: Some(KeybindingAction::PurgeLocalRepository),
         },
         Keybinding {
             category: "Maven Commands",

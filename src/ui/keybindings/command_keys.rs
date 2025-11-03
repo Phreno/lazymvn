@@ -48,6 +48,11 @@ pub fn handle_maven_command(key: KeyEvent, state: &mut TuiState) -> bool {
             state.run_selected_module_command_with_key(&["dependency:tree"], Some('d'));
             true
         }
+        KeyCode::Char('p') if !has_modifiers => {
+            log::info!("Execute: dependency:purge-local-repository");
+            state.run_selected_module_command_with_key(&["dependency:purge-local-repository", "-DreResolve=false"], Some('p'));
+            true
+        }
         KeyCode::Char('s') if !has_modifiers => {
             log::info!("Run Spring Boot starter");
             state.run_preferred_starter();
