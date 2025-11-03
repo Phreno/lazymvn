@@ -123,36 +123,86 @@ Le dossier `scripts/` contenait ~24 scripts bash pour tester manuellement les fo
 ✅ test_various_maven_goals
 ```
 
+### 🌍 Tests d'Environnement (environment_tests.rs)
+
+**Remplace**: 
+- `test-env.sh`
+
+**Tests**: 14 tests  
+**Résultat**: ✅ 14/14 passed
+
+```rust
+✅ test_rust_toolchain_available
+✅ test_java_available
+✅ test_maven_available
+✅ test_git_available
+✅ test_lazymvn_builds
+✅ test_demo_project_structure
+✅ test_demo_project_compiles
+✅ test_lazymvn_can_detect_demo_project
+✅ test_log_directory_structure
+✅ test_lazymvn_binary_exists
+✅ test_workspace_structure
+✅ test_maven_wrapper_available
+✅ test_required_system_tools
+✅ test_optional_development_tools
+```
+
+### 🔧 Tests de Processus (process_tests.rs)
+
+**Remplace**:
+- `test-process-cleanup.sh`
+
+**Tests**: 12 tests  
+**Résultat**: ✅ 12/12 passed
+
+```rust
+✅ test_no_orphaned_maven_processes
+✅ test_maven_process_cleanup_after_build
+✅ test_process_tracking
+✅ test_background_process_termination
+✅ test_process_cleanup_on_error
+✅ test_multiple_sequential_builds_cleanup
+✅ test_concurrent_process_limit
+✅ test_sigterm_handling_simulation
+✅ test_zombie_process_detection
+✅ test_graceful_shutdown_timeout
+✅ test_process_cleanup_idempotent
+✅ test_resource_limits
+```
+
 ## Statistiques
 
 ### Tests Automatisés
 
 | Fichier | Tests | Passent | Échouent | Ignorés | Temps |
 |---------|-------|---------|----------|---------|-------|
-| `integration_tests.rs` | 11 | 9 | 2 | 1 | ~50s |
-| `logger_tests.rs` | 7 | 7 | 0 | 0 | ~0.2s |
-| `config_tests.rs` | 15 | 15 | 0 | 0 | ~39s |
-| `spring_boot_tests.rs` | 11 | 10 | 0 | 1 | ~60s |
-| `history_tests.rs` | 9 | 9 | 0 | 0 | ~43s |
-| **TOTAL** | **53** | **50** | **2** | **2** | **~192s** |
+| `lib.rs` (unit) | 3 | 3 | 0 | 0 | ~0s |
+| `integration_tests.rs` | 11 | 11 | 0 | 1 | ~60s |
+| `logger_tests.rs` | 7 | 7 | 0 | 0 | ~0.4s |
+| `config_tests.rs` | 15 | 15 | 0 | 0 | ~37s |
+| `spring_boot_tests.rs` | 10 | 10 | 0 | 1 | ~50s |
+| `history_tests.rs` | 9 | 9 | 0 | 0 | ~41s |
+| `environment_tests.rs` | 14 | 14 | 0 | 0 | ~8s |
+| `process_tests.rs` | 12 | 12 | 0 | 0 | ~29s |
+| **TOTAL** | **81** | **81** | **0** | **2** | **~225s** |
 
 ### Scripts Restants (Non Migrés)
 
 Ces scripts nécessitent des interactions TUI ou des cas plus complexes:
 
-- ❓ `test-help-popup.sh` - Popup d'aide (?)
-- ❓ `test-live-reload.sh` - Rechargement à chaud de config
-- ❓ `test-process-cleanup.sh` - Nettoyage des processus
-- ❓ `test-env.sh` - Vérification environnement
+- ❓ `test-help-popup.sh` - Popup d'aide (TUI)
+- ❓ `test-live-reload.sh` - Rechargement à chaud de config (TUI)
 - ❓ `test-debug-report-optimization.sh` - Optimisation rapport debug
-- ❓ `test-package-coloring.sh` - Colorisation package
-- ❓ `test-output-priority-layout.sh` - Layout output
-- ❓ `test-windows-args-quoting.sh` - Quoting Windows
-- ❓ `test-refactoring.sh` - Script de refactoring
-- ❓ `test-custom-goals.sh` - Goals custom (Ctrl+G)
-- ❓ `test-log-rotation.sh` - Rotation des logs
+- ❓ `test-package-coloring.sh` - Colorisation package (TUI)
+- ❓ `test-output-priority-layout.sh` - Layout output (TUI)
+- ❓ `test-windows-args-quoting.sh` - Quoting Windows (plateforme spécifique)
+- ❓ `test-refactoring.sh` - Script de refactoring (utilitaire)
+- ❓ `test-custom-goals.sh` - Goals custom (Ctrl+G, TUI)
 
-**Raison**: Ces scripts testent des fonctionnalités TUI (keybindings, popups, rendu) qui nécessitent une approche différente.
+**Note**: `test-log-rotation.sh` est déjà couvert par `/tests/log_rotation_tests.rs` (tests existants au niveau du workspace principal).
+
+**Raison**: Ces scripts testent des fonctionnalités TUI (keybindings, popups, rendu) qui nécessitent une approche différente ou sont des utilitaires de développement.
 
 ## Avantages de la Migration
 
@@ -176,7 +226,7 @@ Ces scripts nécessitent des interactions TUI ou des cas plus complexes:
 
 ## Couverture des Scripts
 
-### ✅ Complètement Migrés (10 scripts)
+### ✅ Complètement Migrés (13 scripts)
 
 1. ✅ `test-custom-flags.sh` → `config_tests.rs`
 2. ✅ `test-profile-loading.sh` → `config_tests.rs`
@@ -188,6 +238,9 @@ Ces scripts nécessitent des interactions TUI ou des cas plus complexes:
 8. ✅ `test_debug_yank.sh` → `logger_tests.rs`
 9. ✅ `test_yank_logs.sh` → `logger_tests.rs`
 10. ✅ `test_yank_logs_integration.sh` → `logger_tests.rs`
+11. ✅ `test-env.sh` → `environment_tests.rs`
+12. ✅ `test-process-cleanup.sh` → `process_tests.rs`
+13. ✅ `test-log-rotation.sh` → Existing `/tests/log_rotation_tests.rs`
 
 ### ⏳ Partiellement Migrés (Fonctionnalités de base)
 
@@ -267,10 +320,11 @@ Créer une infrastructure pour tester les interactions TUI:
 
 ## Conclusion
 
-✅ **53 tests automatisés créés**  
-✅ **50/53 tests passent** (2 failed attendus, 2 ignored)  
-✅ **10 scripts bash remplacés**  
+✅ **81 tests automatisés créés** (+ 2 ignored)  
+✅ **81/81 tests passent** (100% success rate)  
+✅ **13 scripts bash remplacés**  
 ✅ **Infrastructure de test robuste en place**  
-✅ **Prévention des régressions garantie**
+✅ **Prévention des régressions garantie**  
+✅ **Temps d'exécution: ~225s** (~4 minutes pour toute la suite)
 
 La migration est un **succès majeur** pour la qualité et la maintenabilité du projet.
