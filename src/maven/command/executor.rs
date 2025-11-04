@@ -4,7 +4,7 @@ use crate::core::config::LoggingConfig;
 use crate::maven::process::CommandUpdate;
 use maven_java_agent::AgentBuilder;
 use std::{
-    io::{BufRead, BufReader},
+    io::{BufRead, BufReader, Read},
     path::Path,
     process::{Command, Stdio},
     sync::mpsc,
@@ -422,44 +422,12 @@ pub fn execute_maven_command_async_with_options(
 
         let tx_clone = tx.clone();
         let stdout_handle = thread::spawn(move || {
-            let reader = BufReader::new(stdout);
-            for line in reader.lines() {
-                match line {
-                    Ok(line) => {
-                        log::trace!("[STDOUT] {}", line);
-                        if tx_clone.send(CommandUpdate::OutputLine(line)).is_err() {
-                            log::warn!("Failed to send stdout line (receiver closed)");
-                            break;
-                        }
-                    }
-                    Err(e) => {
-                        log::error!("Error reading stdout: {}", e);
-                        break;
-                    }
-                }
-            }
-            log::debug!("Stdout reader thread finished");
+            read_lines_lossy(stdout, tx_clone, "STDOUT");
         });
 
         let tx_clone = tx.clone();
         let stderr_handle = thread::spawn(move || {
-            let reader = BufReader::new(stderr);
-            for line in reader.lines() {
-                match line {
-                    Ok(line) => {
-                        log::trace!("[STDERR] {}", line);
-                        if tx_clone.send(CommandUpdate::OutputLine(line)).is_err() {
-                            log::warn!("Failed to send stderr line (receiver closed)");
-                            break;
-                        }
-                    }
-                    Err(e) => {
-                        log::error!("Error reading stderr: {}", e);
-                        break;
-                    }
-                }
-            }
-            log::debug!("Stderr reader thread finished");
+            read_lines_lossy(stderr, tx_clone, "STDERR");
         });
 
         log::debug!("Waiting for output threads to complete...");
@@ -653,4 +621,47 @@ mod tests {
         // Root module (.) should not add -pl
         assert_eq!(result, "$ mvn install");
     }
+}
+
+/// Helper function to read lines from a stream with UTF-8 lossy conversion
+/// This ensures that non-UTF-8 characters (common in Maven output from Windows)
+/// don't crash the reader thread
+fn read_lines_lossy<R: Read>(
+    reader: R,
+    tx: mpsc::Sender<CommandUpdate>,
+    stream_name: &str,
+) {
+    let mut buf_reader = BufReader::new(reader);
+    let mut buffer = Vec::new();
+    
+    loop {
+        buffer.clear();
+        
+        // Read until newline or EOF
+        match buf_reader.read_until(b'\n', &mut buffer) {
+            Ok(0) => {
+                // EOF reached
+                break;
+            }
+            Ok(_) => {
+                // Convert bytes to string with lossy UTF-8 conversion
+                // This replaces invalid UTF-8 sequences with �
+                let line = String::from_utf8_lossy(&buffer);
+                let line = line.trim_end_matches('\n').trim_end_matches('\r');
+                
+                log::trace!("[{}] {}", stream_name, line);
+                
+                if tx.send(CommandUpdate::OutputLine(line.to_string())).is_err() {
+                    log::warn!("Failed to send {} line (receiver closed)", stream_name);
+                    break;
+                }
+            }
+            Err(e) => {
+                log::error!("Error reading {}: {}", stream_name, e);
+                break;
+            }
+        }
+    }
+    
+    log::debug!("{} reader thread finished", stream_name);
 }
