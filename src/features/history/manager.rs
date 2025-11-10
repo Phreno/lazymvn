@@ -1,100 +1,9 @@
-use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
+use super::entry::HistoryEntry;
 
 /// Maximum number of commands to keep in history
 const MAX_HISTORY_SIZE: usize = 100;
-
-/// A command in the history
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct HistoryEntry {
-    pub timestamp: i64,
-    pub project_root: PathBuf,  // Added to track which project this command belongs to
-    pub module: String,
-    pub goal: String,
-    pub profiles: Vec<String>,
-    pub flags: Vec<String>,
-}
-
-impl HistoryEntry {
-    /// Create a new history entry
-    pub fn new(
-        project_root: PathBuf,
-        module: String,
-        goal: String,
-        profiles: Vec<String>,
-        flags: Vec<String>,
-    ) -> Self {
-        Self {
-            timestamp: chrono::Utc::now().timestamp(),
-            project_root,
-            module,
-            goal,
-            profiles,
-            flags,
-        }
-    }
-
-    /// Format the entry for display
-    pub fn format_command(&self) -> String {
-        let parts = build_command_parts(&self.goal, &self.profiles, &self.flags);
-        let module_display = format_module_name(&self.module);
-        format!("[{}] {}", module_display, parts.join(" "))
-    }
-
-    /// Format timestamp for display
-    pub fn format_time(&self) -> String {
-        format_timestamp(self.timestamp)
-    }
-
-    /// Check if this entry matches another (ignoring timestamp)
-    pub fn matches(&self, other: &HistoryEntry) -> bool {
-        entries_match(self, other)
-    }
-}
-
-/// Build command parts from goal, profiles, and flags
-fn build_command_parts(goal: &str, profiles: &[String], flags: &[String]) -> Vec<String> {
-    let mut parts = vec![goal.to_string()];
-
-    if !profiles.is_empty() {
-        parts.push(format_profiles(profiles));
-    }
-
-    parts.extend(flags.iter().cloned());
-    parts
-}
-
-/// Format profiles as Maven argument
-fn format_profiles(profiles: &[String]) -> String {
-    format!("-P {}", profiles.join(","))
-}
-
-/// Format module name for display
-fn format_module_name(module: &str) -> String {
-    if module == "." {
-        "(root)".to_string()
-    } else {
-        module.to_string()
-    }
-}
-
-/// Format Unix timestamp to local time string
-fn format_timestamp(timestamp: i64) -> String {
-    use chrono::TimeZone;
-    let dt = chrono::Utc.timestamp_opt(timestamp, 0).unwrap();
-    let local_dt = dt.with_timezone(&chrono::Local);
-    local_dt.format("%Y-%m-%d %H:%M:%S").to_string()
-}
-
-/// Check if two entries match (ignoring timestamp)
-fn entries_match(entry: &HistoryEntry, other: &HistoryEntry) -> bool {
-    entry.project_root == other.project_root
-        && entry.module == other.module
-        && entry.goal == other.goal
-        && entry.profiles == other.profiles
-        && entry.flags == other.flags
-}
 
 /// Command history manager
 #[derive(Debug, Default)]
@@ -221,39 +130,7 @@ fn get_config_file_path(filename: &str) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn history_entry_format_command_with_profiles_and_flags() {
-        let entry = HistoryEntry::new(
-            PathBuf::from("/tmp/project"),
-            "my-module".to_string(),
-            "clean install".to_string(),
-            vec!["dev".to_string(), "test".to_string()],
-            vec!["--also-make".to_string(), "-DskipTests".to_string()],
-        );
-
-        let formatted = entry.format_command();
-        assert!(formatted.contains("[my-module]"));
-        assert!(formatted.contains("clean install"));
-        assert!(formatted.contains("-P dev,test"));
-        assert!(formatted.contains("--also-make"));
-        assert!(formatted.contains("-DskipTests"));
-    }
-
-    #[test]
-    fn history_entry_format_command_root_module() {
-        let entry = HistoryEntry::new(
-            PathBuf::from("/tmp/project"),
-            ".".to_string(),
-            "package".to_string(),
-            vec![],
-            vec![],
-        );
-
-        let formatted = entry.format_command();
-        assert!(formatted.contains("(root)"));
-        assert!(formatted.contains("package"));
-    }
+    use std::path::PathBuf;
 
     #[test]
     fn command_history_add_maintains_order() {
@@ -299,75 +176,9 @@ mod tests {
     }
 
     #[test]
-    fn history_entry_matches_ignores_timestamp() {
-        let entry1 = HistoryEntry {
-            timestamp: 1000,
-            project_root: PathBuf::from("/tmp/project"),
-            module: "module1".to_string(),
-            goal: "test".to_string(),
-            profiles: vec!["dev".to_string()],
-            flags: vec!["-X".to_string()],
-        };
-
-        let entry2 = HistoryEntry {
-            timestamp: 2000, // Different timestamp
-            project_root: PathBuf::from("/tmp/project"),
-            module: "module1".to_string(),
-            goal: "test".to_string(),
-            profiles: vec!["dev".to_string()],
-            flags: vec!["-X".to_string()],
-        };
-
-        assert!(entry1.matches(&entry2));
-    }
-
-    #[test]
-    fn history_entry_does_not_match_different_module() {
-        let entry1 = HistoryEntry::new(
-            PathBuf::from("/tmp/project"),
-            "module1".to_string(),
-            "test".to_string(),
-            vec![],
-            vec![],
-        );
-
-        let entry2 = HistoryEntry::new(
-            PathBuf::from("/tmp/project"),
-            "module2".to_string(), // Different module
-            "test".to_string(),
-            vec![],
-            vec![],
-        );
-
-        assert!(!entry1.matches(&entry2));
-    }
-
-    #[test]
-    fn history_entry_does_not_match_different_profiles() {
-        let entry1 = HistoryEntry::new(
-            PathBuf::from("/tmp/project"),
-            "module1".to_string(),
-            "test".to_string(),
-            vec!["dev".to_string()],
-            vec![],
-        );
-
-        let entry2 = HistoryEntry::new(
-            PathBuf::from("/tmp/project"),
-            "module1".to_string(),
-            "test".to_string(),
-            vec!["prod".to_string()], // Different profile
-            vec![],
-        );
-
-        assert!(!entry1.matches(&entry2));
-    }
-
-    #[test]
     fn command_history_deduplicates_entries() {
         let mut history = CommandHistory::default();
 
-        // Add first entry
         history.add(HistoryEntry::new(
             PathBuf::from("/tmp/project"),
             "module1".to_string(),
@@ -376,7 +187,6 @@ mod tests {
             vec!["-X".to_string()],
         ));
 
-        // Add a different entry
         history.add(HistoryEntry::new(
             PathBuf::from("/tmp/project"),
             "module2".to_string(),
@@ -385,7 +195,6 @@ mod tests {
             vec![],
         ));
 
-        // Add the same command as the first one
         history.add(HistoryEntry::new(
             PathBuf::from("/tmp/project"),
             "module1".to_string(),
@@ -395,15 +204,9 @@ mod tests {
         ));
 
         let entries = history.entries();
-
-        // Should have 2 entries, not 3 (duplicate removed)
         assert_eq!(entries.len(), 2);
-
-        // The duplicate should be moved to the top
         assert_eq!(entries[0].module, "module1");
         assert_eq!(entries[0].goal, "test");
-
-        // Second entry should still be there
         assert_eq!(entries[1].module, "module2");
         assert_eq!(entries[1].goal, "package");
     }
@@ -412,7 +215,6 @@ mod tests {
     fn command_history_deduplication_updates_position() {
         let mut history = CommandHistory::default();
 
-        // Add three different entries
         history.add(HistoryEntry::new(
             PathBuf::from("/tmp/project"),
             "module1".to_string(),
@@ -437,7 +239,6 @@ mod tests {
             vec![],
         ));
 
-        // Re-run the first command (module1/test)
         history.add(HistoryEntry::new(
             PathBuf::from("/tmp/project"),
             "module1".to_string(),
@@ -447,104 +248,10 @@ mod tests {
         ));
 
         let entries = history.entries();
-
-        // Still 3 entries
         assert_eq!(entries.len(), 3);
-
-        // module1/test should be at the top now (moved from position 2)
         assert_eq!(entries[0].module, "module1");
-
-        // Others shifted down
         assert_eq!(entries[1].module, "module3");
         assert_eq!(entries[2].module, "module2");
-    }
-
-    #[test]
-    fn test_format_module_name_root() {
-        assert_eq!(format_module_name("."), "(root)");
-    }
-
-    #[test]
-    fn test_format_module_name_regular() {
-        assert_eq!(format_module_name("my-module"), "my-module");
-    }
-
-    #[test]
-    fn test_format_profiles_single() {
-        let profiles = vec!["dev".to_string()];
-        assert_eq!(format_profiles(&profiles), "-P dev");
-    }
-
-    #[test]
-    fn test_format_profiles_multiple() {
-        let profiles = vec!["dev".to_string(), "local".to_string()];
-        assert_eq!(format_profiles(&profiles), "-P dev,local");
-    }
-
-    #[test]
-    fn test_build_command_parts_minimal() {
-        let parts = build_command_parts("test", &[], &[]);
-        assert_eq!(parts, vec!["test"]);
-    }
-
-    #[test]
-    fn test_build_command_parts_with_profiles() {
-        let profiles = vec!["dev".to_string()];
-        let parts = build_command_parts("test", &profiles, &[]);
-        assert_eq!(parts, vec!["test", "-P dev"]);
-    }
-
-    #[test]
-    fn test_build_command_parts_with_flags() {
-        let flags = vec!["-X".to_string(), "-U".to_string()];
-        let parts = build_command_parts("test", &[], &flags);
-        assert_eq!(parts, vec!["test", "-X", "-U"]);
-    }
-
-    #[test]
-    fn test_build_command_parts_complete() {
-        let profiles = vec!["prod".to_string()];
-        let flags = vec!["-X".to_string()];
-        let parts = build_command_parts("package", &profiles, &flags);
-        assert_eq!(parts, vec!["package", "-P prod", "-X"]);
-    }
-
-    #[test]
-    fn test_entries_match_same() {
-        let entry1 = HistoryEntry::new(
-            PathBuf::from("/project"),
-            "module".to_string(),
-            "test".to_string(),
-            vec![],
-            vec![],
-        );
-        let entry2 = HistoryEntry::new(
-            PathBuf::from("/project"),
-            "module".to_string(),
-            "test".to_string(),
-            vec![],
-            vec![],
-        );
-        assert!(entries_match(&entry1, &entry2));
-    }
-
-    #[test]
-    fn test_entries_match_different_goal() {
-        let entry1 = HistoryEntry::new(
-            PathBuf::from("/project"),
-            "module".to_string(),
-            "test".to_string(),
-            vec![],
-            vec![],
-        );
-        let entry2 = HistoryEntry::new(
-            PathBuf::from("/project"),
-            "module".to_string(),
-            "package".to_string(),
-            vec![],
-            vec![],
-        );
-        assert!(!entries_match(&entry1, &entry2));
     }
 
     #[test]

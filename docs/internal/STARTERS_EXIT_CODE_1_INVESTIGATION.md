@@ -9,7 +9,7 @@
 ### Symptômes
 
 ```
---- exec-maven-plugin:3.0.0:java (default-cli) @ HY5-module-bar ---
+--- exec-maven-plugin:3.0.0:java (default-cli) @ foo-module-bar ---
 fr.foo.foo.foo.internal.core.ApplicationConfigurationManager - Constructeur : BootStrap en cours...
 initBootStrap() en cours...
 
@@ -53,7 +53,7 @@ mvn -pl foo-module-usines \
 ### Commande Générée (APRÈS fix)
 
 ```bash
-mvn -pl HY5-module-usines \
+mvn -pl foo-module-usines \
     -Dexec.mainClass=fr.foo.foo.foo.internal.core.ApplicationConfigurationManager \
     -Dexec.classpathScope=compile \
     -Dexec.cleanupDaemonThreads=false \
