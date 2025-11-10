@@ -2,6 +2,8 @@
 
 mod command_builder;
 mod spring_boot;
+#[cfg(test)]
+mod spring_boot_tests;
 mod strategy;
 mod xml_parser;
 

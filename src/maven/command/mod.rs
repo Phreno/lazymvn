@@ -8,6 +8,8 @@
 //! - Log4j configuration extraction and injection
 
 mod builder;
+#[cfg(test)]
+mod builder_tests;
 mod executor;
 mod helpers;
 mod log4j_config;

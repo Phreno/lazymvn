@@ -13,13 +13,19 @@ mod help;
 mod history;
 mod launcher_config;
 mod navigation;
+#[cfg(test)]
+mod navigation_tests;
 mod output;
+#[cfg(test)]
+mod output_tests;
 mod packages;
 mod preferences_io;
 mod profiles;
 mod project_tab;
 mod projects;
 mod search;
+#[cfg(test)]
+mod search_tests;
 mod starters;
 mod tabs;
 mod types;
