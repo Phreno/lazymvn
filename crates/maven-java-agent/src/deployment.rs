@@ -61,6 +61,7 @@ pub fn deploy_agent(target_dir: &Path) -> Result<PathBuf> {
 }
 
 /// Convert a file path to a file:// URL
+#[allow(dead_code)]
 pub(crate) fn path_to_file_url(path: &Path) -> String {
     // Normalize path separators for URLs
     let path_str = path.to_string_lossy().replace('\\', "/");

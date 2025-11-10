@@ -19,29 +19,50 @@ use super::log4j_config::get_logging_overrides;
 /// // Returns "./mvnw" if mvnw exists, otherwise "mvn" (or "mvn.cmd" on Windows)
 /// ```
 pub fn get_maven_command(project_root: &Path) -> String {
-    // On Unix, check for mvnw
+    find_maven_wrapper(project_root).unwrap_or_else(get_default_maven_command)
+}
+
+/// Try to find Maven wrapper in project
+fn find_maven_wrapper(project_root: &Path) -> Option<String> {
     #[cfg(unix)]
     {
-        if project_root.join("mvnw").exists() {
-            return "./mvnw".to_string();
-        }
+        find_unix_wrapper(project_root)
     }
 
-    // On Windows, check for mvnw.bat, mvnw.cmd, or mvnw
     #[cfg(windows)]
     {
-        if project_root.join("mvnw.bat").exists() {
-            return "mvnw.bat".to_string();
-        }
-        if project_root.join("mvnw.cmd").exists() {
-            return "mvnw.cmd".to_string();
-        }
-        if project_root.join("mvnw").exists() {
-            return "mvnw".to_string();
+        find_windows_wrapper(project_root)
+    }
+}
+
+/// Find Maven wrapper on Unix systems
+#[cfg(unix)]
+fn find_unix_wrapper(project_root: &Path) -> Option<String> {
+    if wrapper_exists(project_root, "mvnw") {
+        Some("./mvnw".to_string())
+    } else {
+        None
+    }
+}
+
+/// Find Maven wrapper on Windows systems
+#[cfg(windows)]
+fn find_windows_wrapper(project_root: &Path) -> Option<String> {
+    for wrapper in &["mvnw.bat", "mvnw.cmd", "mvnw"] {
+        if wrapper_exists(project_root, wrapper) {
+            return Some(wrapper.to_string());
         }
     }
+    None
+}
 
-    // On Windows, use mvn.cmd; on Unix, use mvn
+/// Check if wrapper exists
+fn wrapper_exists(project_root: &Path, wrapper_name: &str) -> bool {
+    project_root.join(wrapper_name).exists()
+}
+
+/// Get default Maven command
+fn get_default_maven_command() -> String {
     #[cfg(windows)]
     {
         "mvn.cmd".to_string()
@@ -90,93 +111,169 @@ pub fn build_command_string_with_options(
 ) -> String {
     let mut parts = vec![maven_command.to_string()];
 
+    add_settings_if_present(&mut parts, settings_path);
+    add_profiles_if_present(&mut parts, profiles);
+    add_module_if_present(&mut parts, module, use_file_flag, project_root, args, flags);
+    add_filtered_flags(&mut parts, flags, args);
+    add_logging_config_if_needed(&mut parts, logging_config, args);
+    add_args(&mut parts, args);
+
+    parts.join(" ")
+}
+
+/// Add settings path to command parts
+fn add_settings_if_present(parts: &mut Vec<String>, settings_path: Option<&str>) {
     if let Some(settings_path) = settings_path {
         parts.push("--settings".to_string());
         parts.push(settings_path.to_string());
     }
+}
 
+/// Add profiles to command parts
+fn add_profiles_if_present(parts: &mut Vec<String>, profiles: &[String]) {
     if !profiles.is_empty() {
         parts.push("-P".to_string());
         parts.push(profiles.join(","));
     }
+}
 
+/// Add module to command parts
+fn add_module_if_present(
+    parts: &mut Vec<String>,
+    module: Option<&str>,
+    use_file_flag: bool,
+    project_root: &Path,
+    args: &[&str],
+    flags: &[String],
+) {
     if let Some(module) = module
         && module != "."
     {
         if use_file_flag {
-            let module_pom = project_root.join(module).join("pom.xml");
-            parts.push("-f".to_string());
-            parts.push(module_pom.to_string_lossy().to_string());
-
-            // Auto-add --also-make for exec:java to ensure dependencies are built
-            if args.contains(&"exec:java") && !flags.iter().any(|f| f.contains("also-make")) {
-                parts.push("--also-make".to_string());
-            }
+            add_file_flag_module(parts, project_root, module, args, flags);
         } else {
-            parts.push("-pl".to_string());
-            parts.push(module.to_string());
-
-            // Note: We don't auto-add --also-make for spring-boot:run because it would
-            // try to execute the goal on all modules in the reactor (including parent POM).
+            add_project_list_module(parts, module);
         }
     }
+}
 
-    // Filter incompatible flags for spring-boot:run
-    let is_spring_boot_run = args.iter().any(|arg| {
-        arg.contains("spring-boot:run") || arg.contains("spring-boot-maven-plugin") && arg.contains(":run")
-    });
+/// Add module using -f flag
+fn add_file_flag_module(
+    parts: &mut Vec<String>,
+    project_root: &Path,
+    module: &str,
+    args: &[&str],
+    flags: &[String],
+) {
+    let module_pom = project_root.join(module).join("pom.xml");
+    parts.push("-f".to_string());
+    parts.push(module_pom.to_string_lossy().to_string());
+
+    if should_auto_add_also_make(args, flags) {
+        parts.push("--also-make".to_string());
+    }
+}
+
+/// Add module using -pl flag
+fn add_project_list_module(parts: &mut Vec<String>, module: &str) {
+    parts.push("-pl".to_string());
+    parts.push(module.to_string());
+}
+
+/// Check if --also-make should be auto-added
+fn should_auto_add_also_make(args: &[&str], flags: &[String]) -> bool {
+    args.contains(&"exec:java") && !flags.iter().any(|f| f.contains("also-make"))
+}
+
+/// Add filtered flags to command parts
+fn add_filtered_flags(parts: &mut Vec<String>, flags: &[String], args: &[&str]) {
+    let is_spring_boot_run = is_spring_boot_run_command(args);
+    let filtered_flags = filter_flags_for_command(flags, is_spring_boot_run);
     
-    let filtered_flags: Vec<&str> = if is_spring_boot_run {
+    for flag in filtered_flags {
+        add_flag_parts(parts, flag);
+    }
+}
+
+/// Check if this is a spring-boot:run command
+fn is_spring_boot_run_command(args: &[&str]) -> bool {
+    args.iter().any(|arg| {
+        arg.contains("spring-boot:run") || arg.contains("spring-boot-maven-plugin") && arg.contains(":run")
+    })
+}
+
+/// Filter flags based on command type
+fn filter_flags_for_command(flags: &[String], is_spring_boot_run: bool) -> Vec<&str> {
+    if is_spring_boot_run {
         flags.iter()
-            .filter(|flag| {
-                let flag_lower = flag.to_lowercase();
-                !flag_lower.contains("also-make")
-            })
+            .filter(|flag| !flag.to_lowercase().contains("also-make"))
             .map(|s| s.as_str())
             .collect()
     } else {
         flags.iter().map(|s| s.as_str()).collect()
-    };
+    }
+}
 
-    for flag in filtered_flags {
-        // Split flags like "-U, --update-snapshots" into individual flags
-        // Take only the first part before comma to skip aliases
-        let flag_parts: Vec<&str> = flag
-            .split(',')
-            .next()
-            .unwrap_or(flag)
-            .split_whitespace()
-            .collect();
-        
-        for part in flag_parts {
-            if !part.is_empty() {
-                parts.push(part.to_string());
-            }
+/// Add flag parts to command parts
+fn add_flag_parts(parts: &mut Vec<String>, flag: &str) {
+    let flag_parts: Vec<&str> = flag
+        .split(',')
+        .next()
+        .unwrap_or(flag)
+        .split_whitespace()
+        .collect();
+    
+    for part in flag_parts {
+        if !part.is_empty() {
+            parts.push(part.to_string());
         }
     }
+}
 
-    let has_spring_boot_jvm_args = args
-        .iter()
-        .any(|arg| arg.starts_with("-Dspring-boot.run.jvmArguments=") || arg.starts_with("-Drun.jvmArguments="));
-
-    if let Some(logging_config) = logging_config
-        && !has_spring_boot_jvm_args
-    {
-        if let Some(log_format) = &logging_config.log_format {
-            parts.push(format!("-Dlog4j.conversionPattern={}", log_format));
-            parts.push(format!("-Dlogging.pattern.console={}", log_format));
-        }
-        for (package, level) in &get_logging_overrides(Some(logging_config)) {
-            parts.push(format!("-Dlog4j.logger.{}={}", package, level));
-            parts.push(format!("-Dlogging.level.{}={}", package, level));
-        }
+/// Add logging configuration if needed
+fn add_logging_config_if_needed(
+    parts: &mut Vec<String>,
+    logging_config: Option<&LoggingConfig>,
+    args: &[&str],
+) {
+    if has_spring_boot_jvm_args(args) {
+        return;
     }
 
+    if let Some(logging_config) = logging_config {
+        add_log_format_config(parts, logging_config);
+        add_logging_overrides(parts, logging_config);
+    }
+}
+
+/// Check if command has Spring Boot JVM arguments
+fn has_spring_boot_jvm_args(args: &[&str]) -> bool {
+    args.iter().any(|arg| {
+        arg.starts_with("-Dspring-boot.run.jvmArguments=") || arg.starts_with("-Drun.jvmArguments=")
+    })
+}
+
+/// Add log format configuration
+fn add_log_format_config(parts: &mut Vec<String>, logging_config: &LoggingConfig) {
+    if let Some(log_format) = &logging_config.log_format {
+        parts.push(format!("-Dlog4j.conversionPattern={}", log_format));
+        parts.push(format!("-Dlogging.pattern.console={}", log_format));
+    }
+}
+
+/// Add logging level overrides
+fn add_logging_overrides(parts: &mut Vec<String>, logging_config: &LoggingConfig) {
+    for (package, level) in &get_logging_overrides(Some(logging_config)) {
+        parts.push(format!("-Dlog4j.logger.{}={}", package, level));
+        parts.push(format!("-Dlogging.level.{}={}", package, level));
+    }
+}
+
+/// Add arguments to command parts
+fn add_args(parts: &mut Vec<String>, args: &[&str]) {
     for arg in args {
         parts.push(arg.to_string());
     }
-
-    parts.join(" ")
 }
 
 /// Check Maven availability and return version info
@@ -235,6 +332,21 @@ mod tests {
             let result = get_maven_command(&test_dir);
             assert_eq!(result, "mvnw.bat");
         }
+        
+        std::fs::remove_dir_all(&test_dir).ok();
+    }
+
+    #[test]
+    fn test_wrapper_exists() {
+        let temp_dir = std::env::temp_dir();
+        let test_dir = temp_dir.join("test_wrapper_exists");
+        std::fs::create_dir_all(&test_dir).ok();
+        
+        let mvnw_path = test_dir.join("mvnw");
+        std::fs::write(&mvnw_path, "test").ok();
+        
+        assert!(wrapper_exists(&test_dir, "mvnw"));
+        assert!(!wrapper_exists(&test_dir, "nonexistent"));
         
         std::fs::remove_dir_all(&test_dir).ok();
     }

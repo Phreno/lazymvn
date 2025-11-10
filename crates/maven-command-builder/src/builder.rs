@@ -171,76 +171,15 @@ impl MavenCommandBuilder {
     pub fn build_args(&self) -> Vec<String> {
         let mut args = Vec::new();
 
-        // Settings file
-        if let Some(settings) = &self.settings_file {
-            args.push("--settings".to_string());
-            args.push(settings.clone());
-        }
-
-        // Profiles
-        if !self.profiles.is_empty() {
-            args.push("-P".to_string());
-            args.push(self.profiles.join(","));
-        }
-
-        // Module selection
-        if let Some(module) = &self.module {
-            if module != "." {
-                if self.use_file_flag {
-                    let module_pom = self.project_root.join(module).join("pom.xml");
-                    args.push("-f".to_string());
-                    args.push(module_pom.to_string_lossy().to_string());
-                } else {
-                    args.push("-pl".to_string());
-                    args.push(module.clone());
-                }
-            }
-        }
-
-        // Threads
-        if let Some(threads) = &self.threads {
-            args.push("-T".to_string());
-            args.push(threads.clone());
-        }
-
-        // Boolean flags
-        if self.offline {
-            args.push("--offline".to_string());
-        }
-        if self.update_snapshots {
-            args.push("--update-snapshots".to_string());
-        }
-        if self.also_make {
-            args.push("--also-make".to_string());
-        }
-        if self.also_make_dependents {
-            args.push("--also-make-dependents".to_string());
-        }
-
-        // Custom flags
-        for flag in &self.flags {
-            // Split flags like "-U, --update-snapshots" and take first part
-            if let Some(first_flag) = flag.split(',').next() {
-                for part in first_flag.split_whitespace() {
-                    if !part.is_empty() {
-                        args.push(part.to_string());
-                    }
-                }
-            }
-        }
-
-        // Properties
-        for (key, value) in &self.properties {
-            args.push(format!("-D{}={}", key, value));
-        }
-
-        // Skip tests property
-        if self.skip_tests {
-            args.push("-DskipTests".to_string());
-        }
-
-        // Goals
-        args.extend(self.goals.clone());
+        add_settings_file(&mut args, &self.settings_file);
+        add_profiles(&mut args, &self.profiles);
+        add_module(&mut args, &self.module, self.use_file_flag, &self.project_root);
+        add_threads(&mut args, &self.threads);
+        add_boolean_flags(&mut args, self);
+        add_custom_flags(&mut args, &self.flags);
+        add_properties(&mut args, &self.properties);
+        add_skip_tests_property(&mut args, self.skip_tests);
+        add_goals(&mut args, &self.goals);
 
         args
     }
@@ -313,6 +252,94 @@ impl MavenCommandBuilder {
     pub fn project_root(&self) -> &Path {
         &self.project_root
     }
+}
+
+/// Add settings file argument
+fn add_settings_file(args: &mut Vec<String>, settings_file: &Option<String>) {
+    if let Some(settings) = settings_file {
+        args.push("--settings".to_string());
+        args.push(settings.clone());
+    }
+}
+
+/// Add profiles argument
+fn add_profiles(args: &mut Vec<String>, profiles: &[String]) {
+    if !profiles.is_empty() {
+        args.push("-P".to_string());
+        args.push(profiles.join(","));
+    }
+}
+
+/// Add module argument
+fn add_module(args: &mut Vec<String>, module: &Option<String>, use_file_flag: bool, project_root: &Path) {
+    if let Some(module) = module {
+        if module != "." {
+            if use_file_flag {
+                let module_pom = project_root.join(module).join("pom.xml");
+                args.push("-f".to_string());
+                args.push(module_pom.to_string_lossy().to_string());
+            } else {
+                args.push("-pl".to_string());
+                args.push(module.clone());
+            }
+        }
+    }
+}
+
+/// Add threads argument
+fn add_threads(args: &mut Vec<String>, threads: &Option<String>) {
+    if let Some(threads) = threads {
+        args.push("-T".to_string());
+        args.push(threads.clone());
+    }
+}
+
+/// Add boolean flags
+fn add_boolean_flags(args: &mut Vec<String>, builder: &MavenCommandBuilder) {
+    if builder.offline {
+        args.push("--offline".to_string());
+    }
+    if builder.update_snapshots {
+        args.push("--update-snapshots".to_string());
+    }
+    if builder.also_make {
+        args.push("--also-make".to_string());
+    }
+    if builder.also_make_dependents {
+        args.push("--also-make-dependents".to_string());
+    }
+}
+
+/// Add custom flags
+fn add_custom_flags(args: &mut Vec<String>, flags: &[String]) {
+    for flag in flags {
+        if let Some(first_flag) = flag.split(',').next() {
+            for part in first_flag.split_whitespace() {
+                if !part.is_empty() {
+                    args.push(part.to_string());
+                }
+            }
+        }
+    }
+}
+
+/// Add properties
+fn add_properties(args: &mut Vec<String>, properties: &[(String, String)]) {
+    for (key, value) in properties {
+        args.push(format!("-D{}={}", key, value));
+    }
+}
+
+/// Add skip tests property
+fn add_skip_tests_property(args: &mut Vec<String>, skip_tests: bool) {
+    if skip_tests {
+        args.push("-DskipTests".to_string());
+    }
+}
+
+/// Add goals
+fn add_goals(args: &mut Vec<String>, goals: &[String]) {
+    args.extend(goals.iter().cloned());
 }
 
 #[cfg(test)]

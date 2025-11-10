@@ -10,10 +10,8 @@ impl TuiState {
     /// Check if navigation is allowed (with debouncing)
     pub(super) fn should_allow_navigation(&mut self) -> bool {
         let now = Instant::now();
-
-        if let Some(last_time) = self.last_nav_key_time
-            && now.duration_since(last_time) < self.nav_debounce_duration
-        {
+        
+        if is_navigation_debounced(self.last_nav_key_time, now, self.nav_debounce_duration) {
             log::trace!("Navigation debounced (too fast)");
             return false;
         }
@@ -41,13 +39,10 @@ impl TuiState {
                     return;
                 }
 
-                // Need to drop tab borrow to call save_module_preferences
-                let new_index = {
-                    match tab.modules_list_state.selected() {
-                        Some(i) => (i + 1) % tab.modules.len(),
-                        None => 0,
-                    }
-                };
+                let new_index = calculate_next_index(
+                    tab.modules_list_state.selected(),
+                    tab.modules.len()
+                );
 
                 // Save current module preferences before switching
                 self.save_module_preferences();
@@ -63,10 +58,10 @@ impl TuiState {
             }
             Focus::Profiles => {
                 if !tab.profiles.is_empty() {
-                    let i = match tab.profiles_list_state.selected() {
-                        Some(i) => (i + 1) % tab.profiles.len(),
-                        None => 0,
-                    };
+                    let i = calculate_next_index(
+                        tab.profiles_list_state.selected(),
+                        tab.profiles.len()
+                    );
                     tab.profiles_list_state.select(Some(i));
                     // Update output to show new profile XML
                     self.sync_selected_profile_output();
@@ -74,10 +69,10 @@ impl TuiState {
             }
             Focus::Flags => {
                 if !tab.flags.is_empty() {
-                    let i = match tab.flags_list_state.selected() {
-                        Some(i) => (i + 1) % tab.flags.len(),
-                        None => 0,
-                    };
+                    let i = calculate_next_index(
+                        tab.flags_list_state.selected(),
+                        tab.flags.len()
+                    );
                     tab.flags_list_state.select(Some(i));
                 }
             }
@@ -106,19 +101,10 @@ impl TuiState {
                     return;
                 }
 
-                // Need to drop tab borrow to call save_module_preferences
-                let new_index = {
-                    match tab.modules_list_state.selected() {
-                        Some(i) => {
-                            if i == 0 {
-                                tab.modules.len() - 1
-                            } else {
-                                i - 1
-                            }
-                        }
-                        None => 0,
-                    }
-                };
+                let new_index = calculate_previous_index(
+                    tab.modules_list_state.selected(),
+                    tab.modules.len()
+                );
 
                 // Save current module preferences before switching
                 self.save_module_preferences();
@@ -134,16 +120,10 @@ impl TuiState {
             }
             Focus::Profiles => {
                 if !tab.profiles.is_empty() {
-                    let i = match tab.profiles_list_state.selected() {
-                        Some(i) => {
-                            if i == 0 {
-                                tab.profiles.len() - 1
-                            } else {
-                                i - 1
-                            }
-                        }
-                        None => 0,
-                    };
+                    let i = calculate_previous_index(
+                        tab.profiles_list_state.selected(),
+                        tab.profiles.len()
+                    );
                     tab.profiles_list_state.select(Some(i));
                     // Update output to show new profile XML
                     self.sync_selected_profile_output();
@@ -151,16 +131,10 @@ impl TuiState {
             }
             Focus::Flags => {
                 if !tab.flags.is_empty() {
-                    let i = match tab.flags_list_state.selected() {
-                        Some(i) => {
-                            if i == 0 {
-                                tab.flags.len() - 1
-                            } else {
-                                i - 1
-                            }
-                        }
-                        None => 0,
-                    };
+                    let i = calculate_previous_index(
+                        tab.flags_list_state.selected(),
+                        tab.flags.len()
+                    );
                     tab.flags_list_state.select(Some(i));
                 }
             }
@@ -499,5 +473,108 @@ mod tests {
 
             assert_eq!(state.get_active_tab().flags_list_state.selected(), Some(1));
         }
+    }
+}
+
+/// Check if navigation should be debounced
+fn is_navigation_debounced(
+    last_time: Option<Instant>,
+    now: Instant,
+    debounce_duration: std::time::Duration
+) -> bool {
+    if let Some(last) = last_time {
+        now.duration_since(last) < debounce_duration
+    } else {
+        false
+    }
+}
+
+/// Calculate next index in a circular list
+fn calculate_next_index(current: Option<usize>, list_len: usize) -> usize {
+    match current {
+        Some(i) => (i + 1) % list_len,
+        None => 0,
+    }
+}
+
+/// Calculate previous index in a circular list
+fn calculate_previous_index(current: Option<usize>, list_len: usize) -> usize {
+    match current {
+        Some(i) => {
+            if i == 0 {
+                list_len - 1
+            } else {
+                i - 1
+            }
+        }
+        None => 0,
+    }
+}
+
+#[cfg(test)]
+mod helper_tests {
+    use super::*;
+
+    #[test]
+    fn test_is_navigation_debounced_none() {
+        let now = Instant::now();
+        let debounce = std::time::Duration::from_millis(100);
+        assert!(!is_navigation_debounced(None, now, debounce));
+    }
+
+    #[test]
+    fn test_is_navigation_debounced_too_fast() {
+        let last = Instant::now();
+        let now = last + std::time::Duration::from_millis(50);
+        let debounce = std::time::Duration::from_millis(100);
+        assert!(is_navigation_debounced(Some(last), now, debounce));
+    }
+
+    #[test]
+    fn test_is_navigation_debounced_allowed() {
+        let last = Instant::now();
+        let now = last + std::time::Duration::from_millis(150);
+        let debounce = std::time::Duration::from_millis(100);
+        assert!(!is_navigation_debounced(Some(last), now, debounce));
+    }
+
+    #[test]
+    fn test_calculate_next_index_none() {
+        assert_eq!(calculate_next_index(None, 5), 0);
+    }
+
+    #[test]
+    fn test_calculate_next_index_middle() {
+        assert_eq!(calculate_next_index(Some(2), 5), 3);
+    }
+
+    #[test]
+    fn test_calculate_next_index_wraps() {
+        assert_eq!(calculate_next_index(Some(4), 5), 0);
+    }
+
+    #[test]
+    fn test_calculate_previous_index_none() {
+        assert_eq!(calculate_previous_index(None, 5), 0);
+    }
+
+    #[test]
+    fn test_calculate_previous_index_middle() {
+        assert_eq!(calculate_previous_index(Some(2), 5), 1);
+    }
+
+    #[test]
+    fn test_calculate_previous_index_wraps() {
+        assert_eq!(calculate_previous_index(Some(0), 5), 4);
+    }
+
+    #[test]
+    fn test_calculate_next_index_single_item() {
+        assert_eq!(calculate_next_index(Some(0), 1), 0);
+    }
+
+    #[test]
+    fn test_calculate_previous_index_single_item() {
+        assert_eq!(calculate_previous_index(Some(0), 1), 0);
     }
 }

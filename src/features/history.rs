@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Maximum number of commands to keep in history
 const MAX_HISTORY_SIZE: usize = 100;
@@ -37,39 +37,63 @@ impl HistoryEntry {
 
     /// Format the entry for display
     pub fn format_command(&self) -> String {
-        let mut parts = vec![self.goal.clone()];
-
-        if !self.profiles.is_empty() {
-            parts.push(format!("-P {}", self.profiles.join(",")));
-        }
-
-        parts.extend(self.flags.clone());
-
-        let module_display = if self.module == "." {
-            "(root)".to_string()
-        } else {
-            self.module.clone()
-        };
-
+        let parts = build_command_parts(&self.goal, &self.profiles, &self.flags);
+        let module_display = format_module_name(&self.module);
         format!("[{}] {}", module_display, parts.join(" "))
     }
 
     /// Format timestamp for display
     pub fn format_time(&self) -> String {
-        use chrono::TimeZone;
-        let dt = chrono::Utc.timestamp_opt(self.timestamp, 0).unwrap();
-        let local_dt = dt.with_timezone(&chrono::Local);
-        local_dt.format("%Y-%m-%d %H:%M:%S").to_string()
+        format_timestamp(self.timestamp)
     }
 
     /// Check if this entry matches another (ignoring timestamp)
     pub fn matches(&self, other: &HistoryEntry) -> bool {
-        self.project_root == other.project_root
-            && self.module == other.module
-            && self.goal == other.goal
-            && self.profiles == other.profiles
-            && self.flags == other.flags
+        entries_match(self, other)
     }
+}
+
+/// Build command parts from goal, profiles, and flags
+fn build_command_parts(goal: &str, profiles: &[String], flags: &[String]) -> Vec<String> {
+    let mut parts = vec![goal.to_string()];
+
+    if !profiles.is_empty() {
+        parts.push(format_profiles(profiles));
+    }
+
+    parts.extend(flags.iter().cloned());
+    parts
+}
+
+/// Format profiles as Maven argument
+fn format_profiles(profiles: &[String]) -> String {
+    format!("-P {}", profiles.join(","))
+}
+
+/// Format module name for display
+fn format_module_name(module: &str) -> String {
+    if module == "." {
+        "(root)".to_string()
+    } else {
+        module.to_string()
+    }
+}
+
+/// Format Unix timestamp to local time string
+fn format_timestamp(timestamp: i64) -> String {
+    use chrono::TimeZone;
+    let dt = chrono::Utc.timestamp_opt(timestamp, 0).unwrap();
+    let local_dt = dt.with_timezone(&chrono::Local);
+    local_dt.format("%Y-%m-%d %H:%M:%S").to_string()
+}
+
+/// Check if two entries match (ignoring timestamp)
+fn entries_match(entry: &HistoryEntry, other: &HistoryEntry) -> bool {
+    entry.project_root == other.project_root
+        && entry.module == other.module
+        && entry.goal == other.goal
+        && entry.profiles == other.profiles
+        && entry.flags == other.flags
 }
 
 /// Command history manager
@@ -105,25 +129,9 @@ impl CommandHistory {
     /// Add a command to history
     /// If a matching command already exists, it will be moved to the top instead of creating a duplicate
     pub fn add(&mut self, entry: HistoryEntry) {
-        // Check if this command already exists in history
-        if let Some(existing_idx) = self.entries.iter().position(|e| e.matches(&entry)) {
-            // Remove the existing entry
-            self.entries.remove(existing_idx);
-            log::debug!(
-                "Removed duplicate history entry at index {} (moving to top)",
-                existing_idx
-            );
-        }
-
-        // Add to beginning (most recent first)
-        self.entries.insert(0, entry);
-
-        // Trim to max size
-        if self.entries.len() > MAX_HISTORY_SIZE {
-            self.entries.truncate(MAX_HISTORY_SIZE);
-        }
-
-        // Save to disk
+        remove_duplicate_entry(&mut self.entries, &entry);
+        add_entry_to_top(&mut self.entries, entry);
+        trim_history(&mut self.entries);
         self.save();
     }
 
@@ -134,29 +142,12 @@ impl CommandHistory {
 
     /// Save history to disk
     fn save(&self) {
-        // Ensure directory exists
-        if let Some(parent) = self.file_path.parent() {
-            let _ = fs::create_dir_all(parent);
-        }
-
-        match serde_json::to_string_pretty(&self.entries) {
-            Ok(json) => {
-                if let Err(e) = fs::write(&self.file_path, json) {
-                    log::error!("Failed to save command history: {}", e);
-                }
-            }
-            Err(e) => {
-                log::error!("Failed to serialize command history: {}", e);
-            }
-        }
+        save_history_to_file(&self.file_path, &self.entries);
     }
 
     /// Get the path to the history file
     fn get_history_file_path() -> PathBuf {
-        let config_dir = dirs::config_dir()
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join("lazymvn");
-        config_dir.join("command_history.json")
+        get_config_file_path("command_history.json")
     }
 
     /// Clear all history
@@ -165,6 +156,66 @@ impl CommandHistory {
         self.entries.clear();
         self.save();
     }
+}
+
+/// Remove duplicate entry from history if it exists
+fn remove_duplicate_entry(entries: &mut Vec<HistoryEntry>, new_entry: &HistoryEntry) {
+    if let Some(existing_idx) = find_matching_entry_index(entries, new_entry) {
+        entries.remove(existing_idx);
+        log::debug!(
+            "Removed duplicate history entry at index {} (moving to top)",
+            existing_idx
+        );
+    }
+}
+
+/// Find index of matching entry in history
+fn find_matching_entry_index(entries: &[HistoryEntry], target: &HistoryEntry) -> Option<usize> {
+    entries.iter().position(|e| e.matches(target))
+}
+
+/// Add entry to top of history
+fn add_entry_to_top(entries: &mut Vec<HistoryEntry>, entry: HistoryEntry) {
+    entries.insert(0, entry);
+}
+
+/// Trim history to maximum size
+fn trim_history(entries: &mut Vec<HistoryEntry>) {
+    if entries.len() > MAX_HISTORY_SIZE {
+        entries.truncate(MAX_HISTORY_SIZE);
+    }
+}
+
+/// Save history entries to file
+fn save_history_to_file(file_path: &PathBuf, entries: &[HistoryEntry]) {
+    ensure_parent_dir_exists(file_path);
+    
+    match serde_json::to_string_pretty(entries) {
+        Ok(json) => write_json_to_file(file_path, &json),
+        Err(e) => log::error!("Failed to serialize command history: {}", e),
+    }
+}
+
+/// Ensure parent directory exists
+fn ensure_parent_dir_exists(file_path: &Path) {
+    if let Some(parent) = file_path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+}
+
+/// Write JSON string to file
+fn write_json_to_file(file_path: &PathBuf, json: &str) {
+    if let Err(e) = fs::write(file_path, json) {
+        log::error!("Failed to save command history: {}", e);
+    }
+}
+
+/// Get path to config file
+fn get_config_file_path(filename: &str) -> PathBuf {
+    let config_dir = dirs::config_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("lazymvn");
+    config_dir.join(filename)
 }
 
 #[cfg(test)]
@@ -406,5 +457,163 @@ mod tests {
         // Others shifted down
         assert_eq!(entries[1].module, "module3");
         assert_eq!(entries[2].module, "module2");
+    }
+
+    #[test]
+    fn test_format_module_name_root() {
+        assert_eq!(format_module_name("."), "(root)");
+    }
+
+    #[test]
+    fn test_format_module_name_regular() {
+        assert_eq!(format_module_name("my-module"), "my-module");
+    }
+
+    #[test]
+    fn test_format_profiles_single() {
+        let profiles = vec!["dev".to_string()];
+        assert_eq!(format_profiles(&profiles), "-P dev");
+    }
+
+    #[test]
+    fn test_format_profiles_multiple() {
+        let profiles = vec!["dev".to_string(), "local".to_string()];
+        assert_eq!(format_profiles(&profiles), "-P dev,local");
+    }
+
+    #[test]
+    fn test_build_command_parts_minimal() {
+        let parts = build_command_parts("test", &[], &[]);
+        assert_eq!(parts, vec!["test"]);
+    }
+
+    #[test]
+    fn test_build_command_parts_with_profiles() {
+        let profiles = vec!["dev".to_string()];
+        let parts = build_command_parts("test", &profiles, &[]);
+        assert_eq!(parts, vec!["test", "-P dev"]);
+    }
+
+    #[test]
+    fn test_build_command_parts_with_flags() {
+        let flags = vec!["-X".to_string(), "-U".to_string()];
+        let parts = build_command_parts("test", &[], &flags);
+        assert_eq!(parts, vec!["test", "-X", "-U"]);
+    }
+
+    #[test]
+    fn test_build_command_parts_complete() {
+        let profiles = vec!["prod".to_string()];
+        let flags = vec!["-X".to_string()];
+        let parts = build_command_parts("package", &profiles, &flags);
+        assert_eq!(parts, vec!["package", "-P prod", "-X"]);
+    }
+
+    #[test]
+    fn test_entries_match_same() {
+        let entry1 = HistoryEntry::new(
+            PathBuf::from("/project"),
+            "module".to_string(),
+            "test".to_string(),
+            vec![],
+            vec![],
+        );
+        let entry2 = HistoryEntry::new(
+            PathBuf::from("/project"),
+            "module".to_string(),
+            "test".to_string(),
+            vec![],
+            vec![],
+        );
+        assert!(entries_match(&entry1, &entry2));
+    }
+
+    #[test]
+    fn test_entries_match_different_goal() {
+        let entry1 = HistoryEntry::new(
+            PathBuf::from("/project"),
+            "module".to_string(),
+            "test".to_string(),
+            vec![],
+            vec![],
+        );
+        let entry2 = HistoryEntry::new(
+            PathBuf::from("/project"),
+            "module".to_string(),
+            "package".to_string(),
+            vec![],
+            vec![],
+        );
+        assert!(!entries_match(&entry1, &entry2));
+    }
+
+    #[test]
+    fn test_trim_history_under_limit() {
+        let mut entries = vec![
+            HistoryEntry::new(PathBuf::from("/p"), "m".to_string(), "g".to_string(), vec![], vec![]),
+        ];
+        trim_history(&mut entries);
+        assert_eq!(entries.len(), 1);
+    }
+
+    #[test]
+    fn test_trim_history_at_limit() {
+        let mut entries: Vec<HistoryEntry> = (0..MAX_HISTORY_SIZE)
+            .map(|_| HistoryEntry::new(PathBuf::from("/p"), "m".to_string(), "g".to_string(), vec![], vec![]))
+            .collect();
+        trim_history(&mut entries);
+        assert_eq!(entries.len(), MAX_HISTORY_SIZE);
+    }
+
+    #[test]
+    fn test_trim_history_over_limit() {
+        let mut entries: Vec<HistoryEntry> = (0..MAX_HISTORY_SIZE + 10)
+            .map(|_| HistoryEntry::new(PathBuf::from("/p"), "m".to_string(), "g".to_string(), vec![], vec![]))
+            .collect();
+        trim_history(&mut entries);
+        assert_eq!(entries.len(), MAX_HISTORY_SIZE);
+    }
+
+    #[test]
+    fn test_find_matching_entry_index_found() {
+        let entry1 = HistoryEntry::new(
+            PathBuf::from("/p"),
+            "m1".to_string(),
+            "g".to_string(),
+            vec![],
+            vec![],
+        );
+        let entry2 = HistoryEntry::new(
+            PathBuf::from("/p"),
+            "m2".to_string(),
+            "g".to_string(),
+            vec![],
+            vec![],
+        );
+        let entries = vec![entry1.clone(), entry2.clone()];
+        
+        assert_eq!(find_matching_entry_index(&entries, &entry1), Some(0));
+        assert_eq!(find_matching_entry_index(&entries, &entry2), Some(1));
+    }
+
+    #[test]
+    fn test_find_matching_entry_index_not_found() {
+        let entry1 = HistoryEntry::new(
+            PathBuf::from("/p"),
+            "m1".to_string(),
+            "g".to_string(),
+            vec![],
+            vec![],
+        );
+        let entry2 = HistoryEntry::new(
+            PathBuf::from("/p"),
+            "m2".to_string(),
+            "g".to_string(),
+            vec![],
+            vec![],
+        );
+        let entries = vec![entry1];
+        
+        assert_eq!(find_matching_entry_index(&entries, &entry2), None);
     }
 }

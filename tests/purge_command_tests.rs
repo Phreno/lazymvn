@@ -14,7 +14,7 @@ mod purge_tests {
     #[test]
     fn test_purge_command_arguments() {
         // The purge command should use these exact arguments
-        let expected_args = vec!["dependency:purge-local-repository", "-DreResolve=false"];
+        let expected_args = ["dependency:purge-local-repository", "-DreResolve=false"];
         
         // Verify the command structure
         assert_eq!(expected_args[0], "dependency:purge-local-repository");

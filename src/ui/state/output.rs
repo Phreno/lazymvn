@@ -216,12 +216,7 @@ impl TuiState {
     pub fn update_output_metrics(&mut self, width: u16) {
         let tab = self.get_active_tab_mut();
         tab.output_area_width = width;
-        if width == 0 || tab.command_output.is_empty() {
-            tab.output_metrics = None;
-            return;
-        }
-        let width_usize = width as usize;
-        tab.output_metrics = Some(OutputMetrics::new(width_usize, &tab.command_output));
+        tab.output_metrics = calculate_output_metrics(width, &tab.command_output);
     }
 
     /// Set output view dimensions and adjust scrolling
@@ -252,8 +247,7 @@ impl TuiState {
         }
         let max_offset = self.max_scroll_offset();
         let tab = self.get_active_tab_mut();
-        let current = tab.output_offset as isize;
-        let next = (current + delta).clamp(0, max_offset as isize) as usize;
+        let next = calculate_clamped_scroll(tab.output_offset, delta, max_offset);
         if next != tab.output_offset {
             tab.output_offset = next;
             self.store_current_module_output();
@@ -564,5 +558,84 @@ mod tests {
         let tab = state.get_active_tab();
         assert!(tab.command_output.is_empty());
         assert_eq!(tab.output_offset, 0);
+    }
+}
+
+/// Calculate output metrics for text wrapping
+fn calculate_output_metrics(width: u16, lines: &[String]) -> Option<OutputMetrics> {
+    if width == 0 || lines.is_empty() {
+        None
+    } else {
+        Some(OutputMetrics::new(width as usize, lines))
+    }
+}
+
+/// Calculate clamped scroll position
+fn calculate_clamped_scroll(current: usize, delta: isize, max: usize) -> usize {
+    let current_i = current as isize;
+    (current_i + delta).clamp(0, max as isize) as usize
+}
+
+/// Format success message for clipboard operation
+#[allow(dead_code)]
+fn format_clipboard_success(line_count: usize) -> String {
+    format!("✓ Copied {} lines to clipboard", line_count)
+}
+
+/// Format error message for clipboard operation
+#[allow(dead_code)]
+fn format_clipboard_error(error: &str) -> String {
+    format!("✗ Failed to copy: {}", error)
+}
+
+#[cfg(test)]
+mod helper_tests {
+    use super::*;
+
+    #[test]
+    fn test_calculate_output_metrics_empty() {
+        assert!(calculate_output_metrics(80, &[]).is_none());
+    }
+
+    #[test]
+    fn test_calculate_output_metrics_zero_width() {
+        let lines = vec!["test".to_string()];
+        assert!(calculate_output_metrics(0, &lines).is_none());
+    }
+
+    #[test]
+    fn test_calculate_output_metrics_valid() {
+        let lines = vec!["test".to_string()];
+        assert!(calculate_output_metrics(80, &lines).is_some());
+    }
+
+    #[test]
+    fn test_calculate_clamped_scroll_normal() {
+        assert_eq!(calculate_clamped_scroll(10, 5, 100), 15);
+    }
+
+    #[test]
+    fn test_calculate_clamped_scroll_negative() {
+        assert_eq!(calculate_clamped_scroll(10, -5, 100), 5);
+    }
+
+    #[test]
+    fn test_calculate_clamped_scroll_below_zero() {
+        assert_eq!(calculate_clamped_scroll(3, -5, 100), 0);
+    }
+
+    #[test]
+    fn test_calculate_clamped_scroll_above_max() {
+        assert_eq!(calculate_clamped_scroll(95, 10, 100), 100);
+    }
+
+    #[test]
+    fn test_format_clipboard_success() {
+        assert_eq!(format_clipboard_success(42), "✓ Copied 42 lines to clipboard");
+    }
+
+    #[test]
+    fn test_format_clipboard_error() {
+        assert_eq!(format_clipboard_error("permission denied"), "✗ Failed to copy: permission denied");
     }
 }

@@ -91,6 +91,7 @@ impl TuiState {
     }
 
     /// Run Maven command with option to use -f instead of -pl
+    #[allow(dead_code)]
     pub fn run_selected_module_command_with_options(&mut self, args: &[&str], use_file_flag: bool) {
         self.run_selected_module_command_with_key_and_options(args, use_file_flag, None);
     }

@@ -318,7 +318,7 @@ fn test_fix_backward_compatibility() {
 
         // Should have profile property (1.x or 2.x)
         let has_profiles = command.iter().any(|arg| {
-            arg.contains("profiles=") && arg.contains(&profiles[0])
+            arg.contains("profiles=") && arg.contains(profiles[0])
         });
         assert!(
             has_profiles,
@@ -329,7 +329,7 @@ fn test_fix_backward_compatibility() {
 
         // Should have JVM args property (1.x or 2.x)
         let has_jvm_args = command.iter().any(|arg| {
-            arg.contains("jvmArguments=") && arg.contains(&jvm_args[0])
+            arg.contains("jvmArguments=") && arg.contains(jvm_args[0])
         });
         assert!(
             has_jvm_args,

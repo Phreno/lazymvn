@@ -32,13 +32,17 @@ impl Favorite {
 
     /// Format the favorite for display in list
     pub fn format_summary(&self) -> String {
-        let module_display = if self.module == "." {
-            "(root)".to_string()
-        } else {
-            self.module.clone()
-        };
-
+        let module_display = format_module_display(&self.module);
         format!("{} → [{}] {}", self.name, module_display, self.goal)
+    }
+}
+
+/// Format module name for display
+fn format_module_display(module: &str) -> String {
+    if module == "." {
+        "(root)".to_string()
+    } else {
+        module.to_string()
     }
 }
 
@@ -53,21 +57,7 @@ impl Favorites {
     /// Load favorites from disk
     pub fn load() -> Self {
         let file_path = Self::get_favorites_file_path();
-
-        let favorites = if file_path.exists() {
-            match fs::read_to_string(&file_path) {
-                Ok(contents) => serde_json::from_str(&contents).unwrap_or_else(|e| {
-                    log::warn!("Failed to parse favorites: {}", e);
-                    Vec::new()
-                }),
-                Err(e) => {
-                    log::warn!("Failed to read favorites: {}", e);
-                    Vec::new()
-                }
-            }
-        } else {
-            Vec::new()
-        };
+        let favorites = load_favorites_from_file(&file_path);
 
         Self {
             favorites,
@@ -77,30 +67,16 @@ impl Favorites {
 
     /// Add a favorite
     pub fn add(&mut self, favorite: Favorite) {
-        // Check if name already exists
-        if let Some(existing) = self.favorites.iter_mut().find(|f| f.name == favorite.name) {
-            // Replace existing favorite with same name
-            *existing = favorite;
-            log::info!("Updated existing favorite: {}", existing.name);
-        } else {
-            // Add new favorite
-            self.favorites.push(favorite);
-            log::info!("Added new favorite");
-        }
-
+        add_or_update_favorite(&mut self.favorites, favorite);
         self.save();
     }
 
     /// Remove a favorite by index
     pub fn remove(&mut self, index: usize) -> Option<Favorite> {
-        if index < self.favorites.len() {
-            let removed = self.favorites.remove(index);
+        remove_favorite_at_index(&mut self.favorites, index).inspect(|removed| {
             log::info!("Removed favorite: {}", removed.name);
             self.save();
-            Some(removed)
-        } else {
-            None
-        }
+        })
     }
 
     /// Get all favorites
@@ -146,6 +122,59 @@ impl Favorites {
         self.favorites.clear();
         self.save();
     }
+}
+
+/// Load favorites from file
+fn load_favorites_from_file(file_path: &PathBuf) -> Vec<Favorite> {
+    if !file_path.exists() {
+        return Vec::new();
+    }
+
+    match fs::read_to_string(file_path) {
+        Ok(contents) => parse_favorites_json(&contents),
+        Err(e) => {
+            log::warn!("Failed to read favorites: {}", e);
+            Vec::new()
+        }
+    }
+}
+
+/// Parse favorites from JSON string
+fn parse_favorites_json(json: &str) -> Vec<Favorite> {
+    serde_json::from_str(json).unwrap_or_else(|e| {
+        log::warn!("Failed to parse favorites: {}", e);
+        Vec::new()
+    })
+}
+
+/// Add or update a favorite in the list
+fn add_or_update_favorite(favorites: &mut Vec<Favorite>, favorite: Favorite) {
+    if let Some(existing) = find_favorite_by_name(favorites, &favorite.name) {
+        *existing = favorite;
+        log::info!("Updated existing favorite: {}", existing.name);
+    } else {
+        favorites.push(favorite);
+        log::info!("Added new favorite");
+    }
+}
+
+/// Find a favorite by name (mutable)
+fn find_favorite_by_name<'a>(favorites: &'a mut [Favorite], name: &str) -> Option<&'a mut Favorite> {
+    favorites.iter_mut().find(|f| f.name == name)
+}
+
+/// Remove a favorite at the given index
+fn remove_favorite_at_index(favorites: &mut Vec<Favorite>, index: usize) -> Option<Favorite> {
+    if is_valid_index(favorites.len(), index) {
+        Some(favorites.remove(index))
+    } else {
+        None
+    }
+}
+
+/// Check if index is valid for the given length
+fn is_valid_index(len: usize, index: usize) -> bool {
+    index < len
 }
 
 #[cfg(test)]
@@ -330,5 +359,62 @@ mod tests {
         assert_eq!(fav.flags.len(), 2);
         assert!(fav.profiles.contains(&"prod".to_string()));
         assert!(fav.flags.contains(&"-DskipTests".to_string()));
+    }
+
+    #[test]
+    fn test_format_module_display_root() {
+        assert_eq!(format_module_display("."), "(root)");
+    }
+
+    #[test]
+    fn test_format_module_display_named() {
+        assert_eq!(format_module_display("my-module"), "my-module");
+    }
+
+    #[test]
+    fn test_parse_favorites_json_valid() {
+        let json = r#"[{"name":"Test","module":".","goal":"test","profiles":[],"flags":[]}]"#;
+        let favorites = parse_favorites_json(json);
+        assert_eq!(favorites.len(), 1);
+        assert_eq!(favorites[0].name, "Test");
+    }
+
+    #[test]
+    fn test_parse_favorites_json_invalid() {
+        let json = "invalid json";
+        let favorites = parse_favorites_json(json);
+        assert_eq!(favorites.len(), 0);
+    }
+
+    #[test]
+    fn test_is_valid_index() {
+        assert!(is_valid_index(5, 0));
+        assert!(is_valid_index(5, 4));
+        assert!(!is_valid_index(5, 5));
+        assert!(!is_valid_index(5, 10));
+    }
+
+    #[test]
+    fn test_remove_favorite_at_index_valid() {
+        let mut favorites = vec![
+            Favorite::new("A".to_string(), ".".to_string(), "test".to_string(), vec![], vec![]),
+            Favorite::new("B".to_string(), ".".to_string(), "test".to_string(), vec![], vec![]),
+        ];
+        
+        let removed = remove_favorite_at_index(&mut favorites, 0);
+        assert!(removed.is_some());
+        assert_eq!(removed.unwrap().name, "A");
+        assert_eq!(favorites.len(), 1);
+    }
+
+    #[test]
+    fn test_remove_favorite_at_index_invalid() {
+        let mut favorites = vec![
+            Favorite::new("A".to_string(), ".".to_string(), "test".to_string(), vec![], vec![]),
+        ];
+        
+        let removed = remove_favorite_at_index(&mut favorites, 10);
+        assert!(removed.is_none());
+        assert_eq!(favorites.len(), 1);
     }
 }

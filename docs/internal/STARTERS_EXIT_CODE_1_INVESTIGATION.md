@@ -9,7 +9,7 @@
 ### Symptômes
 
 ```
---- exec-maven-plugin:3.0.0:java (default-cli) @ HY5-module-usines ---
+--- exec-maven-plugin:3.0.0:java (default-cli) @ HY5-module-bar ---
 fr.foo.foo.foo.internal.core.ApplicationConfigurationManager - Constructeur : BootStrap en cours...
 initBootStrap() en cours...
 
@@ -30,7 +30,7 @@ L'utilisateur a signalé : **"L'application se lançait avant"**
 ### Commande Générée (AVANT fix)
 
 ```bash
-mvn -pl HY5-module-usines \
+mvn -pl foo-module-usines \
     -Dexec.mainClass=fr.foo.foo.foo.internal.core.ApplicationConfigurationManager \
     exec:java
 ```

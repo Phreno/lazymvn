@@ -5,19 +5,34 @@ use std::process::Command;
 /// Get the current Git branch name for a project
 /// Returns None if not a Git repository or if branch cannot be determined
 pub fn get_git_branch(project_root: &std::path::Path) -> Option<String> {
-    let output = Command::new("git")
+    let output = execute_git_branch_command(project_root)?;
+    
+    if !is_command_successful(&output) {
+        return None;
+    }
+
+    parse_branch_output(output.stdout)
+}
+
+/// Execute git branch command
+fn execute_git_branch_command(project_root: &std::path::Path) -> Option<std::process::Output> {
+    Command::new("git")
         .arg("-C")
         .arg(project_root)
         .arg("branch")
         .arg("--show-current")
         .output()
-        .ok()?;
+        .ok()
+}
 
-    if !output.status.success() {
-        return None;
-    }
+/// Check if command was successful
+fn is_command_successful(output: &std::process::Output) -> bool {
+    output.status.success()
+}
 
-    let branch = String::from_utf8(output.stdout).ok()?;
+/// Parse branch name from command output
+fn parse_branch_output(stdout: Vec<u8>) -> Option<String> {
+    let branch = String::from_utf8(stdout).ok()?;
     let branch = branch.trim();
 
     if branch.is_empty() {

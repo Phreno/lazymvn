@@ -67,18 +67,29 @@ impl SearchState {
 
 /// Collect search matches from command output using a regex
 pub fn collect_search_matches(command_output: &[String], regex: &Regex) -> Vec<SearchMatch> {
-    let mut matches = Vec::new();
-    for (line_index, line) in command_output.iter().enumerate() {
-        let cleaned = crate::utils::clean_log_line(line).unwrap_or_default();
-        for mat in regex.find_iter(&cleaned) {
-            matches.push(SearchMatch {
-                line_index,
-                start: mat.start(),
-                end: mat.end(),
-            });
-        }
+    command_output
+        .iter()
+        .enumerate()
+        .flat_map(|(line_index, line)| find_matches_in_line(line, line_index, regex))
+        .collect()
+}
+
+/// Find all matches in a single line
+fn find_matches_in_line(line: &str, line_index: usize, regex: &Regex) -> Vec<SearchMatch> {
+    let cleaned = crate::utils::clean_log_line(line).unwrap_or_default();
+    regex
+        .find_iter(&cleaned)
+        .map(|mat| create_search_match(line_index, mat.start(), mat.end()))
+        .collect()
+}
+
+/// Create a search match
+fn create_search_match(line_index: usize, start: usize, end: usize) -> SearchMatch {
+    SearchMatch {
+        line_index,
+        start,
+        end,
     }
-    matches
 }
 
 /// Generate styled spans for a line with search highlights
@@ -86,26 +97,54 @@ pub fn search_line_style(
     line_index: usize,
     search_state: &SearchState,
 ) -> Option<Vec<(Style, std::ops::Range<usize>)>> {
-    let mut highlights = Vec::new();
-
-    for (match_idx, search_match) in search_state.matches.iter().enumerate() {
-        if search_match.line_index == line_index {
-            let style = if match_idx == search_state.current {
-                Theme::CURRENT_SEARCH_MATCH_STYLE
-            } else {
-                Theme::SEARCH_MATCH_STYLE
-            };
-            highlights.push((style, search_match.start..search_match.end));
-        }
-    }
-
+    let highlights = collect_highlights_for_line(line_index, search_state);
+    
     if highlights.is_empty() {
         None
     } else {
-        // Sort highlights by start position
-        highlights.sort_by_key(|(_, range)| range.start);
-        Some(highlights)
+        Some(sort_highlights(highlights))
     }
+}
+
+/// Collect all search highlights for a specific line
+fn collect_highlights_for_line(
+    line_index: usize,
+    search_state: &SearchState,
+) -> Vec<(Style, std::ops::Range<usize>)> {
+    search_state
+        .matches
+        .iter()
+        .enumerate()
+        .filter(|(_, m)| m.line_index == line_index)
+        .map(|(idx, m)| create_highlight(idx, m, search_state.current))
+        .collect()
+}
+
+/// Create a highlight with appropriate style
+fn create_highlight(
+    match_idx: usize,
+    search_match: &SearchMatch,
+    current_match: usize,
+) -> (Style, std::ops::Range<usize>) {
+    let style = select_highlight_style(match_idx, current_match);
+    (style, search_match.start..search_match.end)
+}
+
+/// Select highlight style based on whether it's the current match
+fn select_highlight_style(match_idx: usize, current_match: usize) -> Style {
+    if match_idx == current_match {
+        Theme::CURRENT_SEARCH_MATCH_STYLE
+    } else {
+        Theme::SEARCH_MATCH_STYLE
+    }
+}
+
+/// Sort highlights by start position
+fn sort_highlights(
+    mut highlights: Vec<(Style, std::ops::Range<usize>)>,
+) -> Vec<(Style, std::ops::Range<usize>)> {
+    highlights.sort_by_key(|(_, range)| range.start);
+    highlights
 }
 
 /// Generate search status line for the footer
@@ -115,71 +154,98 @@ pub fn search_status_line(
     search_state: Option<&SearchState>,
 ) -> Option<Line<'static>> {
     if let Some(buffer) = search_input {
-        // Show live search feedback during input
-        if buffer.is_empty() {
-            return Some(Line::from(vec![
-                Span::styled("/", Theme::INFO_STYLE),
-                Span::raw("_ (type to search, Enter to confirm, Esc to cancel)"),
-            ]));
-        }
-
-        // Show live search results
-        if let Some(search) = search_state {
-            if search.has_matches() {
-                let current = search.current + 1;
-                let total = search.total_matches();
-                return Some(Line::from(vec![
-                    Span::styled("/", Theme::INFO_STYLE),
-                    Span::raw(format!(
-                        "{buffer}_ - {current}/{total} matches (Enter to confirm, Esc to cancel)"
-                    )),
-                ]));
-            } else {
-                return Some(Line::from(vec![
-                    Span::styled("/", Theme::INFO_STYLE),
-                    Span::raw(format!("{buffer}_ - ")),
-                    Span::styled("no matches", Theme::ERROR_STYLE),
-                    Span::raw(" (Enter to confirm, Esc to cancel)"),
-                ]));
-            }
-        } else {
-            return Some(Line::from(vec![
-                Span::styled("/", Theme::INFO_STYLE),
-                Span::raw(format!(
-                    "{buffer}_ (type to search, Enter to confirm, Esc to cancel)"
-                )),
-            ]));
-        }
+        return Some(format_search_input_line(buffer, search_state));
     }
 
     if let Some(error) = search_error {
-        return Some(Line::from(vec![
-            Span::raw("Search error: "),
-            Span::styled(error.to_string(), Theme::ERROR_STYLE),
-            Span::raw(" (Esc to dismiss)"),
-        ]));
+        return Some(format_search_error_line(error));
+    }
+
+    search_state.map(format_search_result_line)
+}
+
+/// Format the search input line (during typing)
+fn format_search_input_line(buffer: &str, search_state: Option<&SearchState>) -> Line<'static> {
+    if buffer.is_empty() {
+        return create_empty_search_prompt();
     }
 
     if let Some(search) = search_state {
-        if search.has_matches() {
-            let current = search.current + 1;
-            let total = search.total_matches();
-            return Some(Line::from(vec![
-                Span::styled("Search", Theme::INFO_STYLE),
-                Span::raw(format!(
-                    " Match {current}/{total}   /{} (n/N/Enter to exit)",
-                    search.query
-                )),
-            ]));
-        } else {
-            return Some(Line::from(vec![
-                Span::styled("Search", Theme::INFO_STYLE),
-                Span::raw(format!(" No matches   /{} (Enter to exit)", search.query)),
-            ]));
-        }
+        format_live_search_results(buffer, search)
+    } else {
+        create_typing_prompt(buffer)
     }
+}
 
-    None
+/// Create empty search prompt
+fn create_empty_search_prompt() -> Line<'static> {
+    Line::from(vec![
+        Span::styled("/", Theme::INFO_STYLE),
+        Span::raw("_ (type to search, Enter to confirm, Esc to cancel)"),
+    ])
+}
+
+/// Format live search results
+fn format_live_search_results(buffer: &str, search: &SearchState) -> Line<'static> {
+    if search.has_matches() {
+        let (current, total) = get_match_position(search);
+        Line::from(vec![
+            Span::styled("/", Theme::INFO_STYLE),
+            Span::raw(format!(
+                "{buffer}_ - {current}/{total} matches (Enter to confirm, Esc to cancel)"
+            )),
+        ])
+    } else {
+        Line::from(vec![
+            Span::styled("/", Theme::INFO_STYLE),
+            Span::raw(format!("{buffer}_ - ")),
+            Span::styled("no matches", Theme::ERROR_STYLE),
+            Span::raw(" (Enter to confirm, Esc to cancel)"),
+        ])
+    }
+}
+
+/// Create typing prompt
+fn create_typing_prompt(buffer: &str) -> Line<'static> {
+    Line::from(vec![
+        Span::styled("/", Theme::INFO_STYLE),
+        Span::raw(format!(
+            "{buffer}_ (type to search, Enter to confirm, Esc to cancel)"
+        )),
+    ])
+}
+
+/// Format search error line
+fn format_search_error_line(error: &str) -> Line<'static> {
+    Line::from(vec![
+        Span::raw("Search error: "),
+        Span::styled(error.to_string(), Theme::ERROR_STYLE),
+        Span::raw(" (Esc to dismiss)"),
+    ])
+}
+
+/// Format search result line (after confirming search)
+fn format_search_result_line(search: &SearchState) -> Line<'static> {
+    if search.has_matches() {
+        let (current, total) = get_match_position(search);
+        Line::from(vec![
+            Span::styled("Search", Theme::INFO_STYLE),
+            Span::raw(format!(
+                " Match {current}/{total}   /{} (n/N/Enter to exit)",
+                search.query
+            )),
+        ])
+    } else {
+        Line::from(vec![
+            Span::styled("Search", Theme::INFO_STYLE),
+            Span::raw(format!(" No matches   /{} (Enter to exit)", search.query)),
+        ])
+    }
+}
+
+/// Get current match position (1-indexed)
+fn get_match_position(search: &SearchState) -> (usize, usize) {
+    (search.current + 1, search.total_matches())
 }
 
 #[cfg(test)]
@@ -506,5 +572,115 @@ mod tests {
         assert_eq!(highlights.len(), 2);
         // Both matches on same line, second should be styled as current
         assert_eq!(highlights[1].0, Theme::CURRENT_SEARCH_MATCH_STYLE);
+    }
+
+    #[test]
+    fn test_create_search_match() {
+        let mat = create_search_match(5, 10, 15);
+        assert_eq!(mat.line_index, 5);
+        assert_eq!(mat.start, 10);
+        assert_eq!(mat.end, 15);
+    }
+
+    #[test]
+    fn test_select_highlight_style_current() {
+        let style = select_highlight_style(2, 2);
+        assert_eq!(style, Theme::CURRENT_SEARCH_MATCH_STYLE);
+    }
+
+    #[test]
+    fn test_select_highlight_style_not_current() {
+        let style = select_highlight_style(1, 2);
+        assert_eq!(style, Theme::SEARCH_MATCH_STYLE);
+    }
+
+    #[test]
+    fn test_get_match_position() {
+        let matches = vec![
+            SearchMatch {
+                line_index: 0,
+                start: 0,
+                end: 4,
+            },
+            SearchMatch {
+                line_index: 1,
+                start: 5,
+                end: 9,
+            },
+        ];
+        let mut state = SearchState::new("test".to_string(), matches);
+        
+        let (current, total) = get_match_position(&state);
+        assert_eq!(current, 1);
+        assert_eq!(total, 2);
+        
+        state.next_match();
+        let (current, total) = get_match_position(&state);
+        assert_eq!(current, 2);
+        assert_eq!(total, 2);
+    }
+
+    #[test]
+    fn test_search_status_line_empty_input() {
+        let line = search_status_line(Some(""), None, None);
+        assert!(line.is_some());
+        let line = line.unwrap();
+        assert!(line.to_string().contains("type to search"));
+    }
+
+    #[test]
+    fn test_search_status_line_with_results() {
+        let matches = vec![SearchMatch {
+            line_index: 0,
+            start: 0,
+            end: 4,
+        }];
+        let state = SearchState::new("test".to_string(), matches);
+        
+        let line = search_status_line(Some("test"), None, Some(&state));
+        assert!(line.is_some());
+        let line = line.unwrap();
+        assert!(line.to_string().contains("1/1"));
+    }
+
+    #[test]
+    fn test_search_status_line_no_matches() {
+        let state = SearchState::new("test".to_string(), vec![]);
+        
+        let line = search_status_line(Some("test"), None, Some(&state));
+        assert!(line.is_some());
+        let line = line.unwrap();
+        assert!(line.to_string().contains("no matches"));
+    }
+
+    #[test]
+    fn test_search_status_line_error() {
+        let line = search_status_line(None, Some("Invalid regex"), None);
+        assert!(line.is_some());
+        let line = line.unwrap();
+        assert!(line.to_string().contains("Invalid regex"));
+    }
+
+    #[test]
+    fn test_search_status_line_confirmed_search() {
+        let matches = vec![
+            SearchMatch {
+                line_index: 0,
+                start: 0,
+                end: 4,
+            },
+            SearchMatch {
+                line_index: 1,
+                start: 5,
+                end: 9,
+            },
+        ];
+        let state = SearchState::new("test".to_string(), matches);
+        
+        let line = search_status_line(None, None, Some(&state));
+        assert!(line.is_some());
+        let line = line.unwrap();
+        assert!(line.to_string().contains("1/2"));
+        assert!(line.to_string().contains("/test"));
     }
 }

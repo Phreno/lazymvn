@@ -3,28 +3,41 @@ use quick_xml::events::Event;
 use std::collections::hash_map::DefaultHasher;
 use std::fs;
 use std::hash::{Hash, Hasher};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+type ModulesResult = Result<Option<(Vec<String>, PathBuf)>, Box<dyn std::error::Error>>;
 
 pub fn find_pom() -> Option<PathBuf> {
-    let mut current_dir = std::env::current_dir().ok()?;
+    let current_dir = std::env::current_dir().ok()?;
     log::debug!("Searching for pom.xml starting from: {:?}", current_dir);
+    search_pom_upward(current_dir)
+}
+
+/// Search for pom.xml in current and parent directories
+fn search_pom_upward(mut current_dir: PathBuf) -> Option<PathBuf> {
     loop {
         let pom_path = current_dir.join("pom.xml");
         log::debug!("Checking path: {:?}", pom_path);
+        
         if pom_path.exists() {
             log::info!("Found pom.xml at: {:?}", pom_path);
             return Some(pom_path);
         }
-        if !current_dir.pop() {
+        
+        if !has_parent_dir(&mut current_dir) {
             log::warn!("pom.xml not found in any parent directory");
             return None;
         }
     }
 }
 
+/// Check if directory has a parent and move to it
+fn has_parent_dir(current_dir: &mut PathBuf) -> bool {
+    current_dir.pop()
+}
+
 fn parse_modules_from_str(content: &str) -> Vec<String> {
-    let mut reader = Reader::from_str(content);
-    reader.config_mut().trim_text(true);
+    let mut reader = create_xml_reader(content);
     let mut buf = Vec::new();
     let mut modules = Vec::new();
     let mut in_module = false;
@@ -32,16 +45,14 @@ fn parse_modules_from_str(content: &str) -> Vec<String> {
     loop {
         match reader.read_event_into(&mut buf) {
             Ok(Event::Start(e)) => {
-                if e.name().as_ref() == b"module" {
+                if is_module_tag(&e) {
                     in_module = true;
                 }
             }
             Ok(Event::Text(e)) => {
                 if in_module {
-                    if let Ok(text) = e.decode() {
-                        modules.push(text.to_string());
-                    }
-                    in_module = false; // Reset after getting the text
+                    add_module_text(&mut modules, &e);
+                    in_module = false;
                 }
             }
             Ok(Event::Eof) => break,
@@ -54,6 +65,25 @@ fn parse_modules_from_str(content: &str) -> Vec<String> {
     modules
 }
 
+/// Create XML reader with trimmed text
+fn create_xml_reader(content: &str) -> Reader<&[u8]> {
+    let mut reader = Reader::from_str(content);
+    reader.config_mut().trim_text(true);
+    reader
+}
+
+/// Check if XML element is a module tag
+fn is_module_tag(e: &quick_xml::events::BytesStart) -> bool {
+    e.name().as_ref() == b"module"
+}
+
+/// Add module text to modules list
+fn add_module_text(modules: &mut Vec<String>, e: &quick_xml::events::BytesText) {
+    if let Ok(text) = e.decode() {
+        modules.push(text.to_string());
+    }
+}
+
 fn compute_pom_hash(content: &str) -> u64 {
     let mut hasher = DefaultHasher::new();
     content.hash(&mut hasher);
@@ -62,64 +92,114 @@ fn compute_pom_hash(content: &str) -> u64 {
 
 pub fn get_project_modules() -> Result<(Vec<String>, PathBuf), Box<dyn std::error::Error>> {
     log::debug!("get_project_modules: Starting module discovery");
+    let (cache_dir, cache_path) = get_cache_paths()?;
+    let cached_entry = load_cache_if_exists(&cache_path);
+    let current_dir = std::env::current_dir()?;
+    log::debug!("Current directory: {:?}", current_dir);
+
+    if let Some(cache) = cached_entry.as_ref()
+        && let Some(result) = try_use_cache(cache, &current_dir, &cache_dir, &cache_path)?
+    {
+        return Ok(result);
+    }
+
+    discover_and_cache_modules(&cache_dir, &cache_path)
+}
+
+/// Get cache directory and path
+fn get_cache_paths() -> Result<(PathBuf, PathBuf), Box<dyn std::error::Error>> {
     let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
     let cache_dir = home_dir.join(".config/lazymvn");
     let cache_path = cache_dir.join("cache.json");
     log::debug!("Cache path: {:?}", cache_path);
+    Ok((cache_dir, cache_path))
+}
 
-    let cached_entry = if cache_path.exists() {
+/// Load cache if it exists
+fn load_cache_if_exists(cache_path: &Path) -> Option<cache::Cache> {
+    if cache_path.exists() {
         log::debug!("Cache file exists, attempting to load");
-        cache::load_cache(&cache_path).ok()
+        cache::load_cache(cache_path).ok()
     } else {
         log::debug!("No cache file found");
         None
-    };
+    }
+}
 
-    let current_dir = std::env::current_dir()?;
-    log::debug!("Current directory: {:?}", current_dir);
-
-    if let Some(cache) = cached_entry.as_ref() {
-        log::debug!("Checking cached project root: {:?}", cache.project_root);
-        if current_dir.starts_with(&cache.project_root) {
-            let pom_path = cache.project_root.join("pom.xml");
-            if let Ok(pom_content) = fs::read_to_string(&pom_path) {
-                let pom_hash = compute_pom_hash(&pom_content);
-                log::debug!(
-                    "Current pom hash: {}, cached hash: {:?}",
-                    pom_hash,
-                    cache.pom_hash
-                );
-                if cache.pom_hash == Some(pom_hash) {
-                    log::info!(
-                        "Using cached modules (hash match): {} modules",
-                        cache.modules.len()
-                    );
-                    let modules = normalize_modules(cache.modules.clone());
-                    return Ok((modules, cache.project_root.clone()));
-                }
-
-                log::info!("POM changed, reparsing modules");
-                let modules = normalize_modules(parse_modules_from_str(&pom_content));
-                log::debug!("Parsed {} modules from updated POM", modules.len());
-                fs::create_dir_all(&cache_dir)?;
-                let updated_cache = cache::Cache {
-                    project_root: cache.project_root.clone(),
-                    modules: modules.clone(),
-                    pom_hash: Some(pom_hash),
-                };
-                cache::save_cache(&cache_path, &updated_cache)?;
-                log::debug!("Updated cache saved");
-                return Ok((modules, cache.project_root.clone()));
-            } else {
-                log::warn!("Could not read POM, using cached modules");
-                let modules = normalize_modules(cache.modules.clone());
-                return Ok((modules, cache.project_root.clone()));
-            }
-        } else {
-            log::debug!("Current dir not under cached project root, discovering new project");
-        }
+/// Try to use cached modules
+fn try_use_cache(
+    cache: &cache::Cache,
+    current_dir: &Path,
+    cache_dir: &Path,
+    cache_path: &Path,
+) -> ModulesResult {
+    log::debug!("Checking cached project root: {:?}", cache.project_root);
+    
+    if !current_dir.starts_with(&cache.project_root) {
+        log::debug!("Current dir not under cached project root, discovering new project");
+        return Ok(None);
     }
 
+    let pom_path = cache.project_root.join("pom.xml");
+    if let Ok(pom_content) = fs::read_to_string(&pom_path) {
+        let pom_hash = compute_pom_hash(&pom_content);
+        log::debug!(
+            "Current pom hash: {}, cached hash: {:?}",
+            pom_hash,
+            cache.pom_hash
+        );
+        
+        if cache.pom_hash == Some(pom_hash) {
+            log::info!(
+                "Using cached modules (hash match): {} modules",
+                cache.modules.len()
+            );
+            let modules = normalize_modules(cache.modules.clone());
+            return Ok(Some((modules, cache.project_root.clone())));
+        }
+
+        log::info!("POM changed, reparsing modules");
+        return Ok(Some(update_cache_with_new_pom(
+            &pom_content,
+            &cache.project_root,
+            cache_dir,
+            cache_path,
+        )?));
+    }
+    
+    log::warn!("Could not read POM, using cached modules");
+    let modules = normalize_modules(cache.modules.clone());
+    Ok(Some((modules, cache.project_root.clone())))
+}
+
+/// Update cache with new POM content
+fn update_cache_with_new_pom(
+    pom_content: &str,
+    project_root: &Path,
+    cache_dir: &Path,
+    cache_path: &Path,
+) -> Result<(Vec<String>, PathBuf), Box<dyn std::error::Error>> {
+    let modules = normalize_modules(parse_modules_from_str(pom_content));
+    let pom_hash = compute_pom_hash(pom_content);
+    log::debug!("Parsed {} modules from updated POM", modules.len());
+    
+    fs::create_dir_all(cache_dir)?;
+    let updated_cache = cache::Cache {
+        project_root: project_root.to_path_buf(),
+        modules: modules.clone(),
+        pom_hash: Some(pom_hash),
+    };
+    cache::save_cache(cache_path, &updated_cache)?;
+    log::debug!("Updated cache saved");
+    
+    Ok((modules, project_root.to_path_buf()))
+}
+
+/// Discover modules and create cache
+fn discover_and_cache_modules(
+    cache_dir: &Path,
+    cache_path: &Path,
+) -> Result<(Vec<String>, PathBuf), Box<dyn std::error::Error>> {
     log::debug!("No valid cache, searching for pom.xml");
     let pom_path = find_pom().ok_or("pom.xml not found")?;
     let project_root = pom_path.parent().unwrap().to_path_buf();
@@ -127,24 +207,42 @@ pub fn get_project_modules() -> Result<(Vec<String>, PathBuf), Box<dyn std::erro
 
     let pom_content = fs::read_to_string(&pom_path).unwrap_or_default();
     let modules = normalize_modules(parse_modules_from_str(&pom_content));
+    
+    log_discovered_modules(&modules);
+    
+    let pom_hash = compute_pom_hash(&pom_content);
+    log::debug!("Computed POM hash: {}", pom_hash);
+
+    save_new_cache(cache_dir, cache_path, &project_root, &modules, pom_hash)?;
+    
+    Ok((modules, project_root))
+}
+
+/// Log discovered modules
+fn log_discovered_modules(modules: &[String]) {
     log::debug!("Parsed {} modules from POM", modules.len());
     for (i, module) in modules.iter().enumerate() {
         log::debug!("  Module {}: {}", i + 1, module);
     }
+}
 
-    let pom_hash = compute_pom_hash(&pom_content);
-    log::debug!("Computed POM hash: {}", pom_hash);
-
-    fs::create_dir_all(&cache_dir)?;
+/// Save new cache
+fn save_new_cache(
+    cache_dir: &Path,
+    cache_path: &Path,
+    project_root: &Path,
+    modules: &[String],
+    pom_hash: u64,
+) -> Result<(), Box<dyn std::error::Error>> {
+    fs::create_dir_all(cache_dir)?;
     let new_cache = cache::Cache {
-        project_root: project_root.clone(),
-        modules: modules.clone(),
+        project_root: project_root.to_path_buf(),
+        modules: modules.to_vec(),
         pom_hash: Some(pom_hash),
     };
-    cache::save_cache(&cache_path, &new_cache)?;
+    cache::save_cache(cache_path, &new_cache)?;
     log::debug!("New cache saved");
-
-    Ok((modules, project_root))
+    Ok(())
 }
 
 /// Get project modules for a specific project path

@@ -502,6 +502,49 @@ pub fn build_command_display(
     command_display
 }
 
+/// Helper function to read lines from a stream with UTF-8 lossy conversion
+/// This ensures that non-UTF-8 characters (common in Maven output from Windows)
+/// don't crash the reader thread
+fn read_lines_lossy<R: Read>(
+    reader: R,
+    tx: mpsc::Sender<CommandUpdate>,
+    stream_name: &str,
+) {
+    let mut buf_reader = BufReader::new(reader);
+    let mut buffer = Vec::new();
+    
+    loop {
+        buffer.clear();
+        
+        // Read until newline or EOF
+        match buf_reader.read_until(b'\n', &mut buffer) {
+            Ok(0) => {
+                // EOF reached
+                break;
+            }
+            Ok(_) => {
+                // Convert bytes to string with lossy UTF-8 conversion
+                // This replaces invalid UTF-8 sequences with �
+                let line = String::from_utf8_lossy(&buffer);
+                let line = line.trim_end_matches('\n').trim_end_matches('\r');
+                
+                log::trace!("[{}] {}", stream_name, line);
+                
+                if tx.send(CommandUpdate::OutputLine(line.to_string())).is_err() {
+                    log::warn!("Failed to send {} line (receiver closed)", stream_name);
+                    break;
+                }
+            }
+            Err(e) => {
+                log::error!("Error reading {}: {}", stream_name, e);
+                break;
+            }
+        }
+    }
+    
+    log::debug!("{} reader thread finished", stream_name);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -621,47 +664,4 @@ mod tests {
         // Root module (.) should not add -pl
         assert_eq!(result, "$ mvn install");
     }
-}
-
-/// Helper function to read lines from a stream with UTF-8 lossy conversion
-/// This ensures that non-UTF-8 characters (common in Maven output from Windows)
-/// don't crash the reader thread
-fn read_lines_lossy<R: Read>(
-    reader: R,
-    tx: mpsc::Sender<CommandUpdate>,
-    stream_name: &str,
-) {
-    let mut buf_reader = BufReader::new(reader);
-    let mut buffer = Vec::new();
-    
-    loop {
-        buffer.clear();
-        
-        // Read until newline or EOF
-        match buf_reader.read_until(b'\n', &mut buffer) {
-            Ok(0) => {
-                // EOF reached
-                break;
-            }
-            Ok(_) => {
-                // Convert bytes to string with lossy UTF-8 conversion
-                // This replaces invalid UTF-8 sequences with �
-                let line = String::from_utf8_lossy(&buffer);
-                let line = line.trim_end_matches('\n').trim_end_matches('\r');
-                
-                log::trace!("[{}] {}", stream_name, line);
-                
-                if tx.send(CommandUpdate::OutputLine(line.to_string())).is_err() {
-                    log::warn!("Failed to send {} line (receiver closed)", stream_name);
-                    break;
-                }
-            }
-            Err(e) => {
-                log::error!("Error reading {}: {}", stream_name, e);
-                break;
-            }
-        }
-    }
-    
-    log::debug!("{} reader thread finished", stream_name);
 }
